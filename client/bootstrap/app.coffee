@@ -1,0 +1,1 @@
+angular.module 'srtools', ['angular-meteor','ngMaterial','ui.router']
