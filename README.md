@@ -5,3 +5,7 @@ Objetivos
 - Crear fichas rápidas de PNJ con sus datos y monitores de salud.
 - Gestionar los turnos de iniciativa y sus modificadores.
 
+Micrometas
+- Mirar grid-list para mostrar, añadir y eliminar players
+- Mejorar los bocetos de la app
+
