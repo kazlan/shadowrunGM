@@ -1,1 +1,1 @@
-angular.module 'srtools', ['angular-meteor','ngMaterial','ui.router']
+angular.module 'srtools', ['angular-meteor','ngMaterial','ngMdIcons','ui.router']

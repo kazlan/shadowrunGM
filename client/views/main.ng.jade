@@ -1,1 +1,18 @@
-h1 main view file
+div(layout="column")
+	md-toolbar
+		.md-toolbar-tools
+			h1 Shadowrun GM Tools v0.0.1
+	md-content(style="height: 100vh;")
+		.player-list(layout-margin layout-padding)
+			md-grid-list(md-cols="4" md-row-height="4:3")
+				//ng-repeat con los personajes.. el ultimo es un 'añadir +'
+				// que abre un modal para añadir un personaje
+				md-grid-tile(ng-repeat="char in chars")
+					md-grid-tile-title-footer
+						{{char.nombre}}
+				// Tile extra para añadir chars
+				md-grid-tile(ng-click="addNewChar()")
+					ng-md-icon(icon="add_circle_outline" size="48")
+					md-grid-tile-footer(layout-padding)
+						a Añadir nuevo
+		
