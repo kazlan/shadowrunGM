@@ -1,6 +1,7 @@
 {
   "name": "shadowHack",
   "short_name": "shadowHack",
+=======
   "description": "PWA móvil de intrusión cyberpunk con hosts deterministas basados en empresas cercanas.",
   "start_url": "/",
   "scope": "/",

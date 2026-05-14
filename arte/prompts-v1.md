@@ -19,6 +19,7 @@ Estos prompts están pensados para generar un moodboard y assets originales para
 
 > Diseña un logo original para una PWA móvil llamada “shadowHack”, sobre intrusión digital cyberpunk y mapas de nodos. Icono geométrico abstracto, mezcla de hexágono, núcleo de red y conector de cyberdeck, paleta negro azulado, cyan neón y magenta. Debe funcionar en tamaño pequeño como icono de app, silueta clara, alto contraste, sin marcas reales, sin referencias a franquicias existentes, sin texto diminuto, estilo vectorial limpio, fondo transparente, 1:1.
 
+
 **Variantes a pedir:**
 
 - Logo solo símbolo.
@@ -170,7 +171,6 @@ Estos prompts están pensados para generar un moodboard y assets originales para
 ## 11. Mockup de pantalla de juego
 
 **Prompt:**
-
 > Mockup de UI móvil vertical para un juego PWA de intrusión digital llamado shadowHack. Pantalla completa, HUD superior con alias de host y alerta, mapa central de nodos conectados con geometría neón, panel inferior con cinco botones de programas táctiles, estética terminal cyberpunk retro, scanlines sutiles, alto contraste, legible en móvil, sin copiar pantallas existentes, sin logos reales, sin texto pequeño ilegible.
 
 **Objetivo:**
@@ -201,3 +201,4 @@ Estos prompts están pensados para generar un moodboard y assets originales para
 **Prompt:**
 
 > Crea una guía visual condensada para shadowHack, una PWA móvil cyberpunk de mapas de nodos e intrusión digital. Incluir paleta de color, tipografía sugerida, botones, tarjetas, nodos, iconos de programas, estados de alerta, fondos por arquetipo y reglas de composición para pantalla vertical. Estilo original, oscuro, neón sobrio, accesible y legible, sin referencias directas a franquicias existentes.
+
