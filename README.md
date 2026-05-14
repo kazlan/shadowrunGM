@@ -1,11 +1,38 @@
-#ShadowRun v5 Session Control (v0.0.1)
----
-Objetivos
-- Registrar jugadores de la partida y datos básicos de los personajes.
-- Crear fichas rápidas de PNJ con sus datos y monitores de salud.
-- Gestionar los turnos de iniciativa y sus modificadores.
+# shadowHack
 
-Micrometas
-- Mirar grid-list para mostrar, añadir y eliminar players
-- Mejorar los bocetos de la app
+PWA móvil vertical de intrusión cyberpunk. El objetivo es convertir negocios cercanos al jugador en hosts ficticios generados de forma determinista: si dos jugadores seleccionan la misma empresa normalizada, ambos reciben el mismo sistema, mapa de nodos, defensas y personalidad visual.
 
+## Principios del proyecto
+
+- **Mobile-first real**: interfaz diseñada para uso vertical, táctil y a pantalla completa.
+- **Hosts deterministas**: cada objetivo se genera desde un hash estable de los datos de la empresa.
+- **Privacidad por defecto**: la ubicación sirve para descubrir objetivos cercanos, no para crear un historial sensible.
+- **Inspiración, no copia**: tomamos ideas generales de ficción cyberpunk, mapas de nodos y decking, sin reproducir reglas, textos, pantallas ni assets propietarios.
+- **MVP rápido**: antes de simular todo, necesitamos un bucle jugable mínimo: entrar, explorar, extraer y salir.
+
+## Scripts
+
+```bash
+npm install
+npm run dev
+npm run build
+```
+
+## Estructura actual
+
+```text
+arte/                  Prompts y guía de assets visuales.
+docs/                  Plan, decisiones de diseño, privacidad y referencias.
+public/                Manifest, icono temporal y service worker.
+src/app/               Bootstrap vanilla JS de la PWA.
+src/game/              PRNG, generación de mapas, programas y defensas.
+src/location/          Geolocalización y utilidades de privacidad.
+src/pwa/               Registro del service worker.
+src/styles/            Tema visual mobile-first.
+src/ui/                HUD y mapa de nodos.
+src/world/             Empresas, semillas, arquetipos, proveedores y alias de host.
+```
+
+## Estado del prototipo
+
+La app ya arranca con objetivos demo, calcula una semilla SHA-256 por empresa, clasifica el arquetipo del host, genera un mapa de nodos reproducible mediante PRNG sembrado y permite jugar una run offline con escaneo, movimiento, programas, extracción, alerta, traza e integridad.

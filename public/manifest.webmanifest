@@ -1,0 +1,19 @@
+{
+  "name": "shadowHack",
+  "short_name": "shadowHack",
+  "description": "PWA móvil de intrusión cyberpunk con hosts deterministas basados en empresas cercanas.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "theme_color": "#050716",
+  "background_color": "#050716",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

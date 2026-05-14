@@ -1,0 +1,42 @@
+export const iceCatalog = {
+  watcher: {
+    kind: 'watcher',
+    label: 'Centinela',
+    icon: '◇',
+    color: '#f8d66d',
+    behavior: 'Patrulla y eleva la alerta si detecta acciones ruidosas.',
+    weakness: 'Ghost o rutas escaneadas.',
+  },
+  piercer: {
+    kind: 'piercer',
+    label: 'Perforador',
+    icon: '△',
+    color: '#ff3d6e',
+    behavior: 'Ataca la integridad del avatar cuando el intruso fuerza el paso.',
+    weakness: 'Shield antes de Spike.',
+  },
+  tracer: {
+    kind: 'tracer',
+    label: 'Rastreador',
+    icon: '◎',
+    color: '#b084ff',
+    behavior: 'Llena el contador de trazado hasta localizar al decker.',
+    weakness: 'Ghost y desconexión temprana.',
+  },
+  locker: {
+    kind: 'locker',
+    label: 'Ancla',
+    icon: '⬢',
+    color: '#7aa2ff',
+    behavior: 'Bloquea rutas y complica desconectarse bajo presión.',
+    weakness: 'Scan para encontrar bypass.',
+  },
+  crasher: {
+    kind: 'crasher',
+    label: 'Rompeprogramas',
+    icon: '✕',
+    color: '#ff9f43',
+    behavior: 'Desactiva temporalmente programas cargados.',
+    weakness: 'Spike rápido o Shield sostenido.',
+  },
+};
