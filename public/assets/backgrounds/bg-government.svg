@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" role="img" aria-label="shadowHack government background placeholder">
+  <defs>
+    <radialGradient id="g" cx="50%" cy="20%" r="80%">
+      <stop offset="0" stop-color="#b084ff" stop-opacity="0.28"/>
+      <stop offset="0.45" stop-color="#33ffcc" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#050716" stop-opacity="1"/>
+    </radialGradient>
+    <pattern id="grid" width="90" height="90" patternUnits="userSpaceOnUse">
+      <path d="M90 0H0V90" fill="none" stroke="#b084ff" stroke-opacity="0.13" stroke-width="2"/>
+    </pattern>
+  </defs>
+  <rect width="1080" height="1920" fill="#050716"/>
+  <rect width="1080" height="1920" fill="url(#g)"/>
+  <rect width="1080" height="1920" fill="url(#grid)" opacity="0.75"/>
+  <g opacity="0.95"><line x1="160" y1="420" x2="420" y2="330" stroke="#33ffcc" stroke-opacity="0.26" stroke-width="6"/>
+  <line x1="420" y1="330" x2="750" y2="460" stroke="#33ffcc" stroke-opacity="0.26" stroke-width="6"/>
+  <line x1="750" y1="460" x2="910" y2="760" stroke="#33ffcc" stroke-opacity="0.26" stroke-width="6"/>
+  <line x1="910" y1="760" x2="650" y2="940" stroke="#33ffcc" stroke-opacity="0.26" stroke-width="6"/>
+  <line x1="650" y1="940" x2="280" y2="820" stroke="#33ffcc" stroke-opacity="0.26" stroke-width="6"/>
+  <line x1="280" y1="820" x2="160" y2="1180" stroke="#33ffcc" stroke-opacity="0.26" stroke-width="6"/>
+  <line x1="160" y1="1180" x2="470" y2="1320" stroke="#33ffcc" stroke-opacity="0.26" stroke-width="6"/>
+  <line x1="470" y1="1320" x2="820" y2="1220" stroke="#33ffcc" stroke-opacity="0.26" stroke-width="6"/>
+  <line x1="820" y1="1220" x2="930" y2="1540" stroke="#33ffcc" stroke-opacity="0.26" stroke-width="6"/>
+  <line x1="930" y1="1540" x2="540" y2="1660" stroke="#33ffcc" stroke-opacity="0.26" stroke-width="6"/>
+  <line x1="540" y1="1660" x2="210" y2="1500" stroke="#33ffcc" stroke-opacity="0.26" stroke-width="6"/>
+  <circle cx="160" cy="420" r="28" fill="#050716" stroke="#b084ff" stroke-opacity="0.72" stroke-width="6"/>
+  <circle cx="420" cy="330" r="18" fill="#050716" stroke="#b084ff" stroke-opacity="0.72" stroke-width="6"/>
+  <circle cx="750" cy="460" r="18" fill="#050716" stroke="#b084ff" stroke-opacity="0.72" stroke-width="6"/>
+  <circle cx="910" cy="760" r="28" fill="#050716" stroke="#b084ff" stroke-opacity="0.72" stroke-width="6"/>
+  <circle cx="650" cy="940" r="18" fill="#050716" stroke="#b084ff" stroke-opacity="0.72" stroke-width="6"/>
+  <circle cx="280" cy="820" r="18" fill="#050716" stroke="#b084ff" stroke-opacity="0.72" stroke-width="6"/>
+  <circle cx="160" cy="1180" r="28" fill="#050716" stroke="#b084ff" stroke-opacity="0.72" stroke-width="6"/>
+  <circle cx="470" cy="1320" r="18" fill="#050716" stroke="#b084ff" stroke-opacity="0.72" stroke-width="6"/>
+  <circle cx="820" cy="1220" r="18" fill="#050716" stroke="#b084ff" stroke-opacity="0.72" stroke-width="6"/>
+  <circle cx="930" cy="1540" r="28" fill="#050716" stroke="#b084ff" stroke-opacity="0.72" stroke-width="6"/>
+  <circle cx="540" cy="1660" r="18" fill="#050716" stroke="#b084ff" stroke-opacity="0.72" stroke-width="6"/>
+  <circle cx="210" cy="1500" r="18" fill="#050716" stroke="#b084ff" stroke-opacity="0.72" stroke-width="6"/></g>
+  <text x="80" y="170" fill="#b084ff" fill-opacity="0.7" font-family="monospace" font-size="54" letter-spacing="8">GOVERNMENT</text>
+  <text x="80" y="238" fill="#d7fff6" fill-opacity="0.35" font-family="monospace" font-size="28" letter-spacing="4">PLACEHOLDER // DROP FINAL ART HERE</text>
+</svg>

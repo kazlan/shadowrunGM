@@ -1,0 +1,15 @@
+{
+  "name": "shadowrun-gm",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mobile-first cyber-intrusion PWA prototype with deterministic location-based hosts.",
+  "scripts": {
+    "dev": "npm run build && python3 -m http.server 4173 --directory dist",
+    "build": "node scripts/build.mjs",
+    "preview": "python3 -m http.server 4173 --directory dist",
+    "check": "node scripts/check.mjs"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

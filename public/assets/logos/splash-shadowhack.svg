@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" role="img" aria-label="shadowHack splash placeholder">
+  <rect width="1080" height="1920" fill="#050716"/>
+  <circle cx="540" cy="820" r="250" fill="#33ffcc" fill-opacity="0.08" stroke="#33ffcc" stroke-width="10"/>
+  <path d="M540 430 850 610v420l-310 180-310-180V610z" fill="none" stroke="#33ffcc" stroke-width="18"/>
+  <text x="540" y="1380" text-anchor="middle" fill="#33ffcc" font-family="monospace" font-size="78" letter-spacing="10">shadowHack</text>
+  <text x="540" y="1450" text-anchor="middle" fill="#ff3df2" fill-opacity="0.72" font-family="monospace" font-size="28" letter-spacing="5">SPLASH PLACEHOLDER</text>
+</svg>

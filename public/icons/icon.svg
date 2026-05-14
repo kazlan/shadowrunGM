@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="shadowHack icon">
+  <rect width="512" height="512" rx="96" fill="#050716"/>
+  <path d="M256 64 414 160v192L256 448 98 352V160z" fill="none" stroke="#33ffcc" stroke-width="18"/>
+  <circle cx="256" cy="256" r="54" fill="#33ffcc" opacity=".18" stroke="#33ffcc" stroke-width="14"/>
+  <path d="M256 118v84M256 310v84M132 184l74 43M306 285l74 43M380 184l-74 43M206 285l-74 43" stroke="#ff3df2" stroke-width="14" stroke-linecap="round"/>
+</svg>

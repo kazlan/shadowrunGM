@@ -1,0 +1,9 @@
+import { cp, mkdir, rm } from 'node:fs/promises';
+
+await rm('dist', { recursive: true, force: true });
+await mkdir('dist', { recursive: true });
+await cp('index.html', 'dist/index.html');
+await cp('public', 'dist', { recursive: true });
+await cp('src', 'dist/src', { recursive: true });
+await cp('docs', 'dist/docs', { recursive: true });
+console.log('Built static PWA into dist/');

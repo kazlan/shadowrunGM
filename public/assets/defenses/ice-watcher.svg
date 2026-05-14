@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="WATCHER placeholder icon">
+  <rect width="256" height="256" rx="48" fill="#050716" fill-opacity="0.92"/>
+  <path d="M34 118s36-58 94-58 94 58 94 58-36 58-94 58-94-58-94-58z" fill="none" stroke="#f8d66d" stroke-width="12"/><circle cx="128" cy="118" r="28" fill="none" stroke="#f8d66d" stroke-width="12"/>
+  <text x="128" y="222" text-anchor="middle" fill="#f8d66d" font-family="monospace" font-size="24" letter-spacing="2">WATCHE</text>
+</svg>
