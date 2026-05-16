@@ -46,4 +46,23 @@ const manifest = JSON.parse(await readFile('public/manifest.webmanifest', 'utf8'
 if (manifest.orientation !== 'portrait') throw new Error('Manifest orientation must be portrait');
 if (!['fullscreen', 'standalone'].includes(manifest.display)) throw new Error('Manifest display must be fullscreen or standalone');
 
-console.log(`Checked ${requiredFiles.length} required files and PWA manifest.`);
+const { hashCompany } = await import('../src/world/companySeed.js');
+const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+try {
+  Object.defineProperty(globalThis, 'crypto', { value: undefined, configurable: true });
+  const fallbackSeed = await hashCompany({
+    provider: 'manual',
+    providerId: 'demo-crash-check',
+    name: 'Clínica Norte',
+    category: 'medical clinic',
+    lat: 40.41715,
+    lon: -3.70412,
+  });
+  if (!/^[a-f0-9]{64}$/.test(fallbackSeed.seedHex)) throw new Error('Fallback seed hash must produce 64 hex characters');
+  if (fallbackSeed.seedId !== fallbackSeed.seedHex.slice(0, 12)) throw new Error('Fallback seed id must derive from seed hash');
+} finally {
+  if (cryptoDescriptor) Object.defineProperty(globalThis, 'crypto', cryptoDescriptor);
+  else delete globalThis.crypto;
+}
+
+console.log(`Checked ${requiredFiles.length} required files, PWA manifest, and seed hashing fallback.`);
