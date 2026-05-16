@@ -8,6 +8,7 @@ import { projectSystemForRun } from '../game/systemView.js';
 import { requestCurrentPosition } from '../location/locationService.js';
 import { registerServiceWorker } from '../pwa/registerServiceWorker.js';
 import { escapeHtml } from '../ui/html.js';
+import { renderHelpOverlay } from '../ui/renderHelpOverlay.js';
 import { renderHud } from '../ui/renderHud.js';
 import { renderNodeMap } from '../ui/renderNodeMap.js';
 import { renderProgressPanel } from '../ui/renderProgress.js';
@@ -31,6 +32,7 @@ const appState = {
   currentProgress: null,
   recentProgress: [],
   lastRecordedStatus: null,
+  isHelpOpen: false,
 };
 
 async function buildSystem(place) {
@@ -95,6 +97,7 @@ function render() {
       <small>${escapeHtml(appState.locationMessage)}</small>
       <div>${targetButtons}</div>
     </section>
+    ${renderHelpOverlay(appState.isHelpOpen)}
   </main>`;
 
   bindEvents();
@@ -129,6 +132,14 @@ function bindEvents() {
       if (action === 'extract') dispatch({ type: 'extract' });
       if (action === 'jackOut') dispatch({ type: 'jackOut' });
       if (action === 'scanLocal') void scanLocalTargets();
+      if (action === 'toggleHelp') {
+        appState.isHelpOpen = !appState.isHelpOpen;
+        render();
+      }
+      if (action === 'closeHelp') {
+        appState.isHelpOpen = false;
+        render();
+      }
     });
   });
 }

@@ -19,6 +19,7 @@ const requiredFiles = [
   'src/styles/theme.css',
   'src/game/mapGenerator.js',
   'src/ui/renderRunLog.js',
+  'src/ui/renderHelpOverlay.js',
   'src/ui/html.js',
   'src/game/systemView.js',
   'src/game/runState.js',
