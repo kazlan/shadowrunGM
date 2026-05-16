@@ -1,40 +1,85 @@
-const OVERPASS_ENDPOINT = 'https://overpass-api.de/api/interpreter';
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://z.overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+];
 const ALLOWED_RADIUS = [250, 1500];
+const OVERPASS_REQUEST_TIMEOUT_MS = 8500;
 
 export function createOverpassProvider(options = {}) {
-  const endpoint = options.endpoint ?? OVERPASS_ENDPOINT;
+  const endpoints = normalizeEndpoints(options.endpoints ?? options.endpoint ?? OVERPASS_ENDPOINTS);
+  const timeoutMs = options.timeoutMs ?? OVERPASS_REQUEST_TIMEOUT_MS;
 
   return {
     async searchNearbyPlaces(position, radiusMeters = 900) {
       const radius = clamp(Math.round(radiusMeters), ALLOWED_RADIUS[0], ALLOWED_RADIUS[1]);
       const query = buildOverpassQuery(position, radius);
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-        body: new URLSearchParams({ data: query }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Overpass respondió ${response.status}`);
-      }
-
-      const payload = await response.json();
+      const payload = await fetchOverpassWithFallback(endpoints, query, timeoutMs);
       return normalizeOverpassElements(payload.elements ?? []).slice(0, 24);
     },
   };
 }
 
+function normalizeEndpoints(value) {
+  return Array.isArray(value) ? value : [value];
+}
+
+async function fetchOverpassWithFallback(endpoints, query, timeoutMs) {
+  const failures = [];
+  for (const endpoint of endpoints) {
+    try {
+      return await fetchOverpass(endpoint, query, timeoutMs);
+    } catch (error) {
+      failures.push(`${shortEndpoint(endpoint)}: ${error.message}`);
+    }
+  }
+  throw new Error(`Overpass sin respuesta estable (${failures.join(' | ')})`);
+}
+
+async function fetchOverpass(endpoint, query, timeoutMs) {
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: new URLSearchParams({ data: query }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error.name === 'AbortError') throw new Error('timeout');
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
+}
+
+function shortEndpoint(endpoint) {
+  try {
+    return new URL(endpoint).host;
+  } catch {
+    return endpoint;
+  }
+}
+
 function buildOverpassQuery(position, radius) {
   return `[out:json][timeout:12];
 (
-  node["name"]["amenity"](around:${radius},${position.lat},${position.lon});
-  node["name"]["shop"](around:${radius},${position.lat},${position.lon});
-  node["name"]["office"](around:${radius},${position.lat},${position.lon});
-  node["name"]["craft"](around:${radius},${position.lat},${position.lon});
-  way["name"]["amenity"](around:${radius},${position.lat},${position.lon});
-  way["name"]["shop"](around:${radius},${position.lat},${position.lon});
-  way["name"]["office"](around:${radius},${position.lat},${position.lon});
-  way["name"]["craft"](around:${radius},${position.lat},${position.lon});
+  nwr["name"]["amenity"](around:${radius},${position.lat},${position.lon});
+  nwr["name"]["shop"](around:${radius},${position.lat},${position.lon});
+  nwr["name"]["office"](around:${radius},${position.lat},${position.lon});
+  nwr["name"]["craft"](around:${radius},${position.lat},${position.lon});
+  nwr["name"]["tourism"](around:${radius},${position.lat},${position.lon});
+  nwr["name"]["leisure"](around:${radius},${position.lat},${position.lon});
+  nwr["name"]["healthcare"](around:${radius},${position.lat},${position.lon});
+  nwr["name"]["building"~"commercial|retail|industrial|office|hospital|school|university|hotel"](around:${radius},${position.lat},${position.lon});
+  nwr["name"]["landuse"~"commercial|retail|industrial"](around:${radius},${position.lat},${position.lon});
 );
 out center tags 40;`;
 }
@@ -58,7 +103,16 @@ function normalizeElement(element) {
   const lon = element.lon ?? element.center?.lon;
   if (!lat || !lon || !tags.name) return null;
 
-  const category = tags.amenity ?? tags.shop ?? tags.office ?? tags.craft ?? 'unknown';
+  const category = tags.amenity
+    ?? tags.shop
+    ?? tags.office
+    ?? tags.craft
+    ?? tags.tourism
+    ?? tags.leisure
+    ?? tags.healthcare
+    ?? tags.building
+    ?? tags.landuse
+    ?? 'unknown';
   const street = [tags['addr:street'], tags['addr:housenumber']].filter(Boolean).join(' ');
   const city = tags['addr:city'];
 

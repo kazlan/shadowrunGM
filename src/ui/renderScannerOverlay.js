@@ -21,7 +21,7 @@ export function renderScannerOverlay({ isOpen, places, selectedPlace, locationMe
         ${renderSourceIcon(bookmark)}
         <span class="scanner-target__body">
           <strong>${escapeHtml(bookmark.hostAlias)}</strong>
-          <span>${escapeHtml(bookmark.name)} · scan remoto</span>
+          <span>${escapeHtml(bookmark.name)} · Proxy remoto</span>
           ${renderAddress(bookmark)}
         </span>
         <small class="scanner-source scanner-source--${sourceKind(bookmark)}">${sourceLabel(bookmark)}</small>

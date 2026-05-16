@@ -1,6 +1,21 @@
 import { roundPosition } from './privacy.js';
 
-export function requestCurrentPosition() {
+export async function getGeolocationPermissionState() {
+  if (!navigator.permissions?.query) return 'unknown';
+  try {
+    const status = await navigator.permissions.query({ name: 'geolocation' });
+    return status.state;
+  } catch {
+    return 'unknown';
+  }
+}
+
+export async function requestCurrentPosition() {
+  const permissionState = await getGeolocationPermissionState();
+  if (permissionState === 'denied') {
+    throw new Error('permiso de ubicación bloqueado en el navegador; revisa los permisos del sitio y vuelve a intentarlo');
+  }
+
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error('Este dispositivo no expone geolocalización web.'));

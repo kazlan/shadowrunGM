@@ -16,6 +16,9 @@
   --node-text: #eafffb;
   --host-bg-overlay: linear-gradient(180deg, rgba(5, 7, 22, .72), rgba(5, 7, 22, .9));
   --shadow-strong: rgba(0, 0, 0, .28);
+  --scrollbar-track: rgba(131, 166, 181, .14);
+  --scrollbar-thumb: var(--cyan);
+  --scrollbar-thumb-hover: var(--yellow);
   --cyan: #33ffcc;
   --magenta: #ff3df2;
   --red: #ff3d6e;
@@ -39,6 +42,37 @@
 html, body, #root { height: 100%; min-height: 100%; margin: 0; }
 body { overflow: hidden; background: var(--body-bg); }
 button { font: inherit; }
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-left: 1px solid var(--panel-line);
+}
+
+*::-webkit-scrollbar-thumb {
+  min-height: 28px;
+  border: 2px solid transparent;
+  background: linear-gradient(180deg, var(--scrollbar-thumb), var(--danger-color));
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--scrollbar-thumb-hover), var(--scrollbar-thumb));
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
 
 :root[data-theme="amiga"] {
   color: #f4f5ff;

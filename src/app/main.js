@@ -6,7 +6,7 @@ import { scoreRun } from '../game/runScoring.js';
 import { createInitialRunState } from '../game/runState.js';
 import { createRng } from '../game/rng.js';
 import { projectSystemForRun } from '../game/systemView.js';
-import { requestCurrentPosition } from '../location/locationService.js';
+import { getGeolocationPermissionState, requestCurrentPosition } from '../location/locationService.js';
 import { registerServiceWorker } from '../pwa/registerServiceWorker.js';
 import { getDangerTheme } from '../ui/dangerTheme.js';
 import { renderDeckOverlay, renderDeckTrace } from '../ui/renderDeckPanel.js';
@@ -35,6 +35,9 @@ const MIN_MAP_SIZE = 32;
 const MAX_MAP_SIZE = 100;
 const MAP_DRAG_THRESHOLD_PX = 12;
 const MAP_LOG_MESSAGE_MS = 5200;
+const EXPANDED_SCAN_RADIUS = 1500;
+const MIN_SCANNER_TARGETS = 4;
+const VALENCIA_TEST_POSITION = { lat: 39.4699, lon: -0.3763 };
 const appState = {
   places: demoPlaces,
   selectedPlace: demoPlaces[0],
@@ -321,20 +324,51 @@ async function toggleSfx() {
 async function scanLocalTargets() {
   appState.isScannerOpen = true;
   void audioDirector.play('scanner');
-  appState.locationMessage = 'Solicitando ubicación para buscar objetivos cercanos...';
+
+  if (isLocalTestServer()) {
+    appState.locationMessage = 'Proxy local de pruebas activo: scanner centrado en Valencia.';
+    render();
+    await scanFromPosition(VALENCIA_TEST_POSITION, 'Scanner local activo desde Valencia');
+    appState.selectedPlace = appState.places[0] ?? appState.selectedPlace;
+    appState.isScannerOpen = true;
+    render();
+    return;
+  }
+
+  const permissionState = await getGeolocationPermissionState();
+  appState.locationMessage = scannerPermissionMessage(permissionState);
   render();
 
   try {
     const position = await requestCurrentPosition();
     await scanFromPosition(position, 'Scanner local activo');
-    appState.isScannerOpen = false;
-    await startRun(appState.places[0]);
+    appState.selectedPlace = appState.places[0] ?? appState.selectedPlace;
+    appState.isScannerOpen = true;
+    render();
   } catch (error) {
     appState.places = demoPlaces;
     appState.locationMessage = `No se pudo usar ubicación: ${error.message}. Seguimos con objetivos demo.`;
-    appState.isScannerOpen = false;
-    await startRun(appState.selectedPlace);
+    appState.selectedPlace = appState.places[0] ?? appState.selectedPlace;
+    appState.isScannerOpen = true;
+    render();
   }
+}
+
+function isLocalTestServer() {
+  return ['127.0.0.1', 'localhost', '::1'].includes(globalThis.location?.hostname);
+}
+
+function scannerPermissionMessage(permissionState) {
+  if (permissionState === 'denied') {
+    return 'La ubicación está bloqueada para este sitio. Actívala en los permisos del navegador para escanear objetivos reales.';
+  }
+  if (permissionState === 'prompt') {
+    return 'El navegador debería pedir permiso de ubicación ahora. Solo se usa para buscar objetivos cercanos.';
+  }
+  if (permissionState === 'granted') {
+    return 'Permiso de ubicación concedido. Buscando objetivos cercanos...';
+  }
+  return 'Solicitando ubicación para buscar objetivos cercanos...';
 }
 
 void startRun(appState.selectedPlace);
@@ -525,14 +559,53 @@ async function scanFromBookmark(bookmark) {
 async function scanFromPosition(position, successLabel) {
   const radius = getScanRadius();
   try {
-    appState.places = await searchNearbyPlaces(overpassProvider, position, radius);
-    if (appState.places.length === 0) throw new Error('sin objetivos OSM cercanos');
-    appState.locationMessage = `${successLabel}. ${appState.places.length} objetivos OSM encontrados en ${radius}m.`;
+    const realScan = await searchRealPlaces(position, radius);
+    appState.places = await fillWithSandboxTargets(realScan.places, position, radius);
+    const expandedLabel = realScan.radius > radius ? ` tras ampliar a ${realScan.radius}m` : ` en ${radius}m`;
+    const realCount = realScan.places.length;
+    const sandboxCount = appState.places.length - realCount;
+    appState.locationMessage = scannerResultMessage(successLabel, realCount, sandboxCount, expandedLabel);
   } catch (providerError) {
     console.warn('Overpass unavailable, using demo nearby provider', providerError);
-    appState.places = await searchNearbyPlaces(demoNearbyProvider, position, radius);
-    appState.locationMessage = `${successLabel}. Overpass no disponible; objetivos demo en ${radius}m.`;
+    appState.places = await fillWithSandboxTargets([], position, radius);
+    const osmReason = providerError.message.startsWith('sin objetivos')
+      ? `OSM respondió sin objetivos útiles (${providerError.message})`
+      : `OSM/Overpass no respondió (${providerError.message})`;
+    appState.locationMessage = `${successLabel}. ${osmReason}; objetivos demo en ${radius}m.`;
   }
+}
+
+async function searchRealPlaces(position, radius) {
+  const places = await searchNearbyPlaces(overpassProvider, position, radius);
+  if (places.length >= MIN_SCANNER_TARGETS || radius >= EXPANDED_SCAN_RADIUS) return { places, radius };
+  const expandedPlaces = await searchNearbyPlaces(overpassProvider, position, EXPANDED_SCAN_RADIUS);
+  return { places: mergePlaces(places, expandedPlaces), radius: EXPANDED_SCAN_RADIUS };
+}
+
+async function fillWithSandboxTargets(realPlaces, position, radius) {
+  if (realPlaces.length >= MIN_SCANNER_TARGETS) return realPlaces;
+  const sandboxPlaces = await searchNearbyPlaces(demoNearbyProvider, position, radius);
+  return mergePlaces(realPlaces, sandboxPlaces).slice(0, MIN_SCANNER_TARGETS);
+}
+
+function mergePlaces(...placeGroups) {
+  const seen = new Set();
+  return placeGroups.flat().filter((place) => {
+    const key = place.providerId ?? `${place.provider}:${place.name}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function scannerResultMessage(successLabel, realCount, sandboxCount, expandedLabel) {
+  if (realCount === 0) {
+    return `${successLabel}. Sin objetivos OSM útiles${expandedLabel}; ${sandboxCount} sandbox listos.`;
+  }
+  if (sandboxCount > 0) {
+    return `${successLabel}. ${realCount} objetivos OSM encontrados${expandedLabel}; +${sandboxCount} sandbox de relleno.`;
+  }
+  return `${successLabel}. ${realCount} objetivos OSM encontrados${expandedLabel}.`;
 }
 
 function zoomMap(factor, originEvent) {

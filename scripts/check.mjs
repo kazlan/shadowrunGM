@@ -67,6 +67,15 @@ if (manifest.orientation !== 'portrait') throw new Error('Manifest orientation m
 if (!['fullscreen', 'standalone'].includes(manifest.display)) throw new Error('Manifest display must be fullscreen or standalone');
 const mainSource = await readFile('src/app/main.js', 'utf8');
 if (!mainSource.includes('mapPointers: new Map()') || !mainSource.includes('startMapPinch') || !mainSource.includes('zoomMapAtPoint')) throw new Error('Node map should keep pinch zoom support wired into pointer handling');
+const scanLocalBody = mainSource.match(/async function scanLocalTargets\(\) \{[\s\S]*?\n\}/)?.[0] ?? '';
+if (scanLocalBody.includes('startRun(') || !scanLocalBody.includes('appState.isScannerOpen = true;')) throw new Error('Local scanner should keep the target picker open instead of auto-starting a run');
+const locationSource = await readFile('src/location/locationService.js', 'utf8');
+if (!locationSource.includes('getGeolocationPermissionState') || !locationSource.includes('bloqueado en el navegador') || !mainSource.includes('scannerPermissionMessage')) throw new Error('Local scanner should explain blocked geolocation permissions before falling back');
+const overpassSource = await readFile('src/world/overpassProvider.js', 'utf8');
+if (!overpassSource.includes('nwr["name"]["tourism"]') || !overpassSource.includes('nwr["name"]["healthcare"]') || !mainSource.includes('EXPANDED_SCAN_RADIUS')) throw new Error('Local scanner should broaden OSM target searches before using demo fallback');
+if (!mainSource.includes('VALENCIA_TEST_POSITION') || !mainSource.includes('MIN_SCANNER_TARGETS') || !mainSource.includes('fillWithSandboxTargets')) throw new Error('Local scanner should use Valencia in local testing and fill short OSM result sets with sandbox targets');
+const themeSource = await readFile('src/styles/theme.css', 'utf8');
+if (!themeSource.includes('--scrollbar-thumb') || !themeSource.includes('::-webkit-scrollbar-thumb') || !themeSource.includes('scrollbar-color')) throw new Error('Theme CSS should style scrollbars consistently');
 
 const { hashCompany } = await import('../src/world/companySeed.js');
 const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
@@ -209,6 +218,7 @@ const { applyTheme, normalizeThemeKey, themeCatalog } = await import('../src/ui/
 const { getFirebaseConfig, isFirebaseConfigured, isFirebaseMessagingConfigured } = await import('../src/firebase/firebaseConfig.js');
 const { getFirebaseStatus } = await import('../src/firebase/firebaseClient.js');
 const { cloudPaths } = await import('../src/firebase/cloudPersistence.js');
+const { createOverpassProvider } = await import('../src/world/overpassProvider.js');
 const { renderProgressPanel } = await import('../src/ui/renderProgress.js');
 const { renderCompletionScreen } = await import('../src/ui/renderCompletionScreen.js');
 const { addHostBookmark, awardRunCredits, createDefaultDeckProfile, getBookmarkCapacity, getStorageCapacity, upgradeDeckProfile } = await import('../src/world/deckStore.js');
@@ -318,6 +328,35 @@ const scannerHtml = renderScannerOverlay({
 });
 if (!scannerHtml.includes('/assets/ui/source-world.svg') || !scannerHtml.includes('/assets/ui/source-sandbox.svg')) throw new Error('Scanner should identify real world and sandbox host sources');
 if (!scannerHtml.includes('Mundo real') || !scannerHtml.includes('Sandbox') || !scannerHtml.includes('Calle Real 1')) throw new Error('Scanner should show source labels and real-world anchor data when available');
+if (!scannerHtml.includes('Proxy remoto')) throw new Error('Scanner bookmarks should be labelled as proxy scans');
+
+const fetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
+try {
+  const calls = [];
+  globalThis.fetch = async (endpoint) => {
+    calls.push(endpoint);
+    if (calls.length === 1) return { ok: false, status: 504, json: async () => ({ elements: [] }) };
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        elements: [{
+          type: 'node',
+          id: 1,
+          lat: 40.4168,
+          lon: -3.7038,
+          tags: { name: 'Fallback Host', amenity: 'cafe' },
+        }],
+      }),
+    };
+  };
+  const overpassProvider = createOverpassProvider({ endpoints: ['https://first.example/api', 'https://second.example/api'], timeoutMs: 1000 });
+  const fallbackPlaces = await overpassProvider.searchNearbyPlaces({ lat: 40.4168, lon: -3.7038 }, 700);
+  if (calls.length !== 2 || fallbackPlaces[0]?.name !== 'Fallback Host') throw new Error('Overpass provider should retry a second endpoint after a 504');
+} finally {
+  if (fetchDescriptor) Object.defineProperty(globalThis, 'fetch', fetchDescriptor);
+  else delete globalThis.fetch;
+}
 renderProgressPanel({ valueTier: 'B', companyValue: 60, completedRuns: 2, bestScore: 140 }, []);
 
 const eventSystem = {
