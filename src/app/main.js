@@ -9,6 +9,7 @@ import { projectSystemForRun } from '../game/systemView.js';
 import { requestCurrentPosition } from '../location/locationService.js';
 import { registerServiceWorker } from '../pwa/registerServiceWorker.js';
 import { getDangerTheme } from '../ui/dangerTheme.js';
+import { renderDeckOverlay, renderDeckTrace } from '../ui/renderDeckPanel.js';
 import { renderHelpOverlay } from '../ui/renderHelpOverlay.js';
 import { renderHud, renderProgramDock } from '../ui/renderHud.js';
 import { renderNodeMap } from '../ui/renderNodeMap.js';
@@ -20,6 +21,7 @@ import { hashCompany } from '../world/companySeed.js';
 import { valueCompany } from '../world/companyValuation.js';
 import { createOverpassProvider } from '../world/overpassProvider.js';
 import { createDemoNearbyProvider, demoPlaces, searchNearbyPlaces } from '../world/placeProvider.js';
+import { awardRunCredits, loadDeckProfile, upgradeDeckProfile } from '../world/deckStore.js';
 import { getHostProgress, listRecentProgress, recordRunResult } from '../world/progressStore.js';
 
 const root = document.querySelector('#root');
@@ -38,8 +40,12 @@ const appState = {
   locationMessage: 'Objetivos demo cargados. Puedes activar scanner local cuando quieras.',
   currentProgress: null,
   recentProgress: [],
+  deckProfile: loadDeckProfile(),
+  deckMessage: '',
   lastRecordedStatus: null,
   isHelpOpen: false,
+  helpTab: 'run',
+  isDeckOpen: false,
   isScannerOpen: false,
   mapView: { ...DEFAULT_MAP_VIEW },
   mapPointer: null,
@@ -57,7 +63,10 @@ async function buildSystem(place) {
 async function startRun(place) {
   appState.selectedPlace = place;
   appState.system = await buildSystem(place);
-  appState.run = createInitialRunState(appState.system);
+  appState.deckProfile = loadDeckProfile();
+  appState.deckMessage = '';
+  appState.isDeckOpen = false;
+  appState.run = createInitialRunState(appState.system, appState.deckProfile);
   appState.currentProgress = getHostProgress(appState.system.seedId);
   appState.recentProgress = listRecentProgress();
   appState.lastRecordedStatus = null;
@@ -70,7 +79,8 @@ async function startRun(place) {
 
 function dispatch(action) {
   if (!appState.system || !appState.run) return;
-  appState.run = reduceRun(appState.system, appState.run, action);
+  appState.deckMessage = '';
+  appState.run = reduceRun(appState.system, appState.run, action, appState.deckProfile);
   syncAudioState();
   void audioDirector.play(audioEventForAction(action));
   syncRunResult();
@@ -93,9 +103,11 @@ function render() {
     ${renderNodeMap(runtimeSystem, appState.run, appState.mapView)}
     ${renderProgramDock(appState.run)}
     ${renderRunLog(appState.run)}
+    ${renderDeckTrace(appState.deckProfile, appState.run, appState.deckMessage)}
     ${renderProgressPanel(appState.currentProgress, appState.recentProgress)}
     <button class="scanner-toggle" data-action="toggleScanner" type="button">Objetivos / scanner</button>
-    ${renderHelpOverlay(appState.isHelpOpen)}
+    ${renderDeckOverlay(appState.isDeckOpen, appState.deckProfile, appState.deckMessage)}
+    ${renderHelpOverlay(appState.isHelpOpen, appState.helpTab)}
     ${renderScannerOverlay({
       isOpen: appState.isScannerOpen,
       places: appState.places,
@@ -144,6 +156,24 @@ function bindEvents() {
     });
   });
 
+  root.querySelectorAll('[data-deck-upgrade]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const [category, key] = button.dataset.deckUpgrade.split(':');
+      const result = upgradeDeckProfile(appState.deckProfile, category, key);
+      appState.deckProfile = result.profile;
+      appState.deckMessage = deckUpgradeMessage(result, category, key);
+      render();
+    });
+  });
+
+  root.querySelectorAll('[data-help-tab]').forEach((button) => {
+    button.addEventListener('click', () => {
+      appState.helpTab = button.dataset.helpTab;
+      void audioDirector.play('selectProgram');
+      render();
+    });
+  });
+
   bindNodeMapEvents();
 
   root.querySelectorAll('[data-action]').forEach((button) => {
@@ -155,6 +185,7 @@ function bindEvents() {
       if (action === 'toggleHelp') {
         appState.isHelpOpen = !appState.isHelpOpen;
         appState.isScannerOpen = false;
+        appState.isDeckOpen = false;
         void audioDirector.play('openOverlay');
         render();
       }
@@ -166,11 +197,24 @@ function bindEvents() {
       if (action === 'toggleScanner') {
         appState.isScannerOpen = !appState.isScannerOpen;
         appState.isHelpOpen = false;
+        appState.isDeckOpen = false;
         void audioDirector.play('openOverlay');
         render();
       }
       if (action === 'closeScanner') {
         appState.isScannerOpen = false;
+        void audioDirector.play('openOverlay');
+        render();
+      }
+      if (action === 'toggleDeck') {
+        appState.isDeckOpen = !appState.isDeckOpen;
+        appState.isHelpOpen = false;
+        appState.isScannerOpen = false;
+        void audioDirector.play('openOverlay');
+        render();
+      }
+      if (action === 'closeDeck') {
+        appState.isDeckOpen = false;
         void audioDirector.play('openOverlay');
         render();
       }
@@ -346,8 +390,18 @@ function syncRunResult() {
 
   const score = scoreRun(appState.system, appState.run);
   appState.currentProgress = recordRunResult(appState.system, appState.run, score);
+  const reward = awardRunCredits(appState.deckProfile, appState.system, appState.run, score);
+  appState.deckProfile = reward.profile;
+  appState.deckMessage = reward.reward > 0 ? `+${reward.reward} cred recuperados de la run.` : '';
   appState.recentProgress = listRecentProgress();
   appState.lastRecordedStatus = appState.run.status;
+}
+
+function deckUpgradeMessage(result, category, key) {
+  if (result.changed) return `${key.toUpperCase()} mejorado por ${result.cost} cred.`;
+  if (result.reason === 'credits') return 'Cred insuficiente para esa mejora.';
+  if (result.reason === 'max') return 'Mejora ya al maximo.';
+  return category === 'stat' ? 'Atributo no disponible.' : 'Programa no disponible.';
 }
 
 function syncAudioState() {

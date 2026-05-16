@@ -1,3 +1,4 @@
+import { nodeEvents } from './nodeEvents.js';
 import { generateHostAlias } from '../world/hostIdentity.js';
 
 const iceByRisk = ['watcher', 'piercer', 'tracer', 'locker', 'crasher'];
@@ -17,6 +18,7 @@ export function generateSystem(params) {
     return {
       id: `n-${index}`,
       kind,
+      event: pickNodeEvent(kind, rng),
       state: index === 0 ? 'visited' : index <= 2 ? 'scanned' : 'unknown',
       x: 12 + (index % 4) * 25 + rng.nextInt(-4, 4),
       y: 8 + Math.floor(index / 4) * 18 + rng.nextInt(-3, 3),
@@ -58,6 +60,24 @@ function pickNodeKind(index, coreIndex, archetype, rng) {
     { item: 'camera', weight: 2 },
     { item: 'database', weight: Math.max(1, archetype.dataBias - 1) },
   ]);
+}
+
+function pickNodeEvent(kind, rng) {
+  if (kind === 'entry') return undefined;
+  if (kind === 'core') return nodeEvents.core.kind;
+  if (kind === 'exit') return nodeEvents.exit.kind;
+  if (kind === 'camera') return nodeEvents.camera.kind;
+  if (kind === 'firewall') return rng.weightedPick([
+    { item: nodeEvents.gate.kind, weight: 3 },
+    { item: nodeEvents.trap.kind, weight: 2 },
+  ]);
+  if (kind === 'database') return nodeEvents.archive.kind;
+  if (kind === 'data') return rng.weightedPick([
+    { item: nodeEvents.archive.kind, weight: 4 },
+    { item: nodeEvents.decoy.kind, weight: 1 },
+  ]);
+
+  return undefined;
 }
 
 function defaultValuation() {

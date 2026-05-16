@@ -41,9 +41,16 @@
 
 - [x] Catálogo inicial de defensas: centinela, perforador, rastreador, ancla y rompeprogramas.
 - [x] Catálogo inicial de programas: Scan, Spike, Ghost, Shield y Extract.
+- [x] Añadir deck persistente con atributos y programas mejorables.
+- [x] Añadir economía local de cred ganada por runs y gastada en mejoras.
 - [x] Diseñar valoración determinista de empresas para modular dificultad, tamaño y recompensa de red.
 - [ ] Generar identidades ficticias de host con alias, color, sigil y lema.
-- [ ] Añadir eventos de nodo: archivo, puerta, cámara, señuelo, trampa, núcleo y salida.
+- [x] Añadir eventos de nodo: archivo, puerta, cámara, señuelo, trampa, núcleo y salida.
+- [x] Documentar eventos de nodo como evolución principal del sistema antes de ampliar el catálogo de programas.
+- [x] Diferenciar defensas pasivas, defensas activas y respuesta de host.
+- [x] Añadir convergencia propia como cierre dramático cuando alerta o traza llegan al máximo.
+- [x] Mantener Scan, Spike, Ghost, Shield y Extract como catálogo v1 hasta que los eventos de nodo aporten profundidad suficiente.
+- [ ] Diseñar desbloqueo de nuevos programas como extensiones tácticas del deck, inspirado en la variedad de utilidades v2/v3 sin copiar nombres ni listas oficiales.
 
 ## Fase 5 — Arte, UX y pulido
 

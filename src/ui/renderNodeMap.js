@@ -1,5 +1,6 @@
 import { assetPaths } from '../assets/assetRegistry.js';
 import { iceCatalog } from '../game/iceCatalog.js';
+import { nodeEvents } from '../game/nodeEvents.js';
 import { escapeHtml } from './html.js';
 
 const nodeGlyph = {
@@ -26,16 +27,22 @@ export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, h
   const nodes = system.nodes
     .map((node) => {
       const ice = node.ice && !node.iceNeutralized ? iceCatalog[node.ice] : undefined;
+      const event = node.event && !node.eventResolved ? nodeEvents[node.event] : undefined;
       const radius = node.kind === 'core' ? 5.6 : 4.3;
       const isReachable = isNodeReachable(system, run, node.id);
       const iceMarker = ice && node.state !== 'unknown'
         ? `<image href="${assetPaths.defenses[node.ice]}" x="${node.x + 3.8}" y="${node.y - 10.8}" width="7" height="7" class="ice-marker" />`
         : '';
+      const eventMarker = event && node.state !== 'unknown'
+        ? `<text x="${node.x}" y="${node.y + radius + 4.6}" class="event-marker">${escapeHtml(event.glyph)}</text>`
+        : '';
 
       return `<g data-node-id="${node.id}" class="node node--${node.kind} node--${node.state} ${node.isCurrent ? 'node--current' : ''} ${isReachable ? 'node--reachable' : ''}" filter="url(#glow)">
+        ${event ? `<title>${escapeHtml(`${event.label}: ${event.hint}`)}</title>` : ''}
         <circle cx="${node.x}" cy="${node.y}" r="${radius}" />
         <text x="${node.x}" y="${node.y + 1.1}">${node.state === 'unknown' ? '?' : nodeGlyph[node.kind]}</text>
         ${iceMarker}
+        ${eventMarker}
       </g>`;
     })
     .join('');

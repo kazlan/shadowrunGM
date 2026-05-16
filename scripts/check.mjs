@@ -19,7 +19,9 @@ const requiredFiles = [
   'scripts/generate-placeholders.mjs',
   'src/styles/theme.css',
   'src/game/mapGenerator.js',
+  'src/game/nodeEvents.js',
   'src/ui/renderRunLog.js',
+  'src/ui/renderDeckPanel.js',
   'src/ui/dangerTheme.js',
   'src/ui/renderNodeMap.js',
   'src/ui/renderHelpOverlay.js',
@@ -30,6 +32,7 @@ const requiredFiles = [
   'src/game/runEngine.js',
   'src/ui/renderProgress.js',
   'src/world/progressStore.js',
+  'src/world/deckStore.js',
   'src/game/runScoring.js',
   'src/world/companySeed.js',
   'src/world/companyValuation.js',
@@ -175,12 +178,16 @@ const { valueCompany } = await import('../src/world/companyValuation.js');
 const { createRng } = await import('../src/game/rng.js');
 const { generateSystem } = await import('../src/game/mapGenerator.js');
 const { createInitialRunState } = await import('../src/game/runState.js');
+const { nodeEvents } = await import('../src/game/nodeEvents.js');
 const { reduceRun } = await import('../src/game/runEngine.js');
 const { scoreRun } = await import('../src/game/runScoring.js');
 const { getDangerTheme } = await import('../src/ui/dangerTheme.js');
 const { projectSystemForRun } = await import('../src/game/systemView.js');
 const { renderNodeMap } = await import('../src/ui/renderNodeMap.js');
+const { renderDeckOverlay, renderDeckTrace } = await import('../src/ui/renderDeckPanel.js');
+const { renderHelpOverlay } = await import('../src/ui/renderHelpOverlay.js');
 const { renderProgressPanel } = await import('../src/ui/renderProgress.js');
+const { awardRunCredits, createDefaultDeckProfile, getStorageCapacity, upgradeDeckProfile } = await import('../src/world/deckStore.js');
 
 const jackOutPlace = demoPlaces[0];
 const jackOutSeed = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
@@ -192,9 +199,33 @@ const jackOutSystem = generateSystem({
   archetype: jackOutArchetype,
   valuation: valueCompany(jackOutPlace, jackOutArchetype, jackOutSeed),
 });
+const jackOutSystemAgain = generateSystem({
+  rng: createRng(jackOutSeed),
+  seedId: jackOutSeed.slice(0, 12),
+  company: jackOutPlace,
+  archetype: jackOutArchetype,
+  valuation: valueCompany(jackOutPlace, jackOutArchetype, jackOutSeed),
+});
+if (JSON.stringify(jackOutSystem.nodes.map(({ id, kind, event }) => ({ id, kind, event }))) !== JSON.stringify(jackOutSystemAgain.nodes.map(({ id, kind, event }) => ({ id, kind, event })))) {
+  throw new Error('Generated node events must be deterministic for the same host seed');
+}
+if (!jackOutSystem.nodes.some((node) => node.event === nodeEvents.archive.kind || node.event === nodeEvents.core.kind)) {
+  throw new Error('Generated hosts should include extractable node events');
+}
 const jackOutRun = reduceRun(jackOutSystem, createInitialRunState(jackOutSystem), { type: 'jackOut' });
 if (jackOutRun.status !== 'escaped') throw new Error('Jack-out from entry should escape instead of crashing');
 if (!Number.isFinite(scoreRun(jackOutSystem, jackOutRun))) throw new Error('Jack-out run score should be finite');
+const defaultDeck = createDefaultDeckProfile();
+const upgradedShellDeck = { ...defaultDeck, deck: { ...defaultDeck.deck, shell: 4 }, programs: { ...defaultDeck.programs } };
+const upgradedInitialRun = createInitialRunState(jackOutSystem, upgradedShellDeck);
+if (upgradedInitialRun.maxIntegrity <= createInitialRunState(jackOutSystem).maxIntegrity) throw new Error('Shell deck upgrades should increase max integrity');
+const richDeck = { ...defaultDeck, credits: 1000 };
+const upgradedDeckResult = upgradeDeckProfile(richDeck, 'program', 'scan');
+if (!upgradedDeckResult.changed || upgradedDeckResult.profile.programs.scan !== 2) throw new Error('Program upgrades should spend credits and increase rating');
+const upgradedStorageResult = upgradeDeckProfile(richDeck, 'hardware', 'storage');
+if (!upgradedStorageResult.changed || getStorageCapacity(upgradedStorageResult.profile) <= getStorageCapacity(defaultDeck)) throw new Error('Storage upgrades should increase loot capacity');
+const rewardResult = awardRunCredits(defaultDeck, jackOutSystem, jackOutRun, scoreRun(jackOutSystem, jackOutRun));
+if (rewardResult.reward <= 0 || rewardResult.profile.credits <= 0) throw new Error('Completed runs should award deck upgrade credits');
 
 const iceSystem = {
   seedId: 'ice-check',
@@ -216,7 +247,60 @@ const killedIceRun = reduceRun(iceSystem, movedIntoIce, { type: 'runProgram', pr
 if (killedIceRun.status !== 'exploring') throw new Error('Successful spike should return to exploring after neutralizing ICE');
 if (!killedIceRun.neutralizedIce.includes('n-1')) throw new Error('Successful spike should mark ICE as neutralized');
 renderNodeMap(projectSystemForRun(iceSystem, killedIceRun), killedIceRun);
+if (!renderDeckTrace(upgradedDeckResult.profile, createInitialRunState(iceSystem, upgradedDeckResult.profile), 'Scan mejorado.').includes('deck-memory')) throw new Error('Deck trace should show segmented memory');
+if (!renderDeckOverlay(true, upgradedDeckResult.profile, 'Scan mejorado.').includes('Software cargado')) throw new Error('Deck overlay should render loaded software');
+if (!renderHelpOverlay(true, 'deck').includes('help-tabs')) throw new Error('Help overlay should render compact tab navigation');
 renderProgressPanel({ valueTier: 'B', companyValue: 60, completedRuns: 2, bestScore: 140 }, []);
+
+const eventSystem = {
+  seedId: 'event-check',
+  alias: 'EVENT CHECK',
+  company: jackOutPlace,
+  archetype: jackOutArchetype,
+  valuation: { score: 60, tier: 'B' },
+  effectiveSecurity: 4,
+  entryNodeId: 'n-0',
+  coreNodeId: 'n-5',
+  nodes: [
+    { id: 'n-0', kind: 'entry', state: 'visited', x: 10, y: 50, risk: 1 },
+    { id: 'n-1', kind: 'camera', event: 'camera', state: 'scanned', x: 26, y: 50, risk: 1 },
+    { id: 'n-2', kind: 'data', event: 'decoy', state: 'scanned', x: 42, y: 50, risk: 1 },
+    { id: 'n-3', kind: 'firewall', event: 'gate', state: 'scanned', x: 58, y: 50, risk: 1 },
+    { id: 'n-4', kind: 'firewall', event: 'trap', state: 'unknown', x: 74, y: 50, risk: 1 },
+    { id: 'n-5', kind: 'core', event: 'core', state: 'unknown', x: 90, y: 50, risk: 1 },
+  ],
+  edges: [
+    { from: 'n-0', to: 'n-1' },
+    { from: 'n-0', to: 'n-2' },
+    { from: 'n-0', to: 'n-3' },
+    { from: 'n-3', to: 'n-4' },
+    { from: 'n-4', to: 'n-5' },
+  ],
+};
+const eventInitialRun = createInitialRunState(eventSystem);
+const cameraRun = reduceRun(eventSystem, eventInitialRun, { type: 'move', nodeId: 'n-1' });
+if (cameraRun.alert < 2) throw new Error('Camera event should add pressure after moving into the node');
+const ghostedCameraRun = reduceRun(eventSystem, cameraRun, { type: 'runProgram', program: 'ghost' });
+if (!ghostedCameraRun.resolvedEvents.includes('n-1')) throw new Error('Ghost should resolve camera events');
+if (ghostedCameraRun.integrity !== cameraRun.integrity) throw new Error('Camera Ghost resolution should not burn shell');
+
+const decoyScanRun = reduceRun(eventSystem, { ...eventInitialRun, currentNodeId: 'n-2', nodeStates: { ...eventInitialRun.nodeStates, 'n-2': 'visited' } }, { type: 'runProgram', program: 'scan' });
+if (!decoyScanRun.resolvedEvents.includes('n-2')) throw new Error('Scan should resolve decoy events');
+const cleanedDecoyExtractRun = reduceRun(eventSystem, decoyScanRun, { type: 'runProgram', program: 'extract' });
+if (cleanedDecoyExtractRun.hasPayload) throw new Error('Cleaned decoys should stay non-extractable');
+const decoyExtractRun = reduceRun(eventSystem, { ...eventInitialRun, currentNodeId: 'n-2', nodeStates: { ...eventInitialRun.nodeStates, 'n-2': 'visited' } }, { type: 'runProgram', program: 'extract' });
+if (decoyExtractRun.hasPayload) throw new Error('Extracting a decoy should not grant payload');
+if (decoyExtractRun.alert < 2 || decoyExtractRun.trace < 1) throw new Error('Extracting a decoy should raise alert and trace');
+
+const gateRun = reduceRun(eventSystem, { ...eventInitialRun, currentNodeId: 'n-3', nodeStates: { ...eventInitialRun.nodeStates, 'n-3': 'visited' } }, { type: 'runProgram', program: 'spike' });
+if (!gateRun.resolvedEvents.includes('n-3')) throw new Error('Spike should resolve gate events');
+if (gateRun.nodeStates['n-4'] !== 'scanned') throw new Error('Resolved gates should reveal connected unknown nodes');
+const trapRun = reduceRun(eventSystem, { ...eventInitialRun, currentNodeId: 'n-4', nodeStates: { ...eventInitialRun.nodeStates, 'n-4': 'visited' } }, { type: 'runProgram', program: 'shield' });
+if (!trapRun.resolvedEvents.includes('n-4')) throw new Error('Shield should resolve trap events');
+const lootRun = reduceRun(eventSystem, { ...eventInitialRun, currentNodeId: 'n-5', nodeStates: { ...eventInitialRun.nodeStates, 'n-5': 'visited' } }, { type: 'runProgram', program: 'extract' });
+if (lootRun.lootTokens !== 3 || !lootRun.hasPayload) throw new Error('Core extraction should load loot tokens into deck memory');
+const fullMemoryRun = reduceRun(eventSystem, { ...eventInitialRun, currentNodeId: 'n-5', lootTokens: eventInitialRun.maxLootTokens, nodeStates: { ...eventInitialRun.nodeStates, 'n-5': 'visited' } }, { type: 'runProgram', program: 'extract' });
+if (fullMemoryRun.lootTokens !== eventInitialRun.maxLootTokens || fullMemoryRun.hasPayload) throw new Error('Full memory should block new payload extraction');
 
 const ghostPressureRun = reduceRun(iceSystem, { ...createInitialRunState(iceSystem), alert: 3, trace: 2 }, { type: 'runProgram', program: 'ghost' });
 if (ghostPressureRun.alert !== 2 || ghostPressureRun.trace !== 1) throw new Error('Ghost should reduce alert and trace when pressure exists');
@@ -271,4 +355,4 @@ function extractCps(score) {
   return Number(match[1]);
 }
 
-console.log(`Checked ${requiredFiles.length} required files, PWA manifest, seed hashing fallback, jack-out/ICE flows, danger theme, and audio director.`);
+console.log(`Checked ${requiredFiles.length} required files, PWA manifest, seed hashing fallback, jack-out/ICE/event/deck flows, danger theme, and audio director.`);

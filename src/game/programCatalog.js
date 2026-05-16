@@ -1,7 +1,7 @@
 export const programs = [
-  { kind: 'scan', label: 'Scan', description: 'Revela nodos cercanos y baja la incertidumbre.' },
-  { kind: 'spike', label: 'Spike', description: 'Ataque directo contra defensas digitales.' },
-  { kind: 'ghost', label: 'Ghost', description: 'Movimiento sigiloso con menor subida de alerta.' },
-  { kind: 'shield', label: 'Shield', description: 'Amortigua daño y bloqueos temporales.' },
-  { kind: 'extract', label: 'Extract', description: 'Captura datos cuando el nodo objetivo está comprometido.' },
+  { kind: 'scan', label: 'Scan', description: 'Revela nodos cercanos y detecta señuelos.' },
+  { kind: 'spike', label: 'Spike', description: 'Ataque directo contra defensas y puertas.' },
+  { kind: 'ghost', label: 'Ghost', description: 'Difumina traza y ciega cámaras.' },
+  { kind: 'shield', label: 'Shield', description: 'Amortigua daño, bloqueos y trampas.' },
+  { kind: 'extract', label: 'Extract', description: 'Captura payload en archivos y núcleo.' },
 ];
