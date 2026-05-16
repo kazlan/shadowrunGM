@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Lens stat">
+  <rect width="64" height="64" rx="10" fill="#071024"/>
+  <circle cx="29" cy="29" r="15" fill="none" stroke="#33ffcc" stroke-width="5"/>
+  <path d="M41 41l10 10" stroke="#f8d66d" stroke-width="5" stroke-linecap="round"/>
+  <path d="M29 18v22M18 29h22" stroke="#7aa2ff" stroke-width="2" stroke-linecap="round" opacity=".75"/>
+</svg>

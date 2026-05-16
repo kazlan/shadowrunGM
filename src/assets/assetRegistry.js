@@ -29,6 +29,12 @@ export const assetPaths = {
     locker: `${BASE}/defenses/ice-locker.svg`,
     crasher: `${BASE}/defenses/ice-crasher.svg`,
   },
+  stats: {
+    pulse: `${BASE}/stats/stat-pulse.svg`,
+    veil: `${BASE}/stats/stat-veil.svg`,
+    lens: `${BASE}/stats/stat-lens.svg`,
+    shell: `${BASE}/stats/stat-shell.svg`,
+  },
 };
 
 export function getHostBackground(archetype) {

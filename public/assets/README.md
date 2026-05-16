@@ -10,6 +10,7 @@ characters/    Retratos/avatar del decker y variaciones de estado.
 defenses/      Iconos/avatares de defensas digitales.
 logos/         Logo, wordmark, splash y variantes de marca.
 programs/      Iconos de programas: scan, spike, ghost, shield, extract.
+stats/         Iconos de atributos del deck: pulse, veil, lens, shell.
 ui/            Overlays, scanlines, bordes, efectos y elementos de interfaz.
 ```
 
@@ -33,6 +34,10 @@ programs/program-spike.svg
 programs/program-ghost.svg
 programs/program-shield.svg
 programs/program-extract.svg
+stats/stat-pulse.svg
+stats/stat-veil.svg
+stats/stat-lens.svg
+stats/stat-shell.svg
 defenses/ice-watcher.svg
 defenses/ice-piercer.svg
 defenses/ice-tracer.svg

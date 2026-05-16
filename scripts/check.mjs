@@ -12,6 +12,10 @@ const requiredFiles = [
   'public/assets/characters/decker-placeholder.svg',
   'public/assets/defenses/ice-watcher.svg',
   'public/assets/programs/program-scan.svg',
+  'public/assets/stats/stat-pulse.svg',
+  'public/assets/stats/stat-veil.svg',
+  'public/assets/stats/stat-lens.svg',
+  'public/assets/stats/stat-shell.svg',
   'public/assets/logos/splash-shadowhack.svg',
   'public/assets/logos/logo-shadowhack.svg',
   'public/assets/backgrounds/bg-finance.svg',
@@ -248,7 +252,10 @@ if (killedIceRun.status !== 'exploring') throw new Error('Successful spike shoul
 if (!killedIceRun.neutralizedIce.includes('n-1')) throw new Error('Successful spike should mark ICE as neutralized');
 renderNodeMap(projectSystemForRun(iceSystem, killedIceRun), killedIceRun);
 if (!renderDeckTrace(upgradedDeckResult.profile, createInitialRunState(iceSystem, upgradedDeckResult.profile), 'Scan mejorado.').includes('deck-memory')) throw new Error('Deck trace should show segmented memory');
-if (!renderDeckOverlay(true, upgradedDeckResult.profile, 'Scan mejorado.').includes('Software cargado')) throw new Error('Deck overlay should render loaded software');
+const deckOverlayHtml = renderDeckOverlay(true, upgradedDeckResult.profile, 'Scan mejorado.');
+if (!deckOverlayHtml.includes('Software cargado')) throw new Error('Deck overlay should render loaded software');
+if (!deckOverlayHtml.includes('deck-software-grid')) throw new Error('Deck software should render as a card grid');
+if (!deckOverlayHtml.includes('/assets/stats/stat-pulse.svg')) throw new Error('Deck stats should use custom SVG icons');
 if (!renderHelpOverlay(true, 'deck').includes('help-tabs')) throw new Error('Help overlay should render compact tab navigation');
 renderProgressPanel({ valueTier: 'B', companyValue: 60, completedRuns: 2, bestScore: 140 }, []);
 

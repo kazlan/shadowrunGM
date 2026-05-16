@@ -80,12 +80,20 @@ function renderDeckHelp() {
   const stats = Object.values(deckStatCatalog)
     .map((stat) => renderCard(stat.label, stat.description))
     .join('');
+  const parts = [
+    renderCard('Chasis', 'Base fisica del deck y soporte de mejoras.'),
+    renderCard('Persona', 'Avatar/interfaz que habita el host durante la run.'),
+    renderCard('Bus', 'Ranuras de software cargado para el arsenal activo.'),
+    renderCard('Buffer', 'Memoria de loot. Empieza fatal y mejora con cred.'),
+  ].join('');
 
   return `<div class="help-section">
     <div class="help-callout">
       <strong>Progresión</strong>
       <span>Las runs dan cred. Gástalo en chasis y programas: un deck mejor permite asumir hosts más valiosos, pero no cancela la alerta.</span>
     </div>
+    <h3>Piezas</h3>
+    <div class="help-grid">${parts}</div>
     <h3>Atributos</h3>
     <div class="help-grid">${stats}</div>
     <h3>Regla práctica</h3>

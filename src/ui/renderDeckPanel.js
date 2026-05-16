@@ -1,4 +1,5 @@
 import { deckStatCatalog, getDeckLevel, getStorageCapacity, getUpgradeCost } from '../world/deckStore.js';
+import { assetPaths } from '../assets/assetRegistry.js';
 import { programs } from '../game/programCatalog.js';
 import { escapeHtml } from './html.js';
 
@@ -42,17 +43,16 @@ export function renderDeckOverlay(isOpen, deckProfile, upgradeMessage = '') {
 
   const deckLevel = getDeckLevel(deckProfile);
   const stats = Object.values(deckStatCatalog)
-    .map((stat) => renderUpgradeRow('stat', stat.kind, stat.label, deckProfile.deck[stat.kind], stat.description, deckProfile.credits))
+    .map((stat) => renderStatCard(stat, deckProfile.deck[stat.kind], deckProfile.credits))
     .join('');
   const programUpgrades = programs
-    .map((program) => renderUpgradeRow('program', program.kind, program.label, deckProfile.programs[program.kind], program.description, deckProfile.credits))
+    .map((program) => renderSoftwareCard(program, deckProfile.programs[program.kind], deckProfile.credits))
     .join('');
   const hardware = renderUpgradeRow('hardware', 'storage', 'Memoria', deckProfile.hardware.storage, `Capacidad de loot: ${getStorageCapacity(deckProfile)} tokens.`, deckProfile.credits);
   const parts = deckParts
     .map((part) => `<article class="deck-part">
       <strong>${escapeHtml(part.label)}</strong>
-      <span>${escapeHtml(part.value)}</span>
-      <small>${escapeHtml(part.description)}</small>
+      <span title="${escapeHtml(part.description)}">${escapeHtml(part.value)}</span>
     </article>`)
     .join('');
 
@@ -86,7 +86,7 @@ export function renderDeckOverlay(isOpen, deckProfile, upgradeMessage = '') {
         </div>
         <div>
           <h3>Software cargado</h3>
-          <div class="deck-upgrade-list">${programUpgrades}</div>
+          <div class="deck-software-grid">${programUpgrades}</div>
         </div>
       </div>
     </section>
@@ -109,5 +109,33 @@ function renderUpgradeRow(category, key, label, level, description, credits) {
       <span>${escapeHtml(description)}</span>
     </div>
     <button data-deck-upgrade="${category}:${key}" type="button" ${maxed || !affordable ? 'disabled' : ''}>${escapeHtml(state)}</button>
+  </article>`;
+}
+
+function renderStatCard(stat, level, credits) {
+  const maxed = level >= 5;
+  const cost = maxed ? 0 : getUpgradeCost('stat', level);
+  const affordable = credits >= cost;
+  const state = maxed ? 'MAX' : `${cost} cred`;
+
+  return `<article class="deck-stat-card" title="${escapeHtml(stat.description)}">
+    <img src="${assetPaths.stats[stat.kind]}" alt="" loading="lazy" />
+    <strong>${escapeHtml(stat.label)}</strong>
+    <span>L${level}</span>
+    <button data-deck-upgrade="stat:${stat.kind}" type="button" ${maxed || !affordable ? 'disabled' : ''}>${escapeHtml(state)}</button>
+  </article>`;
+}
+
+function renderSoftwareCard(program, level, credits) {
+  const maxed = level >= 5;
+  const cost = maxed ? 0 : getUpgradeCost('program', level);
+  const affordable = credits >= cost;
+  const state = maxed ? 'MAX' : `${cost}`;
+
+  return `<article class="deck-software-card" title="${escapeHtml(program.description)}">
+    <img src="${assetPaths.programs[program.kind]}" alt="" loading="lazy" />
+    <strong>${escapeHtml(program.label)}</strong>
+    <span>L${level}</span>
+    <button data-deck-upgrade="program:${program.kind}" type="button" ${maxed || !affordable ? 'disabled' : ''}>${escapeHtml(state)}</button>
   </article>`;
 }
