@@ -8,6 +8,7 @@ import { createRng } from '../game/rng.js';
 import { projectSystemForRun } from '../game/systemView.js';
 import { requestCurrentPosition } from '../location/locationService.js';
 import { registerServiceWorker } from '../pwa/registerServiceWorker.js';
+import { getDangerTheme } from '../ui/dangerTheme.js';
 import { renderHelpOverlay } from '../ui/renderHelpOverlay.js';
 import { renderHud } from '../ui/renderHud.js';
 import { renderNodeMap } from '../ui/renderNodeMap.js';
@@ -73,7 +74,8 @@ function render() {
 
   const runtimeSystem = projectSystemForRun(appState.system, appState.run);
   const backgroundUrl = getHostBackground(appState.system.archetype.archetype);
-  root.innerHTML = `<main class="app-shell" style="--host-bg: url('${backgroundUrl}')">
+  const dangerTheme = getDangerTheme(appState.run);
+  root.innerHTML = `<main class="app-shell" style="--host-bg: url('${backgroundUrl}'); --danger-level: ${dangerTheme.level}; --danger-color: ${dangerTheme.color}; --danger-border: ${dangerTheme.border}; --danger-glow: ${dangerTheme.glow}">
     <div class="scanline"></div>
     ${renderHud(runtimeSystem, appState.run, audioDirector.isEnabled())}
     ${renderNodeMap(runtimeSystem, appState.run)}

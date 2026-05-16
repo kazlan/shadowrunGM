@@ -20,6 +20,8 @@ const requiredFiles = [
   'src/styles/theme.css',
   'src/game/mapGenerator.js',
   'src/ui/renderRunLog.js',
+  'src/ui/dangerTheme.js',
+  'src/ui/renderNodeMap.js',
   'src/ui/renderHelpOverlay.js',
   'src/ui/renderScannerOverlay.js',
   'src/ui/html.js',
@@ -175,6 +177,9 @@ const { generateSystem } = await import('../src/game/mapGenerator.js');
 const { createInitialRunState } = await import('../src/game/runState.js');
 const { reduceRun } = await import('../src/game/runEngine.js');
 const { scoreRun } = await import('../src/game/runScoring.js');
+const { getDangerTheme } = await import('../src/ui/dangerTheme.js');
+const { projectSystemForRun } = await import('../src/game/systemView.js');
+const { renderNodeMap } = await import('../src/ui/renderNodeMap.js');
 
 const jackOutPlace = demoPlaces[0];
 const jackOutSeed = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
@@ -189,6 +194,32 @@ const jackOutSystem = generateSystem({
 const jackOutRun = reduceRun(jackOutSystem, createInitialRunState(jackOutSystem), { type: 'jackOut' });
 if (jackOutRun.status !== 'escaped') throw new Error('Jack-out from entry should escape instead of crashing');
 if (!Number.isFinite(scoreRun(jackOutSystem, jackOutRun))) throw new Error('Jack-out run score should be finite');
+
+const iceSystem = {
+  seedId: 'ice-check',
+  alias: 'ICE CHECK',
+  company: jackOutPlace,
+  archetype: jackOutArchetype,
+  valuation: { score: 60, tier: 'B' },
+  effectiveSecurity: 4,
+  entryNodeId: 'n-0',
+  coreNodeId: 'n-1',
+  nodes: [
+    { id: 'n-0', kind: 'entry', state: 'visited', x: 18, y: 50, risk: 1 },
+    { id: 'n-1', kind: 'core', state: 'scanned', x: 72, y: 50, risk: 1, ice: 'watcher' },
+  ],
+  edges: [{ from: 'n-0', to: 'n-1' }],
+};
+const movedIntoIce = reduceRun(iceSystem, createInitialRunState(iceSystem), { type: 'move', nodeId: 'n-1' });
+const killedIceRun = reduceRun(iceSystem, movedIntoIce, { type: 'runProgram', program: 'spike' });
+if (killedIceRun.status !== 'exploring') throw new Error('Successful spike should return to exploring after neutralizing ICE');
+if (!killedIceRun.neutralizedIce.includes('n-1')) throw new Error('Successful spike should mark ICE as neutralized');
+renderNodeMap(projectSystemForRun(iceSystem, killedIceRun), killedIceRun);
+
+const lowDanger = getDangerTheme(createInitialRunState(iceSystem));
+const highDanger = getDangerTheme({ ...createInitialRunState(iceSystem), alert: 10, trace: 8, integrity: 1 });
+if (Number(lowDanger.level) >= Number(highDanger.level)) throw new Error('Danger theme should increase as run pressure rises');
+if (!lowDanger.color.includes('hsl(214') || !highDanger.color.includes('hsl(0')) throw new Error('Danger theme should scale from blue to bright red');
 
 const audioDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'AudioContext');
 try {
@@ -205,4 +236,4 @@ try {
   else delete globalThis.AudioContext;
 }
 
-console.log(`Checked ${requiredFiles.length} required files, PWA manifest, seed hashing fallback, jack-out flow, and audio director.`);
+console.log(`Checked ${requiredFiles.length} required files, PWA manifest, seed hashing fallback, jack-out/ICE flows, danger theme, and audio director.`);

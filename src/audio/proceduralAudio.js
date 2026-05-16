@@ -29,7 +29,7 @@ export function createAudioDirector() {
         enabled = !enabled;
         if (enabled) {
           await resumeContext();
-          startMusic();
+          ensureMusicPlaying();
           playUiBlip();
         } else {
           playPowerDown();
@@ -51,6 +51,8 @@ export function createAudioDirector() {
         ensureContext();
         if (!context) return;
         await resumeContext();
+
+        ensureMusicPlaying();
 
         const sounds = {
           scan: playScan,
@@ -102,6 +104,12 @@ export function createAudioDirector() {
     if (context?.state === 'suspended') await context.resume();
   }
 
+  function ensureMusicPlaying() {
+    if (!enabled || !context) return;
+    if (droneNodes.length === 0) startMusic();
+    if (!musicTimer) musicTimer = globalThis.setInterval(scheduleMusicPulse, 1850);
+  }
+
   function startMusic() {
     if (!context || droneNodes.length > 0) return;
 
@@ -134,7 +142,7 @@ export function createAudioDirector() {
       return [oscillator, gain, filter, lfo, lfoGain];
     });
 
-    musicTimer = globalThis.setInterval(scheduleMusicPulse, 1850);
+    if (!musicTimer) musicTimer = globalThis.setInterval(scheduleMusicPulse, 1850);
     scheduleMusicPulse();
   }
 
