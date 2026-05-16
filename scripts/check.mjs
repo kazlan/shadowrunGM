@@ -339,7 +339,10 @@ try {
   if (!mediumScore.includes(".bank('crate')")) throw new Error('Reference Strudel snippet should use the crate drum bank');
   if (!mediumScore.includes('gm_epiano1:1')) throw new Error('Reference Strudel snippet should use electric piano chords');
   if (!mediumScore.includes('gm_acoustic_bass')) throw new Error('Reference Strudel snippet should use the provided bass voice');
-  if (!(await director.toggle())) throw new Error('Audio director should enable with mock AudioContext');
+  if (!(await director.toggleMusic())) throw new Error('Music should enable with mock AudioContext');
+  if (!director.isMusicEnabled() || director.isSfxEnabled()) throw new Error('Music and SFX toggles should be independent');
+  if (!(await director.toggleSfx())) throw new Error('SFX should enable with mock AudioContext');
+  if (!director.getState().music || !director.getState().sfx) throw new Error('Audio state should expose separate music and SFX flags');
   await director.play('jackOut');
   await director.play('success');
   const highProfile = director.updateRunState({ ...createInitialRunState(iceSystem), alert: 10, trace: 8, integrity: 1 }, iceSystem);
@@ -348,9 +351,15 @@ try {
   if (highScore !== lowScore) throw new Error('Reference Strudel snippet should not react to alert while auditioning');
   if (!highScore.includes('rd:<1!3 2>*2')) throw new Error('Reference Strudel snippet should include the ride layer');
   if (!highScore.includes('fm(sine.range(3,8).slow(8))')) throw new Error('Reference Strudel snippet should include the evolving FM melody');
+  await director.play('scan');
   await director.play('spike');
+  await director.play('ghost');
+  await director.play('shield');
+  await director.play('extract');
   if (!director.isEnabled()) throw new Error('Audio director should remain enabled after jack-out sounds');
-  if (await director.toggle()) throw new Error('Audio director should disable cleanly');
+  if (await director.toggleSfx()) throw new Error('SFX should disable cleanly');
+  if (await director.toggleMusic()) throw new Error('Music should disable cleanly');
+  if (director.isEnabled()) throw new Error('Audio director should be fully disabled after both toggles are off');
 } finally {
   if (audioDescriptor) Object.defineProperty(globalThis, 'AudioContext', audioDescriptor);
   else delete globalThis.AudioContext;

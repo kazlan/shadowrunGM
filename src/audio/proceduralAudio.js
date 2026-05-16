@@ -7,7 +7,8 @@ export function createAudioDirector() {
   let context = null;
   let master = null;
   let sfxBus = null;
-  let enabled = false;
+  let musicEnabled = false;
+  let sfxEnabled = false;
   let strudelApi = null;
   let strudelReady = null;
   let strudelPatternKey = '';
@@ -16,41 +17,74 @@ export function createAudioDirector() {
 
   return {
     isEnabled() {
-      return enabled;
+      return musicEnabled || sfxEnabled;
+    },
+
+    isMusicEnabled() {
+      return musicEnabled;
+    },
+
+    isSfxEnabled() {
+      return sfxEnabled;
+    },
+
+    getState() {
+      return { music: musicEnabled, sfx: sfxEnabled };
     },
 
     updateRunState(run, system) {
       runProfile = createRunProfile(run);
       hostProfile = createHostProfile(system?.seedId ?? system?.alias ?? 'default');
-      if (enabled) void updateStrudelPattern();
+      if (musicEnabled) void updateStrudelPattern();
       return { ...runProfile, hostVariant: hostProfile.variant };
     },
 
     async toggle() {
+      return this.toggleMusic();
+    },
+
+    async toggleMusic() {
       try {
         ensureContext();
         if (!context && !canUseStrudel()) return false;
 
-        enabled = !enabled;
-        if (enabled) {
+        musicEnabled = !musicEnabled;
+        if (musicEnabled) {
           await resumeContext();
           await updateStrudelPattern(true);
-          playUiBlip();
+          if (sfxEnabled) playMusicOn();
         } else {
-          playPowerDown();
+          if (sfxEnabled) playMusicOff();
           stopStrudel();
         }
-        return enabled;
+        return musicEnabled;
       } catch (error) {
         console.warn('Audio unavailable', error);
-        enabled = false;
+        musicEnabled = false;
         stopStrudel();
         return false;
       }
     },
 
+    async toggleSfx() {
+      try {
+        ensureContext();
+        if (!context) return false;
+        sfxEnabled = !sfxEnabled;
+        if (sfxEnabled) {
+          await resumeContext();
+          playSfxOn();
+        }
+        return sfxEnabled;
+      } catch (error) {
+        console.warn('SFX unavailable', error);
+        sfxEnabled = false;
+        return false;
+      }
+    },
+
     async play(eventName) {
-      if (!enabled) return;
+      if (!sfxEnabled) return;
 
       try {
         ensureContext();
@@ -111,7 +145,7 @@ export function createAudioDirector() {
   }
 
   async function updateStrudelPattern(force = false) {
-    if (!enabled) return;
+    if (!musicEnabled) return;
     const api = await ensureStrudel();
     if (!api) return;
 
@@ -171,8 +205,10 @@ export function createAudioDirector() {
   }
 
   function playScan() {
-    playTone({ frequency: 420, endFrequency: 1560, duration: 0.22, type: 'sawtooth', volume: 0.12 });
-    playNoise({ duration: 0.12, volume: 0.08, filterFrequency: 2200 });
+    playTone({ frequency: 260, endFrequency: 1880, duration: 0.32, type: 'sawtooth', volume: 0.13 });
+    globalThis.setTimeout(() => playTone({ frequency: 940, endFrequency: 1320, duration: 0.09, type: 'sine', volume: 0.08 }), 110);
+    globalThis.setTimeout(() => playTone({ frequency: 1180, endFrequency: 1660, duration: 0.09, type: 'sine', volume: 0.07 }), 190);
+    playNoise({ duration: 0.18, volume: 0.075, filterFrequency: 2600 });
   }
 
   function playMove() {
@@ -190,25 +226,30 @@ export function createAudioDirector() {
   }
 
   function playSpike() {
-    playTone({ frequency: 98, endFrequency: 784, duration: 0.18, type: 'square', volume: 0.13 });
-    playNoise({ duration: 0.1, volume: 0.08, filterFrequency: 1400, filterType: 'bandpass' });
+    playTone({ frequency: 82.41, endFrequency: 110, duration: 0.16, type: 'square', volume: 0.18 });
+    globalThis.setTimeout(() => playTone({ frequency: 740, endFrequency: 196, duration: 0.11, type: 'sawtooth', volume: 0.15 }), 55);
+    globalThis.setTimeout(() => playTone({ frequency: 1480, endFrequency: 392, duration: 0.08, type: 'square', volume: 0.1 }), 115);
+    playNoise({ duration: 0.16, volume: 0.12, filterFrequency: 1150, filterType: 'bandpass' });
   }
 
   function playGhost() {
-    playTone({ frequency: 659.25, endFrequency: 246.94, duration: 0.24, type: 'sine', volume: 0.08 });
-    globalThis.setTimeout(() => playTone({ frequency: 987.77, endFrequency: 493.88, duration: 0.18, type: 'triangle', volume: 0.055 }), 80);
+    playTone({ frequency: 987.77, endFrequency: 246.94, duration: 0.34, type: 'sine', volume: 0.075 });
+    globalThis.setTimeout(() => playTone({ frequency: 739.99, endFrequency: 184.99, duration: 0.28, type: 'triangle', volume: 0.055 }), 70);
+    globalThis.setTimeout(() => playNoise({ duration: 0.2, volume: 0.035, filterFrequency: 3400, filterType: 'highpass' }), 35);
   }
 
   function playShield() {
-    [220, 330, 440].forEach((frequency, index) => {
-      globalThis.setTimeout(() => playTone({ frequency, endFrequency: frequency * 0.99, duration: 0.16, type: 'triangle', volume: 0.075 }), index * 45);
+    [196, 261.63, 329.63, 392].forEach((frequency, index) => {
+      globalThis.setTimeout(() => playTone({ frequency, endFrequency: frequency * 1.01, duration: 0.24, type: 'triangle', volume: 0.075 }), index * 36);
     });
+    globalThis.setTimeout(() => playNoise({ duration: 0.12, volume: 0.055, filterFrequency: 680, filterType: 'lowpass' }), 40);
   }
 
   function playExtract() {
-    [0, 90, 180].forEach((delayMs, index) => {
-      globalThis.setTimeout(() => playTone({ frequency: 392 * (1 + index * 0.25), duration: 0.11, type: 'sine', volume: 0.11 }), delayMs);
+    [0, 55, 110, 165, 240].forEach((delayMs, index) => {
+      globalThis.setTimeout(() => playTone({ frequency: 392 + index * 116, endFrequency: 460 + index * 130, duration: 0.075, type: 'sine', volume: 0.095 }), delayMs);
     });
+    globalThis.setTimeout(() => playTone({ frequency: 1046.5, endFrequency: 1318.5, duration: 0.18, type: 'triangle', volume: 0.08 }), 285);
   }
 
   function playJackOut() {
@@ -235,8 +276,17 @@ export function createAudioDirector() {
     playNoise({ duration: 0.32, volume: 0.12, filterFrequency: 900, filterType: 'bandpass' });
   }
 
-  function playPowerDown() {
+  function playMusicOn() {
+    playTone({ frequency: 330, endFrequency: 660, duration: 0.12, type: 'sine', volume: 0.08 });
+  }
+
+  function playMusicOff() {
     playTone({ frequency: 440, endFrequency: 70, duration: 0.28, type: 'triangle', volume: 0.1 });
+  }
+
+  function playSfxOn() {
+    playTone({ frequency: 880, endFrequency: 1320, duration: 0.08, type: 'sine', volume: 0.1 });
+    globalThis.setTimeout(() => playTone({ frequency: 1174.66, endFrequency: 1567.98, duration: 0.08, type: 'sine', volume: 0.08 }), 80);
   }
 }
 

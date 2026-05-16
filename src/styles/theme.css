@@ -145,11 +145,12 @@ button { font: inherit; }
 .audio-toggle {
   position: relative;
   z-index: 22;
-  width: 34px;
+  min-width: 38px;
   padding: 10px 0;
   color: var(--cyan);
   border: 1px solid rgba(51, 255, 204, .42);
   background: rgba(10, 18, 42, .82);
+  font-size: .62rem;
   font-weight: 900;
   box-shadow: 0 0 18px rgba(51, 255, 204, .16);
 }
@@ -611,7 +612,7 @@ button { font: inherit; }
   .host-heading small { font-size: .58rem; }
   .jack-out { min-width: 68px; padding: 7px; font-size: .68rem; }
   .help-toggle,
-  .audio-toggle { width: 30px; padding: 7px 0; }
+  .audio-toggle { min-width: 32px; padding: 7px 0; font-size: .52rem; }
   .eyebrow { font-size: .56rem; }
   .meters { gap: 6px; }
   .meter { padding: 5px 6px; }

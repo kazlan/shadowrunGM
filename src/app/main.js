@@ -99,7 +99,7 @@ function render() {
   const dangerTheme = getDangerTheme(appState.run);
   root.innerHTML = `<main class="app-shell" style="--host-bg: url('${backgroundUrl}'); --danger-level: ${dangerTheme.level}; --danger-color: ${dangerTheme.color}; --danger-border: ${dangerTheme.border}; --danger-glow: ${dangerTheme.glow}">
     <div class="scanline"></div>
-    ${renderHud(runtimeSystem, appState.run, audioDirector.isEnabled())}
+    ${renderHud(runtimeSystem, appState.run, audioDirector.getState())}
     ${renderNodeMap(runtimeSystem, appState.run, appState.mapView)}
     ${renderProgramDock(appState.run)}
     ${renderRunLog(appState.run)}
@@ -181,7 +181,8 @@ function bindEvents() {
       const action = button.dataset.action;
       if (action === 'jackOut') dispatch({ type: 'jackOut' });
       if (action === 'scanLocal') void scanLocalTargets();
-      if (action === 'toggleAudio') void toggleAudio();
+      if (action === 'toggleMusic') void toggleMusic();
+      if (action === 'toggleSfx') void toggleSfx();
       if (action === 'toggleHelp') {
         appState.isHelpOpen = !appState.isHelpOpen;
         appState.isScannerOpen = false;
@@ -224,9 +225,14 @@ function bindEvents() {
   scrollRunLogToLatest();
 }
 
-async function toggleAudio() {
+async function toggleMusic() {
   syncAudioState();
-  await audioDirector.toggle();
+  await audioDirector.toggleMusic();
+  render();
+}
+
+async function toggleSfx() {
+  await audioDirector.toggleSfx();
   render();
 }
 

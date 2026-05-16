@@ -2,10 +2,13 @@ import { assetPaths } from '../assets/assetRegistry.js';
 import { escapeHtml } from './html.js';
 import { programs } from '../game/programCatalog.js';
 
-export function renderHud(system, run, isAudioEnabled = false) {
+export function renderHud(system, run, audioState = { music: false, sfx: false }) {
+  const musicEnabled = Boolean(audioState.music);
+  const sfxEnabled = Boolean(audioState.sfx);
   return `<header class="hud-top">
       <div class="hud-actions">
-        <button class="audio-toggle ${isAudioEnabled ? 'is-active' : ''}" data-action="toggleAudio" type="button" aria-label="${isAudioEnabled ? 'Silenciar audio' : 'Activar música y efectos'}">♪</button>
+        <button class="audio-toggle ${musicEnabled ? 'is-active' : ''}" data-action="toggleMusic" type="button" aria-label="${musicEnabled ? 'Silenciar música' : 'Activar música'}">MUS</button>
+        <button class="audio-toggle ${sfxEnabled ? 'is-active' : ''}" data-action="toggleSfx" type="button" aria-label="${sfxEnabled ? 'Silenciar efectos' : 'Activar efectos'}">FX</button>
         <button class="help-toggle" data-action="toggleHelp" type="button" aria-label="Abrir ayuda de juego">?</button>
         <button class="jack-out" data-action="jackOut" type="button">Jack out</button>
       </div>
