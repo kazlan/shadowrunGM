@@ -10,7 +10,7 @@ import { requestCurrentPosition } from '../location/locationService.js';
 import { registerServiceWorker } from '../pwa/registerServiceWorker.js';
 import { getDangerTheme } from '../ui/dangerTheme.js';
 import { renderHelpOverlay } from '../ui/renderHelpOverlay.js';
-import { renderHud } from '../ui/renderHud.js';
+import { renderHud, renderProgramDock } from '../ui/renderHud.js';
 import { renderNodeMap } from '../ui/renderNodeMap.js';
 import { renderProgressPanel } from '../ui/renderProgress.js';
 import { renderRunLog } from '../ui/renderRunLog.js';
@@ -26,6 +26,9 @@ const root = document.querySelector('#root');
 const audioDirector = createAudioDirector();
 const overpassProvider = createOverpassProvider();
 const demoNearbyProvider = createDemoNearbyProvider();
+const DEFAULT_MAP_VIEW = { x: 0, y: 0, width: 100, height: 100 };
+const MIN_MAP_SIZE = 32;
+const MAX_MAP_SIZE = 100;
 const appState = {
   places: demoPlaces,
   selectedPlace: demoPlaces[0],
@@ -37,6 +40,9 @@ const appState = {
   lastRecordedStatus: null,
   isHelpOpen: false,
   isScannerOpen: false,
+  mapView: { ...DEFAULT_MAP_VIEW },
+  mapPointer: null,
+  ignoreNextNodeClick: false,
 };
 
 async function buildSystem(place) {
@@ -54,12 +60,17 @@ async function startRun(place) {
   appState.currentProgress = getHostProgress(appState.system.seedId);
   appState.recentProgress = listRecentProgress();
   appState.lastRecordedStatus = null;
+  appState.mapView = { ...DEFAULT_MAP_VIEW };
+  appState.mapPointer = null;
+  appState.ignoreNextNodeClick = false;
+  syncAudioState();
   render();
 }
 
 function dispatch(action) {
   if (!appState.system || !appState.run) return;
   appState.run = reduceRun(appState.system, appState.run, action);
+  syncAudioState();
   void audioDirector.play(audioEventForAction(action));
   syncRunResult();
   render();
@@ -78,12 +89,8 @@ function render() {
   root.innerHTML = `<main class="app-shell" style="--host-bg: url('${backgroundUrl}'); --danger-level: ${dangerTheme.level}; --danger-color: ${dangerTheme.color}; --danger-border: ${dangerTheme.border}; --danger-glow: ${dangerTheme.glow}">
     <div class="scanline"></div>
     ${renderHud(runtimeSystem, appState.run, audioDirector.isEnabled())}
-    ${renderNodeMap(runtimeSystem, appState.run)}
-    <section class="action-bar" aria-label="Acciones de intrusión">
-      <button data-action="scan" type="button">Scan</button>
-      <button data-action="runProgram" type="button">Ejecutar</button>
-      <button data-action="extract" type="button">Extract</button>
-    </section>
+    ${renderNodeMap(runtimeSystem, appState.run, appState.mapView)}
+    ${renderProgramDock(appState.run)}
     ${renderRunLog(appState.run)}
     ${renderProgressPanel(appState.currentProgress, appState.recentProgress)}
     <button class="scanner-toggle" data-action="toggleScanner" type="button">Objetivos / scanner</button>
@@ -113,22 +120,34 @@ function bindEvents() {
 
   root.querySelectorAll('[data-program]').forEach((button) => {
     button.addEventListener('click', () => {
-      dispatch({ type: 'selectProgram', program: button.dataset.program });
+      dispatch({ type: 'runProgram', program: button.dataset.program });
     });
   });
 
   root.querySelectorAll('[data-node-id]').forEach((node) => {
     node.addEventListener('click', () => {
+      if (appState.ignoreNextNodeClick) {
+        appState.ignoreNextNodeClick = false;
+        return;
+      }
       dispatch({ type: 'move', nodeId: node.dataset.nodeId });
     });
   });
 
+  root.querySelectorAll('[data-map-action]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const action = button.dataset.mapAction;
+      if (action === 'zoomIn') zoomMap(0.72);
+      if (action === 'zoomOut') zoomMap(1.28);
+      if (action === 'reset') setMapView({ ...DEFAULT_MAP_VIEW });
+    });
+  });
+
+  bindNodeMapEvents();
+
   root.querySelectorAll('[data-action]').forEach((button) => {
     button.addEventListener('click', () => {
       const action = button.dataset.action;
-      if (action === 'scan') dispatch({ type: 'scan' });
-      if (action === 'runProgram') dispatch({ type: 'runProgram', program: appState.run.selectedProgram });
-      if (action === 'extract') dispatch({ type: 'extract' });
       if (action === 'jackOut') dispatch({ type: 'jackOut' });
       if (action === 'scanLocal') void scanLocalTargets();
       if (action === 'toggleAudio') void toggleAudio();
@@ -156,9 +175,12 @@ function bindEvents() {
       }
     });
   });
+
+  scrollRunLogToLatest();
 }
 
 async function toggleAudio() {
+  syncAudioState();
   await audioDirector.toggle();
   render();
 }
@@ -194,14 +216,123 @@ void startRun(appState.selectedPlace);
 registerServiceWorker();
 
 function audioEventForAction(action) {
+  if (action.type === 'runProgram') {
+    return {
+      scan: 'scan',
+      extract: 'extract',
+      spike: 'spike',
+      ghost: 'ghost',
+      shield: 'shield',
+    }[action.program] ?? 'runProgram';
+  }
+
   return {
-    scan: 'scan',
     move: 'move',
     selectProgram: 'selectProgram',
-    runProgram: 'runProgram',
-    extract: 'extract',
     jackOut: 'jackOut',
   }[action.type];
+}
+
+function scrollRunLogToLatest() {
+  const log = root?.querySelector('.run-log ol');
+  if (!log) return;
+  log.scrollTop = log.scrollHeight;
+}
+
+function bindNodeMapEvents() {
+  const surface = root?.querySelector('[data-map-surface]');
+  if (!surface) return;
+
+  surface.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    zoomMap(event.deltaY > 0 ? 1.16 : 0.86, event);
+  }, { passive: false });
+
+  surface.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    appState.mapPointer = {
+      id: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startView: { ...appState.mapView },
+      hasMoved: false,
+    };
+    surface.setPointerCapture?.(event.pointerId);
+  });
+
+  surface.addEventListener('pointermove', (event) => {
+    const pointer = appState.mapPointer;
+    if (!pointer || pointer.id !== event.pointerId) return;
+
+    const rect = surface.getBoundingClientRect();
+    const deltaX = event.clientX - pointer.startX;
+    const deltaY = event.clientY - pointer.startY;
+    if (Math.abs(deltaX) + Math.abs(deltaY) > 4) pointer.hasMoved = true;
+
+    const nextView = {
+      ...pointer.startView,
+      x: pointer.startView.x - (deltaX / rect.width) * pointer.startView.width,
+      y: pointer.startView.y - (deltaY / rect.height) * pointer.startView.height,
+    };
+    setMapView(nextView);
+  });
+
+  surface.addEventListener('pointerup', finishMapPointer);
+  surface.addEventListener('pointercancel', finishMapPointer);
+}
+
+function finishMapPointer(event) {
+  const pointer = appState.mapPointer;
+  if (!pointer || pointer.id !== event.pointerId) return;
+  appState.ignoreNextNodeClick = pointer.hasMoved;
+  appState.mapPointer = null;
+  if (appState.ignoreNextNodeClick) {
+    globalThis.setTimeout(() => {
+      appState.ignoreNextNodeClick = false;
+    }, 80);
+  }
+}
+
+function zoomMap(factor, originEvent) {
+  const surface = root?.querySelector('[data-map-surface]');
+  const view = appState.mapView;
+  const width = clamp(view.width * factor, MIN_MAP_SIZE, MAX_MAP_SIZE);
+  const height = clamp(view.height * factor, MIN_MAP_SIZE, MAX_MAP_SIZE);
+  let anchorX = view.x + view.width / 2;
+  let anchorY = view.y + view.height / 2;
+
+  if (originEvent && surface) {
+    const rect = surface.getBoundingClientRect();
+    anchorX = view.x + ((originEvent.clientX - rect.left) / rect.width) * view.width;
+    anchorY = view.y + ((originEvent.clientY - rect.top) / rect.height) * view.height;
+  }
+
+  const x = anchorX - ((anchorX - view.x) / view.width) * width;
+  const y = anchorY - ((anchorY - view.y) / view.height) * height;
+  setMapView({ x, y, width, height });
+}
+
+function setMapView(view) {
+  appState.mapView = clampMapView(view);
+  const surface = root?.querySelector('[data-map-surface]');
+  if (!surface) return;
+  const { x, y, width, height } = appState.mapView;
+  surface.setAttribute('viewBox', `${x} ${y} ${width} ${height}`);
+}
+
+function clampMapView(view) {
+  const width = clamp(view.width, MIN_MAP_SIZE, MAX_MAP_SIZE);
+  const height = clamp(view.height, MIN_MAP_SIZE, MAX_MAP_SIZE);
+  return {
+    x: clamp(view.x, 0, 100 - width),
+    y: clamp(view.y, 0, 100 - height),
+    width,
+    height,
+  };
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function syncRunResult() {
@@ -215,6 +346,11 @@ function syncRunResult() {
   appState.currentProgress = recordRunResult(appState.system, appState.run, score);
   appState.recentProgress = listRecentProgress();
   appState.lastRecordedStatus = appState.run.status;
+}
+
+function syncAudioState() {
+  if (!appState.system || !appState.run) return;
+  audioDirector.updateRunState(appState.run, appState.system);
 }
 
 function describeTarget(place) {

@@ -224,16 +224,41 @@ if (!lowDanger.color.includes('hsl(214') || !highDanger.color.includes('hsl(0'))
 const audioDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'AudioContext');
 try {
   Object.defineProperty(globalThis, 'AudioContext', { value: MockAudioContext, configurable: true });
-  const { createAudioDirector } = await import('../src/audio/proceduralAudio.js?check-audio');
+  const { createAudioDirector, createStrudelScore } = await import('../src/audio/proceduralAudio.js?check-audio');
   const director = createAudioDirector();
+  const initialProfile = director.updateRunState(createInitialRunState(iceSystem), iceSystem);
+  if (initialProfile.level !== 'low') throw new Error('Initial audio profile should start at low pressure');
+  const mediumAlertProfile = director.updateRunState({ ...createInitialRunState(iceSystem), alert: 4 }, iceSystem);
+  if (mediumAlertProfile.level !== 'medium') throw new Error('Medium alert should make audio more dramatic');
+  const hostProfile = { variant: initialProfile.hostVariant, tempoOffset: 0 };
+  const lowScore = createStrudelScore(initialProfile, hostProfile);
+  const mediumScore = createStrudelScore(mediumAlertProfile, hostProfile);
+  if (lowScore === mediumScore) throw new Error('Low and medium Strudel scores should differ');
+  if (extractCps(lowScore) >= extractCps(mediumScore)) throw new Error('Medium Strudel score should raise the cycle tempo');
+  if (!mediumScore.includes('brown ~ ~ ~')) throw new Error('Medium Strudel score should introduce subtle ambient texture');
+  if (mediumScore.includes('white*')) throw new Error('Medium Strudel score should avoid constant hat patterns');
   if (!(await director.toggle())) throw new Error('Audio director should enable with mock AudioContext');
   await director.play('jackOut');
   await director.play('success');
+  const highProfile = director.updateRunState({ ...createInitialRunState(iceSystem), alert: 10, trace: 8, integrity: 1 }, iceSystem);
+  if (highProfile.level !== 'high') throw new Error('High danger should move audio profile to high pressure');
+  const highScore = createStrudelScore(highProfile, hostProfile);
+  if (extractCps(mediumScore) >= extractCps(highScore)) throw new Error('High Strudel score should raise the cycle tempo again');
+  if (highScore.includes('white*8')) throw new Error('High Strudel score should avoid constant hat density');
+  if (/\b[a-g][b#]?\d\*4\b/.test(highScore)) throw new Error('High Strudel score should avoid four-on-the-floor note pulses');
+  if (!highScore.includes('delay(.32).room(.35)')) throw new Error('High Strudel score should add a filtered cinematic tension lead');
+  await director.play('spike');
   if (!director.isEnabled()) throw new Error('Audio director should remain enabled after jack-out sounds');
   if (await director.toggle()) throw new Error('Audio director should disable cleanly');
 } finally {
   if (audioDescriptor) Object.defineProperty(globalThis, 'AudioContext', audioDescriptor);
   else delete globalThis.AudioContext;
+}
+
+function extractCps(score) {
+  const match = /setcps\(([\d.]+)\)/.exec(score);
+  if (!match) throw new Error('Strudel score must define setcps');
+  return Number(match[1]);
 }
 
 console.log(`Checked ${requiredFiles.length} required files, PWA manifest, seed hashing fallback, jack-out/ICE flows, danger theme, and audio director.`);

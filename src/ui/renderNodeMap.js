@@ -11,7 +11,7 @@ const nodeGlyph = {
   exit: 'OUT',
 };
 
-export function renderNodeMap(system, run) {
+export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, height: 100 }) {
   const edges = system.edges
     .map((edge) => {
       const from = system.nodes.find((node) => node.id === edge.from);
@@ -40,7 +40,12 @@ export function renderNodeMap(system, run) {
     .join('');
 
   return `<section class="node-map" aria-label="Mapa de nodos del host">
-    <svg viewBox="0 0 100 100" role="img">
+    <div class="node-map__controls" aria-label="Controles del mapa">
+      <button data-map-action="zoomOut" type="button" aria-label="Alejar mapa">-</button>
+      <button data-map-action="reset" type="button" aria-label="Recentrar mapa">R</button>
+      <button data-map-action="zoomIn" type="button" aria-label="Acercar mapa">+</button>
+    </div>
+    <svg viewBox="${formatViewBox(mapView)}" role="img" data-map-surface="true">
       <defs>
         <filter id="glow">
           <feGaussianBlur stdDeviation="1.8" result="coloredBlur" />
@@ -54,6 +59,10 @@ export function renderNodeMap(system, run) {
       ${nodes}
     </svg>
   </section>`;
+}
+
+function formatViewBox(view) {
+  return `${view.x} ${view.y} ${view.width} ${view.height}`;
 }
 
 function isNodeReachable(system, run, nodeId) {

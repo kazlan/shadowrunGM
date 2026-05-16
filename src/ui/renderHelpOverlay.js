@@ -10,6 +10,21 @@ const gameSteps = [
   'Vuelve a la entrada o a una salida y pulsa Jack out antes de agotar alerta, traza o shell.',
 ];
 
+const statHelp = [
+  {
+    label: 'ALERTA',
+    description: 'Ruido dentro del host. Sube al moverte a nodos recién descubiertos, fallar o usar acciones ruidosas; si llega a 10, las contramedidas cierran la run.',
+  },
+  {
+    label: 'TRAZA',
+    description: 'Rastreo hacia tu posición. La suben defensas como Tracer, desconexiones forzadas y presión alta; si llega a 8, el host te expulsa.',
+  },
+  {
+    label: 'SHELL',
+    description: 'Integridad de tu avatar/deck. Baja por hielo ofensivo, fallos y dump shock; si llega a 0, quedas dumped.',
+  },
+];
+
 export function renderHelpOverlay(isOpen) {
   if (!isOpen) return '';
 
@@ -23,6 +38,14 @@ export function renderHelpOverlay(isOpen) {
     .join('');
 
   const steps = gameSteps.map((step) => `<li>${escapeHtml(step)}</li>`).join('');
+  const stats = statHelp
+    .map(
+      (stat) => `<li>
+        <strong>${escapeHtml(stat.label)}</strong>
+        <span>${escapeHtml(stat.description)}</span>
+      </li>`,
+    )
+    .join('');
 
   return `<aside class="help-overlay" role="dialog" aria-modal="true" aria-labelledby="help-title">
     <button class="help-overlay__backdrop" data-action="closeHelp" type="button" aria-label="Cerrar ayuda"></button>
@@ -38,6 +61,10 @@ export function renderHelpOverlay(isOpen) {
         <div>
           <h3>Programas</h3>
           <ol class="help-list help-list--programs">${programHelp}</ol>
+        </div>
+        <div>
+          <h3>Stats</h3>
+          <ol class="help-list">${stats}</ol>
         </div>
         <div>
           <h3>Instrucciones</h3>

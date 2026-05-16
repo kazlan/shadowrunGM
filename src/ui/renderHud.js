@@ -3,18 +3,6 @@ import { escapeHtml } from './html.js';
 import { programs } from '../game/programCatalog.js';
 
 export function renderHud(system, run, isAudioEnabled = false) {
-  const programButtons = programs
-    .map((program) => {
-      const active = run.selectedProgram === program.kind;
-      const disabled = run.disabledPrograms.includes(program.kind);
-      const stateLabel = disabled ? 'Bloqueado' : program.description;
-      return `<button class="${active ? 'is-active' : ''}" data-program="${program.kind}" type="button" aria-label="${escapeHtml(`${program.label}: ${stateLabel}`)}" title="${escapeHtml(stateLabel)}" ${disabled ? 'disabled' : ''}>
-        <img src="${assetPaths.programs[program.kind]}" alt="" loading="lazy" />
-        <strong>${escapeHtml(program.label)}</strong>
-      </button>`;
-    })
-    .join('');
-
   return `<header class="hud-top">
       <div class="brand-line">
         <img class="brand-mark" src="${assetPaths.logo}" alt="" />
@@ -34,15 +22,32 @@ export function renderHud(system, run, isAudioEnabled = false) {
       ${renderMeter('ALERTA', run.alert, run.maxAlert, 'alert')}
       ${renderMeter('TRAZA', run.trace, run.maxTrace, 'trace')}
       ${renderMeter('SHELL', run.integrity, run.maxIntegrity, 'integrity')}
-    </section>
-    <footer class="program-dock" aria-label="Programas cargados">${programButtons}</footer>`;
+    </section>`;
+}
+
+export function renderProgramDock(run) {
+  const programButtons = programs
+    .map((program) => {
+      const active = run.selectedProgram === program.kind;
+      const disabled = run.disabledPrograms.includes(program.kind);
+      const stateLabel = disabled ? 'Bloqueado' : program.description;
+      return `<button class="${active ? 'is-active' : ''}" data-program="${program.kind}" type="button" aria-label="${escapeHtml(`Ejecutar ${program.label}: ${stateLabel}`)}" title="${escapeHtml(stateLabel)}" ${disabled ? 'disabled' : ''}>
+        <img src="${assetPaths.programs[program.kind]}" alt="" loading="lazy" />
+        <strong>${escapeHtml(program.label)}</strong>
+      </button>`;
+    })
+    .join('');
+
+  return `<footer class="program-dock" aria-label="Programas ejecutables">${programButtons}</footer>`;
 }
 
 function renderMeter(label, value, max, kind) {
   const percent = Math.round((value / max) * 100);
   return `<div class="meter meter--${kind}">
-    <span>${label}</span>
-    <strong>${value}/${max}</strong>
+    <div>
+      <span>${label}</span>
+      <strong>${value}/${max}</strong>
+    </div>
     <i style="--meter:${percent}%"></i>
   </div>`;
 }

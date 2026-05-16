@@ -63,6 +63,10 @@ function scan(system, run) {
 }
 
 function move(system, run, nodeId) {
+  if (nodeId === run.currentNodeId) {
+    return addLog(run, 'Ya estás en este nodo. Elige una ruta conectada o ejecuta un programa.');
+  }
+
   const connectedIds = getConnectedNodeIds(system, run.currentNodeId);
   if (!connectedIds.includes(nodeId)) {
     return addLog(run, 'Ruta no conectada desde el nodo actual.');
@@ -102,11 +106,13 @@ function runProgram(system, run, program) {
     return addLog(run, `${labelProgram(program)} sigue desactivado.`);
   }
 
-  if (program === 'scan') return scan(system, run);
-  if (program === 'extract') return extract(system, run);
-  if (program === 'shield') return shield(system, run);
-  if (program === 'ghost') return ghost(system, run);
-  if (program === 'spike') return spike(system, run);
+  const preparedRun = { ...run, selectedProgram: program };
+
+  if (program === 'scan') return scan(system, preparedRun);
+  if (program === 'extract') return extract(system, preparedRun);
+  if (program === 'shield') return shield(system, preparedRun);
+  if (program === 'ghost') return ghost(system, preparedRun);
+  if (program === 'spike') return spike(system, preparedRun);
 
   return addLog(run, 'Programa no reconocido.');
 }

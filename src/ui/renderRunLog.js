@@ -2,7 +2,7 @@ import { escapeHtml } from './html.js';
 export function renderRunLog(run) {
   const lines = run.log.map((line) => `<li>${escapeHtml(line)}</li>`).join('');
   const statusClass = run.status === 'escaped' ? 'is-success' : run.status === 'dumped' ? 'is-danger' : '';
-  return `<section class="run-log ${statusClass}" aria-label="Log de intrusión">
+  return `<section class="run-log ${statusClass}" aria-label="Log de intrusión" aria-live="polite">
     <div>
       <p class="eyebrow">Estado</p>
       <strong>${escapeHtml(statusLabel(run.status))}</strong>
