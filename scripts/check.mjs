@@ -243,9 +243,28 @@ const jackOutSystemAgain = generateSystem({
 if (JSON.stringify(jackOutSystem.nodes.map(({ id, kind, event }) => ({ id, kind, event }))) !== JSON.stringify(jackOutSystemAgain.nodes.map(({ id, kind, event }) => ({ id, kind, event })))) {
   throw new Error('Generated node events must be deterministic for the same host seed');
 }
+assertStructuredHost(jackOutSystem);
 if (!jackOutSystem.nodes.some((node) => node.event === nodeEvents.archive.kind || node.event === nodeEvents.core.kind)) {
   throw new Error('Generated hosts should include extractable node events');
 }
+const lowValueSystem = generateSystem({
+  rng: createRng('low-value-host-check'),
+  seedId: 'low-value-host-check',
+  company: demoPlaces[1],
+  archetype: classifyCompany(demoPlaces[1]),
+  valuation: { score: 15, tier: 'D', difficulty: 'minima', payoutMultiplier: 1.15, securityModifier: -1, sizeModifier: -1 },
+});
+const highValueSystem = generateSystem({
+  rng: createRng('high-value-host-check'),
+  seedId: 'high-value-host-check',
+  company: demoPlaces[2],
+  archetype: classifyCompany(demoPlaces[2]),
+  valuation: { score: 92, tier: 'AAA', difficulty: 'letal', payoutMultiplier: 1.92, securityModifier: 2, sizeModifier: 3 },
+});
+assertStructuredHost(lowValueSystem);
+assertStructuredHost(highValueSystem);
+if (countHostDefenses(highValueSystem) <= countHostDefenses(lowValueSystem)) throw new Error('High-value hosts should contain more defenses than low-value hosts');
+assertHighTierPayloadApproach(highValueSystem);
 const jackOutRun = reduceRun(jackOutSystem, createInitialRunState(jackOutSystem), { type: 'jackOut' });
 if (jackOutRun.status !== 'escaped') throw new Error('Jack-out from entry should escape instead of crashing');
 if (!Number.isFinite(scoreRun(jackOutSystem, jackOutRun))) throw new Error('Jack-out run score should be finite');
@@ -267,6 +286,52 @@ const rewardResult = awardRunCredits(defaultDeck, jackOutSystem, jackOutRun, sco
 if (rewardResult.reward <= 0 || rewardResult.profile.credits <= 0) throw new Error('Completed runs should award deck upgrade credits');
 if (!renderCompletionScreen({ hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3, canBookmark: true, bookmarkCapacity: 3, bookmarkDecision: null }, defaultDeck).includes('Guardar host')) {
   throw new Error('Completion screen should prompt for bookmark saving');
+}
+
+function assertStructuredHost(system) {
+  const distances = hostDistances(system);
+  if (distances[system.coreNodeId] === undefined || distances[system.coreNodeId] < 4) throw new Error('Generated host core should be at least four hops from entry');
+  if (!system.nodes.some((node) => node.kind === 'exit' && distances[node.id] !== undefined)) throw new Error('Generated host should include a reachable exit');
+  if (!system.nodes.some((node) => node.event === nodeEvents.archive.kind || node.event === nodeEvents.core.kind)) throw new Error('Generated host should include reachable paydata');
+  for (const node of system.nodes) {
+    if (node.event === nodeEvents.archive.kind && distances[node.id] < 3) throw new Error('Generated host archive paydata should not sit beside the entry');
+  }
+}
+
+function assertHighTierPayloadApproach(system) {
+  const distances = hostDistances(system);
+  const nearestArchiveDistance = Math.min(...system.nodes
+    .filter((node) => node.event === nodeEvents.archive.kind)
+    .map((node) => distances[node.id])
+    .filter(Number.isFinite));
+  const priorDecisions = system.nodes.filter((node) => {
+    const distance = distances[node.id];
+    return distance > 0
+      && distance < nearestArchiveDistance
+      && (node.kind === 'firewall' || node.kind === 'camera' || ['gate', 'trap', 'camera', 'decoy'].includes(node.event) || node.ice);
+  }).length;
+  if (nearestArchiveDistance < 3 || priorDecisions < 2) throw new Error('High-tier hosts should demand at least two tactical decisions before first payload');
+}
+
+function countHostDefenses(system) {
+  return system.nodes.filter((node) => node.ice || ['gate', 'trap', 'camera'].includes(node.event)).length;
+}
+
+function hostDistances(system) {
+  const distances = { [system.entryNodeId]: 0 };
+  const queue = [system.entryNodeId];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    const neighbors = system.edges
+      .filter((edge) => edge.from === current || edge.to === current)
+      .map((edge) => (edge.from === current ? edge.to : edge.from));
+    for (const neighbor of neighbors) {
+      if (distances[neighbor] !== undefined) continue;
+      distances[neighbor] = distances[current] + 1;
+      queue.push(neighbor);
+    }
+  }
+  return distances;
 }
 
 const iceSystem = {

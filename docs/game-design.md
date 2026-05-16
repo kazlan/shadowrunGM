@@ -35,6 +35,25 @@ Las defensas quedan separadas en tres capas:
 - **Defensas activas**: ICE que dispara efectos al entrar en el nodo y puede neutralizarse con Spike.
 - **Respuesta de host**: presión global representada por alerta y traza; cuando cualquiera llega al máximo se produce una convergencia propia y la run queda expulsada.
 
+## Reglas de composición de host
+
+Los hosts se generan por plantillas de topología, no como una línea de nodos aleatorios. Cada plantilla debe producir una infiltración con entrada, tránsito, control, datos, núcleo y salida:
+
+- **Small**: 7-9 nodos, un datastore, una puerta y una salida.
+- **Standard**: 10-13 nodos, dos datastores, dos capas defensivas y salida lateral.
+- **Secure**: 14-17 nodos, hub interno, rama de datos, rama de control y núcleo aislado.
+
+Reglas obligatorias:
+
+- El nodo de entrada no contiene paydata real.
+- Los archivos reales aparecen a tres saltos o más desde la entrada.
+- El núcleo aparece a cuatro saltos o más desde la entrada.
+- Los hosts A/AA/AAA exigen al menos dos decisiones tácticas antes del primer payload real.
+- Si aparece dato cerca de entrada, debe funcionar como señuelo, pista o nodo bloqueado, no como recompensa inmediata.
+- Cada host debe ofrecer una ruta corta peligrosa y una ruta más legible, con al menos una salida alcanzable.
+
+La inspiración v2/v3 se limita a la idea general de hosts por capas, datastores, control, núcleo, defensas y seguridad escalonada. `shadowHack` usa nombres, relojes y procedimientos propios.
+
 ## Bucle MVP
 
 1. Elegir objetivo cercano.
