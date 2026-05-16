@@ -1,4 +1,4 @@
-import { deckStatCatalog, getDeckLevel, getStorageCapacity, getUpgradeCost } from '../world/deckStore.js';
+import { deckStatCatalog, getBookmarkCapacity, getDeckLevel, getStorageCapacity, getUpgradeCost } from '../world/deckStore.js';
 import { assetPaths } from '../assets/assetRegistry.js';
 import { programs } from '../game/programCatalog.js';
 import { escapeHtml } from './html.js';
@@ -49,6 +49,7 @@ export function renderDeckOverlay(isOpen, deckProfile, upgradeMessage = '') {
     .map((program) => renderSoftwareCard(program, deckProfile.programs[program.kind], deckProfile.credits))
     .join('');
   const hardware = renderUpgradeRow('hardware', 'storage', 'Memoria', deckProfile.hardware.storage, `Capacidad de loot: ${getStorageCapacity(deckProfile)} tokens.`, deckProfile.credits);
+  const bookmarkHardware = renderUpgradeRow('hardware', 'bookmarks', 'Bookmarks', deckProfile.hardware.bookmarks, `Hosts guardados: ${deckProfile.bookmarks.length}/${getBookmarkCapacity(deckProfile)}.`, deckProfile.credits);
   const parts = deckParts
     .map((part) => `<article class="deck-part">
       <strong>${escapeHtml(part.label)}</strong>
@@ -78,7 +79,7 @@ export function renderDeckOverlay(isOpen, deckProfile, upgradeMessage = '') {
         </div>
         <div>
           <h3>Hardware</h3>
-          <div class="deck-upgrade-list">${hardware}</div>
+          <div class="deck-upgrade-list">${hardware}${bookmarkHardware}</div>
         </div>
         <div>
           <h3>Stats del chasis</h3>

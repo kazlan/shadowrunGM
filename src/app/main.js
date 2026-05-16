@@ -10,7 +10,8 @@ import { requestCurrentPosition } from '../location/locationService.js';
 import { registerServiceWorker } from '../pwa/registerServiceWorker.js';
 import { getDangerTheme } from '../ui/dangerTheme.js';
 import { renderDeckOverlay, renderDeckTrace } from '../ui/renderDeckPanel.js';
-import { renderHelpOverlay } from '../ui/renderHelpOverlay.js';
+import { renderCompletionScreen } from '../ui/renderCompletionScreen.js';
+import { renderHelpOverlay, renderSettingsOverlay } from '../ui/renderHelpOverlay.js';
 import { renderHud, renderProgramDock } from '../ui/renderHud.js';
 import { renderNodeMap } from '../ui/renderNodeMap.js';
 import { renderProgressPanel } from '../ui/renderProgress.js';
@@ -21,7 +22,7 @@ import { hashCompany } from '../world/companySeed.js';
 import { valueCompany } from '../world/companyValuation.js';
 import { createOverpassProvider } from '../world/overpassProvider.js';
 import { createDemoNearbyProvider, demoPlaces, searchNearbyPlaces } from '../world/placeProvider.js';
-import { awardRunCredits, loadDeckProfile, upgradeDeckProfile } from '../world/deckStore.js';
+import { addHostBookmark, awardRunCredits, getBookmarkCapacity, loadDeckProfile, upgradeDeckProfile } from '../world/deckStore.js';
 import { getHostProgress, listRecentProgress, recordRunResult } from '../world/progressStore.js';
 
 const root = document.querySelector('#root');
@@ -42,7 +43,9 @@ const appState = {
   recentProgress: [],
   deckProfile: loadDeckProfile(),
   deckMessage: '',
+  completion: null,
   lastRecordedStatus: null,
+  isSettingsOpen: false,
   isHelpOpen: false,
   helpTab: 'run',
   isDeckOpen: false,
@@ -62,6 +65,7 @@ async function buildSystem(place) {
 
 async function startRun(place) {
   appState.selectedPlace = place;
+  appState.completion = null;
   appState.system = await buildSystem(place);
   appState.deckProfile = loadDeckProfile();
   appState.deckMessage = '';
@@ -89,6 +93,21 @@ function dispatch(action) {
 
 function render() {
   if (!root) return;
+  if (appState.completion) {
+    root.innerHTML = `${renderCompletionScreen(appState.completion, appState.deckProfile)}
+      ${renderScannerOverlay({
+        isOpen: appState.isScannerOpen,
+        places: appState.places,
+        selectedPlace: appState.selectedPlace,
+        locationMessage: appState.locationMessage,
+        describeTarget,
+        bookmarks: appState.deckProfile.bookmarks,
+        bookmarkCapacity: getBookmarkCapacity(appState.deckProfile),
+      })}`;
+    bindEvents();
+    return;
+  }
+
   if (!appState.system || !appState.run) {
     root.innerHTML = '<main class="app-shell app-shell--loading">Sincronizando deck...</main>';
     return;
@@ -99,7 +118,7 @@ function render() {
   const dangerTheme = getDangerTheme(appState.run);
   root.innerHTML = `<main class="app-shell" style="--host-bg: url('${backgroundUrl}'); --danger-level: ${dangerTheme.level}; --danger-color: ${dangerTheme.color}; --danger-border: ${dangerTheme.border}; --danger-glow: ${dangerTheme.glow}">
     <div class="scanline"></div>
-    ${renderHud(runtimeSystem, appState.run, audioDirector.getState())}
+    ${renderHud(runtimeSystem, appState.run)}
     ${renderNodeMap(runtimeSystem, appState.run, appState.mapView)}
     ${renderProgramDock(appState.run)}
     ${renderRunLog(appState.run)}
@@ -107,6 +126,7 @@ function render() {
     ${renderProgressPanel(appState.currentProgress, appState.recentProgress)}
     <button class="scanner-toggle" data-action="toggleScanner" type="button">Objetivos / scanner</button>
     ${renderDeckOverlay(appState.isDeckOpen, appState.deckProfile, appState.deckMessage)}
+    ${renderSettingsOverlay(appState.isSettingsOpen, audioDirector.getState())}
     ${renderHelpOverlay(appState.isHelpOpen, appState.helpTab)}
     ${renderScannerOverlay({
       isOpen: appState.isScannerOpen,
@@ -114,6 +134,8 @@ function render() {
       selectedPlace: appState.selectedPlace,
       locationMessage: appState.locationMessage,
       describeTarget,
+      bookmarks: appState.deckProfile.bookmarks,
+      bookmarkCapacity: getBookmarkCapacity(appState.deckProfile),
     })}
   </main>`;
 
@@ -128,6 +150,15 @@ function bindEvents() {
       appState.isScannerOpen = false;
       void audioDirector.play('target');
       void startRun(nextPlace);
+    });
+  });
+
+  root.querySelectorAll('[data-bookmark-index]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const bookmark = appState.deckProfile.bookmarks[Number(button.dataset.bookmarkIndex)];
+      if (!bookmark) return;
+      void audioDirector.play('scanner');
+      void scanFromBookmark(bookmark);
     });
   });
 
@@ -174,6 +205,16 @@ function bindEvents() {
     });
   });
 
+  root.querySelectorAll('[data-audio-volume]').forEach((input) => {
+    input.addEventListener('input', () => {
+      const value = Number(input.value) / 100;
+      if (input.dataset.audioVolume === 'music') audioDirector.setMusicVolume(value);
+      if (input.dataset.audioVolume === 'sfx') audioDirector.setSfxVolume(value);
+      const output = input.closest('.settings-audio-row')?.querySelector('strong');
+      if (output) output.textContent = String(Math.round(value * 100));
+    });
+  });
+
   bindNodeMapEvents();
 
   root.querySelectorAll('[data-action]').forEach((button) => {
@@ -181,10 +222,21 @@ function bindEvents() {
       const action = button.dataset.action;
       if (action === 'jackOut') dispatch({ type: 'jackOut' });
       if (action === 'scanLocal') void scanLocalTargets();
+      if (action === 'saveBookmark') saveCompletionBookmark();
+      if (action === 'skipBookmark') skipCompletionBookmark();
       if (action === 'toggleMusic') void toggleMusic();
       if (action === 'toggleSfx') void toggleSfx();
-      if (action === 'toggleHelp') {
-        appState.isHelpOpen = !appState.isHelpOpen;
+      if (action === 'toggleSettings') {
+        appState.isSettingsOpen = !appState.isSettingsOpen;
+        appState.isHelpOpen = false;
+        appState.isScannerOpen = false;
+        appState.isDeckOpen = false;
+        void audioDirector.play('openOverlay');
+        render();
+      }
+      if (action === 'openHelp') {
+        appState.isHelpOpen = true;
+        appState.isSettingsOpen = false;
         appState.isScannerOpen = false;
         appState.isDeckOpen = false;
         void audioDirector.play('openOverlay');
@@ -195,8 +247,14 @@ function bindEvents() {
         void audioDirector.play('openOverlay');
         render();
       }
+      if (action === 'closeSettings') {
+        appState.isSettingsOpen = false;
+        void audioDirector.play('openOverlay');
+        render();
+      }
       if (action === 'toggleScanner') {
         appState.isScannerOpen = !appState.isScannerOpen;
+        appState.isSettingsOpen = false;
         appState.isHelpOpen = false;
         appState.isDeckOpen = false;
         void audioDirector.play('openOverlay');
@@ -209,6 +267,7 @@ function bindEvents() {
       }
       if (action === 'toggleDeck') {
         appState.isDeckOpen = !appState.isDeckOpen;
+        appState.isSettingsOpen = false;
         appState.isHelpOpen = false;
         appState.isScannerOpen = false;
         void audioDirector.play('openOverlay');
@@ -244,15 +303,7 @@ async function scanLocalTargets() {
 
   try {
     const position = await requestCurrentPosition();
-    try {
-      appState.places = await searchNearbyPlaces(overpassProvider, position, 900);
-      if (appState.places.length === 0) throw new Error('sin objetivos OSM cercanos');
-      appState.locationMessage = `Scanner local activo. ${appState.places.length} objetivos OSM encontrados.`;
-    } catch (providerError) {
-      console.warn('Overpass unavailable, using demo nearby provider', providerError);
-      appState.places = await searchNearbyPlaces(demoNearbyProvider, position, 900);
-      appState.locationMessage = 'Overpass no disponible. Usando objetivos demo desplazados cerca de tu posición.';
-    }
+    await scanFromPosition(position, 'Scanner local activo');
     appState.isScannerOpen = false;
     await startRun(appState.places[0]);
   } catch (error) {
@@ -345,6 +396,28 @@ function finishMapPointer(event) {
   }
 }
 
+async function scanFromBookmark(bookmark) {
+  const radius = getScanRadius();
+  appState.locationMessage = `Escaneando desde bookmark ${bookmark.hostAlias} (${radius}m)...`;
+  render();
+  await scanFromPosition({ lat: bookmark.lat, lon: bookmark.lon }, `Scanner remoto desde ${bookmark.hostAlias}`);
+  appState.isScannerOpen = true;
+  render();
+}
+
+async function scanFromPosition(position, successLabel) {
+  const radius = getScanRadius();
+  try {
+    appState.places = await searchNearbyPlaces(overpassProvider, position, radius);
+    if (appState.places.length === 0) throw new Error('sin objetivos OSM cercanos');
+    appState.locationMessage = `${successLabel}. ${appState.places.length} objetivos OSM encontrados en ${radius}m.`;
+  } catch (providerError) {
+    console.warn('Overpass unavailable, using demo nearby provider', providerError);
+    appState.places = await searchNearbyPlaces(demoNearbyProvider, position, radius);
+    appState.locationMessage = `${successLabel}. Overpass no disponible; objetivos demo en ${radius}m.`;
+  }
+}
+
 function zoomMap(factor, originEvent) {
   const surface = root?.querySelector('[data-map-surface]');
   const view = appState.mapView;
@@ -401,6 +474,45 @@ function syncRunResult() {
   appState.deckMessage = reward.reward > 0 ? `+${reward.reward} cred recuperados de la run.` : '';
   appState.recentProgress = listRecentProgress();
   appState.lastRecordedStatus = appState.run.status;
+  if (appState.run.status === 'escaped' && appState.run.hasPayload) {
+    const bookmarkCapacity = getBookmarkCapacity(appState.deckProfile);
+    appState.completion = {
+      hostAlias: appState.system.alias,
+      seedId: appState.system.seedId,
+      system: appState.system,
+      reward: reward.reward,
+      score,
+      lootTokens: appState.run.lootTokens ?? 0,
+      bookmarkCapacity,
+      canBookmark: appState.deckProfile.bookmarks.length < bookmarkCapacity,
+      bookmarkDecision: null,
+    };
+    appState.system = null;
+    appState.run = null;
+    appState.isDeckOpen = false;
+    appState.isSettingsOpen = false;
+    appState.isHelpOpen = false;
+    appState.isScannerOpen = false;
+  }
+}
+
+function saveCompletionBookmark() {
+  if (!appState.completion?.system) return;
+  const result = addHostBookmark(appState.deckProfile, appState.completion.system);
+  appState.deckProfile = result.profile;
+  appState.completion = {
+    ...appState.completion,
+    bookmarkDecision: result.changed || result.reason === 'exists' ? 'saved' : 'skipped',
+    canBookmark: false,
+  };
+  void audioDirector.play(result.changed ? 'success' : 'failure');
+  render();
+}
+
+function skipCompletionBookmark() {
+  if (!appState.completion) return;
+  appState.completion = { ...appState.completion, bookmarkDecision: 'skipped' };
+  render();
 }
 
 function deckUpgradeMessage(result, category, key) {
@@ -425,4 +537,9 @@ function describeTarget(place) {
   const seedHex = Math.abs(hash >>> 0).toString(16).padStart(8, '0');
   const valuation = valueCompany(place, archetype, seedHex);
   return `${place.category ?? 'unknown'} · ${valuation.tier} ${valuation.score}/100`;
+}
+
+function getScanRadius() {
+  const lens = appState.deckProfile?.deck?.lens ?? 1;
+  return 450 + lens * 250;
 }

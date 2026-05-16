@@ -1,17 +1,19 @@
 const AudioContextCtor = globalThis.AudioContext ?? globalThis.webkitAudioContext;
 
 const SFX_VOLUME = 0.34;
+const MUSIC_VOLUME = 0.16;
 const MIN_AUDIO_VALUE = 0.0001;
 
 export function createAudioDirector() {
   let context = null;
   let master = null;
   let sfxBus = null;
+  let musicBus = null;
   let musicEnabled = false;
   let sfxEnabled = false;
-  let strudelApi = null;
-  let strudelReady = null;
-  let strudelPatternKey = '';
+  let musicVolume = MUSIC_VOLUME;
+  let sfxVolume = SFX_VOLUME;
+  let musicTimer = null;
   let runProfile = createRunProfile();
   let hostProfile = createHostProfile('default');
 
@@ -29,13 +31,24 @@ export function createAudioDirector() {
     },
 
     getState() {
-      return { music: musicEnabled, sfx: sfxEnabled };
+      return { music: musicEnabled, sfx: sfxEnabled, musicVolume, sfxVolume };
+    },
+
+    setMusicVolume(value) {
+      musicVolume = clampVolume(value, MUSIC_VOLUME);
+      if (musicBus) musicBus.gain.value = musicVolume;
+      return musicVolume;
+    },
+
+    setSfxVolume(value) {
+      sfxVolume = clampVolume(value, SFX_VOLUME);
+      if (sfxBus) sfxBus.gain.value = sfxVolume;
+      return sfxVolume;
     },
 
     updateRunState(run, system) {
       runProfile = createRunProfile(run);
       hostProfile = createHostProfile(system?.seedId ?? system?.alias ?? 'default');
-      if (musicEnabled) void updateStrudelPattern();
       return { ...runProfile, hostVariant: hostProfile.variant };
     },
 
@@ -46,22 +59,22 @@ export function createAudioDirector() {
     async toggleMusic() {
       try {
         ensureContext();
-        if (!context && !canUseStrudel()) return false;
+        if (!context) return false;
 
         musicEnabled = !musicEnabled;
         if (musicEnabled) {
           await resumeContext();
-          await updateStrudelPattern(true);
+          startMusicLoop(true);
           if (sfxEnabled) playMusicOn();
         } else {
           if (sfxEnabled) playMusicOff();
-          stopStrudel();
+          stopMusicLoop();
         }
         return musicEnabled;
       } catch (error) {
         console.warn('Audio unavailable', error);
         musicEnabled = false;
-        stopStrudel();
+        stopMusicLoop();
         return false;
       }
     },
@@ -123,46 +136,54 @@ export function createAudioDirector() {
     master.connect(context.destination);
 
     sfxBus = context.createGain();
-    sfxBus.gain.value = SFX_VOLUME;
+    sfxBus.gain.value = sfxVolume;
     sfxBus.connect(master);
+
+    musicBus = context.createGain();
+    musicBus.gain.value = musicVolume;
+    musicBus.connect(master);
   }
 
   async function resumeContext() {
     if (context?.state === 'suspended') await context.resume();
   }
 
-  async function ensureStrudel() {
-    if (!canUseStrudel()) return null;
-    if (strudelApi) return strudelApi;
-    if (!strudelReady) {
-      strudelReady = import('@strudel/web').then(async (api) => {
-        await api.initStrudel();
-        strudelApi = api;
-        return api;
-      });
-    }
-    return strudelReady;
+  function startMusicLoop(immediate = false) {
+    stopMusicLoop();
+    const tick = () => {
+      if (!musicEnabled || !context || !musicBus) return;
+      playMusicPhrase();
+      const interval = 1350 - runProfile.stage * 180 + (hostProfile.tempoOffset ?? 0) * 5000;
+      musicTimer = globalThis.setTimeout(tick, Math.max(720, interval));
+    };
+    musicTimer = globalThis.setTimeout(tick, immediate ? 0 : 600);
   }
 
-  async function updateStrudelPattern(force = false) {
-    if (!musicEnabled) return;
-    const api = await ensureStrudel();
-    if (!api) return;
-
-    const code = createStrudelScore(runProfile, hostProfile);
-    const key = `${runProfile.stage}:${runProfile.level}:${hostProfile.variant}`;
-    if (!force && key === strudelPatternKey) return;
-    strudelPatternKey = key;
-    await api.evaluate(code, true);
+  function stopMusicLoop() {
+    if (musicTimer) {
+      globalThis.clearTimeout(musicTimer);
+      musicTimer = null;
+    }
   }
 
-  function stopStrudel() {
-    try {
-      strudelApi?.hush();
-    } catch (error) {
-      console.warn('Strudel stop failed', error);
+  function playMusicPhrase() {
+    const variant = hostProfile.variant % 5;
+    const root = [110, 123.47, 146.83, 164.81, 196][variant];
+    const pressure = runProfile.stage;
+    const chord = pressure >= 2 ? [1, 1.5, 2.25] : [1, 1.25, 1.5];
+    chord.forEach((ratioValue, index) => {
+      globalThis.setTimeout(() => playTone({
+        frequency: root * ratioValue,
+        endFrequency: root * ratioValue * (1 + pressure * 0.01),
+        duration: 0.42,
+        type: index === 0 ? 'triangle' : 'sine',
+        volume: 0.035 + pressure * 0.01,
+        destination: musicBus,
+      }), index * 32);
+    });
+    if (pressure >= 1) {
+      globalThis.setTimeout(() => playTone({ frequency: root * 4, endFrequency: root * 3, duration: 0.12, type: 'square', volume: 0.022, destination: musicBus }), 210);
     }
-    strudelPatternKey = '';
   }
 
   function playTone({ frequency, endFrequency = frequency, duration = 0.16, type = 'sine', volume = 0.24, destination = sfxBus }) {
@@ -290,34 +311,9 @@ export function createAudioDirector() {
   }
 }
 
-export function createStrudelScore(profile, host) {
-  return `
-samples('github:eddyflux/crate')
-setcps(.75)
-let chords = chord("<Bbm9 Fm9>/4").dict('ireal')
-stack(
-  stack(
-    s("bd").struct("<[x*<1 2> [~@3 x]] x>"),
-    s("~ [rim, sd:<2 3>]").room("<0 .2>"),
-    n("[0 <1 3>]*<2!3 4>").s("hh"),
-    s("rd:<1!3 2>*2").mask("<0 0 1 1>/16").gain(.5)
-  ).bank('crate')
-  .mask("<[0 1] 1 1 1>/16".early(.5)),
-  chords.offset(-1).voicing().s("gm_epiano1:1")
-  .phaser(4).room(.5),
-  n("<0!3 1*2>").set(chords).mode("root:g2")
-  .voicing().s("gm_acoustic_bass"),
-  chords.n("[0 <4 3 <2 5>>*2](<3 5>,8)")
-  .anchor("D5").voicing()
-  .segment(4).clip(rand.range(.4,.8))
-  .room(.75).shape(.3).delay(.25)
-  .fm(sine.range(3,8).slow(8))
-  .lpf(sine.range(500,1000).slow(8)).lpq(5)
-  .rarely(ply("2")).chunk(4, fast(2))
-  .gain(perlin.range(.6, .9))
-  .mask("<0 1 1 0>/16")
-)
-.late("[0 .01]*4").late("[0 .01]*2").size(4)`;
+export function createNativeMusicDescriptor(profile, host) {
+  const music = createMusicProfile(profile, host);
+  return `native-web-audio://${music.chordPattern}?cps=${music.cps}&stage=${profile?.stage ?? 0}`;
 }
 
 function createMusicProfile(profile = createRunProfile(), host = createHostProfile('default')) {
@@ -438,10 +434,6 @@ function formatGain(value) {
   return clamp(value, 0, 0.55).toFixed(2);
 }
 
-function canUseStrudel() {
-  return typeof window !== 'undefined' && typeof document !== 'undefined';
-}
-
 function ratio(value = 0, max = 1) {
   if (!Number.isFinite(max) || max <= 0) return 0;
   return clamp((value ?? 0) / max, 0, 1);
@@ -472,4 +464,10 @@ function rampExponential(audioParam, value, time) {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+function clampVolume(value, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return clamp(number, 0, 1);
 }

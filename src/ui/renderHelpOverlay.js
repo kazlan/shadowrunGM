@@ -25,6 +25,35 @@ const statHelp = [
   },
 ];
 
+export function renderSettingsOverlay(isOpen, audioState = {}) {
+  if (!isOpen) return '';
+
+  const musicEnabled = Boolean(audioState.music);
+  const sfxEnabled = Boolean(audioState.sfx);
+  const musicVolume = volumePercent(audioState.musicVolume, 0.16);
+  const sfxVolume = volumePercent(audioState.sfxVolume, 0.34);
+
+  return `<aside class="help-overlay settings-overlay" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <button class="help-overlay__backdrop" data-action="closeSettings" type="button" aria-label="Cerrar ajustes"></button>
+    <section class="help-panel settings-panel">
+      <div class="help-panel__header">
+        <div>
+          <p class="eyebrow">Ajustes</p>
+          <h2 id="settings-title">Deck settings</h2>
+        </div>
+        <button class="help-close" data-action="closeSettings" type="button" aria-label="Cerrar ajustes">×</button>
+      </div>
+      <div class="settings-audio" aria-label="Controles de audio">
+        ${renderAudioControl('music', 'Música', musicEnabled, musicVolume)}
+        ${renderAudioControl('sfx', 'Efectos', sfxEnabled, sfxVolume)}
+      </div>
+      <div class="settings-actions">
+        <button data-action="openHelp" type="button">Help</button>
+      </div>
+    </section>
+  </aside>`;
+}
+
 export function renderHelpOverlay(isOpen, activeTab = 'run') {
   if (!isOpen) return '';
 
@@ -49,6 +78,24 @@ export function renderHelpOverlay(isOpen, activeTab = 'run') {
       </div>
     </section>
   </aside>`;
+}
+
+function renderAudioControl(kind, label, enabled, volume) {
+  const action = kind === 'music' ? 'toggleMusic' : 'toggleSfx';
+  const aria = enabled ? `Silenciar ${label.toLowerCase()}` : `Activar ${label.toLowerCase()}`;
+  return `<div class="settings-audio-row">
+    <button class="audio-toggle ${enabled ? 'is-active' : ''}" data-action="${action}" type="button" aria-label="${aria}">${kind === 'music' ? 'MUS' : 'FX'}</button>
+    <label>
+      <span>${escapeHtml(label)}</span>
+      <input data-audio-volume="${kind}" type="range" min="0" max="100" step="1" value="${volume}" aria-label="Volumen ${escapeHtml(label)}">
+    </label>
+    <strong>${volume}</strong>
+  </div>`;
+}
+
+function volumePercent(value, fallback) {
+  const number = Number.isFinite(value) ? value : fallback;
+  return Math.round(Math.min(1, Math.max(0, number)) * 100);
 }
 
 function renderHelpTab(tab) {

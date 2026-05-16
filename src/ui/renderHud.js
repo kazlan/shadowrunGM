@@ -2,15 +2,13 @@ import { assetPaths } from '../assets/assetRegistry.js';
 import { escapeHtml } from './html.js';
 import { programs } from '../game/programCatalog.js';
 
-export function renderHud(system, run, audioState = { music: false, sfx: false }) {
-  const musicEnabled = Boolean(audioState.music);
-  const sfxEnabled = Boolean(audioState.sfx);
+export function renderHud(system, run) {
   return `<header class="hud-top">
       <div class="hud-actions">
-        <button class="audio-toggle ${musicEnabled ? 'is-active' : ''}" data-action="toggleMusic" type="button" aria-label="${musicEnabled ? 'Silenciar música' : 'Activar música'}">MUS</button>
-        <button class="audio-toggle ${sfxEnabled ? 'is-active' : ''}" data-action="toggleSfx" type="button" aria-label="${sfxEnabled ? 'Silenciar efectos' : 'Activar efectos'}">FX</button>
-        <button class="help-toggle" data-action="toggleHelp" type="button" aria-label="Abrir ayuda de juego">?</button>
         <button class="jack-out" data-action="jackOut" type="button">Jack out</button>
+        <button class="settings-toggle" data-action="toggleSettings" type="button" aria-label="Abrir ajustes">
+          ${renderCogIcon()}
+        </button>
       </div>
     </header>
     <section class="meters" aria-label="Estado de la run">
@@ -18,6 +16,13 @@ export function renderHud(system, run, audioState = { music: false, sfx: false }
       ${renderMeter('TRAZA', run.trace, run.maxTrace, 'trace')}
       ${renderMeter('SHELL', run.integrity, run.maxIntegrity, 'integrity')}
     </section>`;
+}
+
+function renderCogIcon() {
+  return `<svg class="settings-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 8.2a3.8 3.8 0 1 1 0 7.6 3.8 3.8 0 0 1 0-7.6Z" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <path d="m19.2 13.7 1.5 1.1-1.7 3-1.8-.7a7.7 7.7 0 0 1-1.5.9l-.3 1.9h-3.5l-.3-1.9a7.4 7.4 0 0 1-1.6-.9l-1.8.7-1.7-3 1.5-1.1a7.8 7.8 0 0 1 0-1.8l-1.5-1.1 1.7-3 1.8.7c.5-.35 1-.65 1.6-.9l.3-1.9h3.5l.3 1.9c.55.24 1.05.54 1.5.9l1.8-.7 1.7 3-1.5 1.1c.08.6.08 1.2 0 1.8Z" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linejoin="round"/>
+  </svg>`;
 }
 
 export function renderProgramDock(run) {

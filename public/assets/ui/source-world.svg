@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-labelledby="title desc">
+  <title id="title">Mundo real</title>
+  <desc id="desc">Icono de globo para hosts obtenidos de datos reales.</desc>
+  <defs>
+    <linearGradient id="worldGlow" x1="8" x2="40" y1="6" y2="42" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#33ffcc"/>
+      <stop offset="1" stop-color="#6fb7ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="48" height="48" rx="8" fill="#050716"/>
+  <circle cx="24" cy="24" r="15" fill="none" stroke="url(#worldGlow)" stroke-width="2.4"/>
+  <path d="M9 24h30M24 9c-5 4-7.5 9-7.5 15S19 35 24 39c5-4 7.5-9 7.5-15S29 13 24 9Z" fill="none" stroke="#d7fff6" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M13 16.5c3.4 1.4 7 2.1 11 2.1s7.6-.7 11-2.1M13 31.5c3.4-1.4 7-2.1 11-2.1s7.6.7 11 2.1" fill="none" stroke="#33ffcc" stroke-width="1.5" stroke-linecap="round"/>
+  <circle cx="24" cy="24" r="19" fill="none" stroke="#33ffcc" stroke-opacity=".18" stroke-width="3"/>
+</svg>

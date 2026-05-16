@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-labelledby="title desc">
+  <title id="title">Sandbox</title>
+  <desc id="desc">Icono de caja para hosts de demostración o generados en sandbox.</desc>
+  <defs>
+    <linearGradient id="boxGlow" x1="8" x2="40" y1="8" y2="40" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f8d66d"/>
+      <stop offset="1" stop-color="#ff3df2"/>
+    </linearGradient>
+  </defs>
+  <rect width="48" height="48" rx="8" fill="#050716"/>
+  <path d="M12 18.5 24 12l12 6.5v13L24 38l-12-6.5v-13Z" fill="rgba(248,214,109,.12)" stroke="url(#boxGlow)" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="m12 18.5 12 6.5 12-6.5M24 25v13" fill="none" stroke="#d7fff6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M17 16 29 22.5M31 15.8 19 22.3" stroke="#f8d66d" stroke-width="1.3" stroke-linecap="round" opacity=".85"/>
+  <path d="M15 31.5h5M28 33h5" stroke="#ff3df2" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

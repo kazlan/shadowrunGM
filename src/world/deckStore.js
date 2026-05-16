@@ -18,6 +18,7 @@ const DEFAULT_PROGRAMS = {
 
 const DEFAULT_HARDWARE = {
   storage: 1,
+  bookmarks: 1,
 };
 
 export const deckStatCatalog = {
@@ -35,6 +36,7 @@ export function createDefaultDeckProfile() {
     hardware: { ...DEFAULT_HARDWARE },
     programs: { ...DEFAULT_PROGRAMS },
     unlockedPrograms: Object.keys(DEFAULT_PROGRAMS),
+    bookmarks: [],
     lastReward: 0,
   };
 }
@@ -125,6 +127,7 @@ export function normalizeDeckProfile(profile) {
     hardware: normalizeLevels(source.hardware, DEFAULT_HARDWARE),
     programs: normalizeLevels(source.programs, DEFAULT_PROGRAMS),
     unlockedPrograms: Array.isArray(source.unlockedPrograms) ? source.unlockedPrograms : Object.keys(DEFAULT_PROGRAMS),
+    bookmarks: normalizeBookmarks(source.bookmarks),
     lastReward: nonNegativeInt(source.lastReward),
   };
 }
@@ -132,6 +135,40 @@ export function normalizeDeckProfile(profile) {
 export function getStorageCapacity(profile) {
   const normalized = normalizeDeckProfile(profile);
   return 3 + normalized.hardware.storage * 2;
+}
+
+export function getBookmarkCapacity(profile) {
+  const normalized = normalizeDeckProfile(profile);
+  return 2 + normalized.hardware.bookmarks;
+}
+
+export function hasHostBookmark(profile, seedId) {
+  const normalized = normalizeDeckProfile(profile);
+  return normalized.bookmarks.some((bookmark) => bookmark.seedId === seedId);
+}
+
+export function addHostBookmark(profile, system) {
+  const normalized = normalizeDeckProfile(profile);
+  if (hasHostBookmark(normalized, system.seedId)) return { profile: normalized, changed: false, reason: 'exists' };
+  if (normalized.bookmarks.length >= getBookmarkCapacity(normalized)) return { profile: normalized, changed: false, reason: 'full' };
+
+  const bookmark = {
+    seedId: system.seedId,
+    hostAlias: system.alias,
+    provider: system.company.provider,
+    providerId: system.company.providerId,
+    name: system.company.name,
+    category: system.company.category,
+    lat: system.company.lat,
+    lon: system.company.lon,
+    address: system.company.address,
+    savedAt: new Date().toISOString(),
+  };
+  const nextProfile = normalizeDeckProfile({
+    ...normalized,
+    bookmarks: [bookmark, ...normalized.bookmarks],
+  });
+  return { profile: saveDeckProfile(nextProfile), changed: true, bookmark };
 }
 
 function calculateRunCredits(system, run, score) {
@@ -149,6 +186,24 @@ function normalizeLevels(source, defaults) {
   return Object.fromEntries(
     Object.entries(defaults).map(([key, fallback]) => [key, clampLevel(source?.[key] ?? fallback)]),
   );
+}
+
+function normalizeBookmarks(bookmarks) {
+  if (!Array.isArray(bookmarks)) return [];
+  return bookmarks
+    .filter((bookmark) => bookmark?.seedId && bookmark?.name && Number.isFinite(bookmark.lat) && Number.isFinite(bookmark.lon))
+    .map((bookmark) => ({
+      seedId: String(bookmark.seedId),
+      hostAlias: String(bookmark.hostAlias ?? bookmark.name),
+      provider: String(bookmark.provider ?? 'bookmark'),
+      providerId: String(bookmark.providerId ?? bookmark.seedId),
+      name: String(bookmark.name),
+      category: String(bookmark.category ?? 'bookmark'),
+      lat: Number(bookmark.lat),
+      lon: Number(bookmark.lon),
+      address: bookmark.address ? String(bookmark.address) : undefined,
+      savedAt: bookmark.savedAt ? String(bookmark.savedAt) : new Date().toISOString(),
+    }));
 }
 
 function getUpgradeCollection(profile, category) {

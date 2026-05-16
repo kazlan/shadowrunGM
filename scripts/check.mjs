@@ -9,6 +9,8 @@ const requiredFiles = [
   'src/assets/assetRegistry.js',
   'public/assets/README.md',
   'public/assets/ui/overlay-scanlines.svg',
+  'public/assets/ui/source-world.svg',
+  'public/assets/ui/source-sandbox.svg',
   'public/assets/characters/decker-placeholder.svg',
   'public/assets/defenses/ice-watcher.svg',
   'public/assets/programs/program-scan.svg',
@@ -26,6 +28,7 @@ const requiredFiles = [
   'src/game/nodeEvents.js',
   'src/ui/renderRunLog.js',
   'src/ui/renderDeckPanel.js',
+  'src/ui/renderCompletionScreen.js',
   'src/ui/dangerTheme.js',
   'src/ui/renderNodeMap.js',
   'src/ui/renderHelpOverlay.js',
@@ -189,9 +192,12 @@ const { getDangerTheme } = await import('../src/ui/dangerTheme.js');
 const { projectSystemForRun } = await import('../src/game/systemView.js');
 const { renderNodeMap } = await import('../src/ui/renderNodeMap.js');
 const { renderDeckOverlay, renderDeckTrace } = await import('../src/ui/renderDeckPanel.js');
-const { renderHelpOverlay } = await import('../src/ui/renderHelpOverlay.js');
+const { renderHelpOverlay, renderSettingsOverlay } = await import('../src/ui/renderHelpOverlay.js');
+const { renderHud } = await import('../src/ui/renderHud.js');
+const { renderScannerOverlay } = await import('../src/ui/renderScannerOverlay.js');
 const { renderProgressPanel } = await import('../src/ui/renderProgress.js');
-const { awardRunCredits, createDefaultDeckProfile, getStorageCapacity, upgradeDeckProfile } = await import('../src/world/deckStore.js');
+const { renderCompletionScreen } = await import('../src/ui/renderCompletionScreen.js');
+const { addHostBookmark, awardRunCredits, createDefaultDeckProfile, getBookmarkCapacity, getStorageCapacity, upgradeDeckProfile } = await import('../src/world/deckStore.js');
 
 const jackOutPlace = demoPlaces[0];
 const jackOutSeed = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
@@ -228,8 +234,16 @@ const upgradedDeckResult = upgradeDeckProfile(richDeck, 'program', 'scan');
 if (!upgradedDeckResult.changed || upgradedDeckResult.profile.programs.scan !== 2) throw new Error('Program upgrades should spend credits and increase rating');
 const upgradedStorageResult = upgradeDeckProfile(richDeck, 'hardware', 'storage');
 if (!upgradedStorageResult.changed || getStorageCapacity(upgradedStorageResult.profile) <= getStorageCapacity(defaultDeck)) throw new Error('Storage upgrades should increase loot capacity');
+if (getBookmarkCapacity(defaultDeck) !== 3) throw new Error('Initial bookmark capacity should be 3');
+const upgradedBookmarkResult = upgradeDeckProfile(richDeck, 'hardware', 'bookmarks');
+if (!upgradedBookmarkResult.changed || getBookmarkCapacity(upgradedBookmarkResult.profile) <= getBookmarkCapacity(defaultDeck)) throw new Error('Bookmark upgrades should increase saved host capacity');
+const bookmarkResult = addHostBookmark(defaultDeck, jackOutSystem);
+if (!bookmarkResult.changed || bookmarkResult.profile.bookmarks.length !== 1) throw new Error('Successful hosts should be bookmarkable');
 const rewardResult = awardRunCredits(defaultDeck, jackOutSystem, jackOutRun, scoreRun(jackOutSystem, jackOutRun));
 if (rewardResult.reward <= 0 || rewardResult.profile.credits <= 0) throw new Error('Completed runs should award deck upgrade credits');
+if (!renderCompletionScreen({ hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3, canBookmark: true, bookmarkCapacity: 3, bookmarkDecision: null }, defaultDeck).includes('Guardar host')) {
+  throw new Error('Completion screen should prompt for bookmark saving');
+}
 
 const iceSystem = {
   seedId: 'ice-check',
@@ -256,7 +270,28 @@ const deckOverlayHtml = renderDeckOverlay(true, upgradedDeckResult.profile, 'Sca
 if (!deckOverlayHtml.includes('Software cargado')) throw new Error('Deck overlay should render loaded software');
 if (!deckOverlayHtml.includes('deck-software-grid')) throw new Error('Deck software should render as a card grid');
 if (!deckOverlayHtml.includes('/assets/stats/stat-pulse.svg')) throw new Error('Deck stats should use custom SVG icons');
-if (!renderHelpOverlay(true, 'deck').includes('help-tabs')) throw new Error('Help overlay should render compact tab navigation');
+const hudHtml = renderHud(iceSystem, createInitialRunState(iceSystem));
+if (!hudHtml.includes('data-action="toggleSettings"') || !hudHtml.includes('settings-icon')) throw new Error('HUD should expose settings cog next to jack-out');
+if (hudHtml.includes('data-action="toggleMusic"') || hudHtml.includes('data-action="toggleSfx"')) throw new Error('Audio controls should live inside settings, not the main HUD');
+const settingsHtml = renderSettingsOverlay(true, { music: true, sfx: false, musicVolume: 0.42, sfxVolume: 0.18 });
+if (!settingsHtml.includes('settings-audio') || !settingsHtml.includes('data-audio-volume="music"') || !settingsHtml.includes('value="42"')) throw new Error('Settings overlay should render real music volume controls');
+if (!settingsHtml.includes('data-action="toggleMusic"') || !settingsHtml.includes('data-action="openHelp"')) throw new Error('Settings overlay should contain audio toggles and a help button');
+if (settingsHtml.includes('help-tabs') || settingsHtml.includes('help-panel__content')) throw new Error('Settings overlay should not embed the help manual');
+if (!renderHelpOverlay(true, 'deck').includes('help-tabs')) throw new Error('Help overlay should render compact tab navigation in its own dialog');
+const scannerHtml = renderScannerOverlay({
+  isOpen: true,
+  places: [
+    { provider: 'osm', providerId: 'node/1', name: 'Real Shop', category: 'shop', address: 'Calle Real 1' },
+    { provider: 'manual', providerId: 'demo/1', name: 'Demo Shop', category: 'shop' },
+  ],
+  selectedPlace: { providerId: 'node/1' },
+  locationMessage: 'Scanner activo.',
+  describeTarget: (place) => place.category,
+  bookmarks: [{ provider: 'osm', providerId: 'node/2', hostAlias: 'BOOKMARK', name: 'Saved Real', address: 'Calle Bookmark 2' }],
+  bookmarkCapacity: 3,
+});
+if (!scannerHtml.includes('/assets/ui/source-world.svg') || !scannerHtml.includes('/assets/ui/source-sandbox.svg')) throw new Error('Scanner should identify real world and sandbox host sources');
+if (!scannerHtml.includes('Mundo real') || !scannerHtml.includes('Sandbox') || !scannerHtml.includes('Calle Real 1')) throw new Error('Scanner should show source labels and real-world anchor data when available');
 renderProgressPanel({ valueTier: 'B', companyValue: 60, completedRuns: 2, bestScore: 140 }, []);
 
 const eventSystem = {
@@ -323,34 +358,30 @@ if (!lowDanger.color.includes('hsl(214') || !highDanger.color.includes('hsl(0'))
 const audioDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'AudioContext');
 try {
   Object.defineProperty(globalThis, 'AudioContext', { value: MockAudioContext, configurable: true });
-  const { createAudioDirector, createStrudelScore } = await import('../src/audio/proceduralAudio.js?check-audio');
+  const { createAudioDirector, createNativeMusicDescriptor } = await import('../src/audio/proceduralAudio.js?check-audio');
   const director = createAudioDirector();
   const initialProfile = director.updateRunState(createInitialRunState(iceSystem), iceSystem);
   if (initialProfile.level !== 'low') throw new Error('Initial audio profile should start at low pressure');
   const mediumAlertProfile = director.updateRunState({ ...createInitialRunState(iceSystem), alert: 4 }, iceSystem);
   if (mediumAlertProfile.level !== 'medium') throw new Error('Medium alert should make audio more dramatic');
   const hostProfile = { variant: initialProfile.hostVariant, tempoOffset: 0 };
-  const lowScore = createStrudelScore(initialProfile, hostProfile);
-  const mediumScore = createStrudelScore(mediumAlertProfile, hostProfile);
-  if (lowScore !== mediumScore) throw new Error('Reference Strudel snippet should stay fixed while auditioning');
-  if (extractCps(lowScore) !== 0.75) throw new Error('Reference Strudel snippet should keep the original cycle tempo');
-  if (!mediumScore.includes("samples('github:eddyflux/crate')")) throw new Error('Reference Strudel snippet should load the crate sample pack');
-  if (!mediumScore.includes('chord("<Bbm9 Fm9>/4")')) throw new Error('Reference Strudel snippet should keep the provided chord progression');
-  if (!mediumScore.includes(".bank('crate')")) throw new Error('Reference Strudel snippet should use the crate drum bank');
-  if (!mediumScore.includes('gm_epiano1:1')) throw new Error('Reference Strudel snippet should use electric piano chords');
-  if (!mediumScore.includes('gm_acoustic_bass')) throw new Error('Reference Strudel snippet should use the provided bass voice');
+  const lowScore = createNativeMusicDescriptor(initialProfile, hostProfile);
+  const mediumScore = createNativeMusicDescriptor(mediumAlertProfile, hostProfile);
+  if (!lowScore.startsWith('native-web-audio://')) throw new Error('Music should use native WebAudio descriptor instead of Strudel');
+  if (!mediumScore.includes('stage=1')) throw new Error('Native music descriptor should react to pressure stage');
   if (!(await director.toggleMusic())) throw new Error('Music should enable with mock AudioContext');
   if (!director.isMusicEnabled() || director.isSfxEnabled()) throw new Error('Music and SFX toggles should be independent');
+  if (director.setMusicVolume(0.42) !== 0.42 || director.getState().musicVolume !== 0.42) throw new Error('Music volume should be adjustable');
+  if (director.setSfxVolume(0.18) !== 0.18 || director.getState().sfxVolume !== 0.18) throw new Error('SFX volume should be adjustable');
+  if (director.setMusicVolume(2) !== 1 || director.setSfxVolume(-1) !== 0) throw new Error('Audio volume should be clamped');
   if (!(await director.toggleSfx())) throw new Error('SFX should enable with mock AudioContext');
   if (!director.getState().music || !director.getState().sfx) throw new Error('Audio state should expose separate music and SFX flags');
   await director.play('jackOut');
   await director.play('success');
   const highProfile = director.updateRunState({ ...createInitialRunState(iceSystem), alert: 10, trace: 8, integrity: 1 }, iceSystem);
   if (highProfile.level !== 'high') throw new Error('High danger should move audio profile to high pressure');
-  const highScore = createStrudelScore(highProfile, hostProfile);
-  if (highScore !== lowScore) throw new Error('Reference Strudel snippet should not react to alert while auditioning');
-  if (!highScore.includes('rd:<1!3 2>*2')) throw new Error('Reference Strudel snippet should include the ride layer');
-  if (!highScore.includes('fm(sine.range(3,8).slow(8))')) throw new Error('Reference Strudel snippet should include the evolving FM melody');
+  const highScore = createNativeMusicDescriptor(highProfile, hostProfile);
+  if (!highScore.includes('stage=3')) throw new Error('High danger should move native music descriptor to stage 3');
   await director.play('scan');
   await director.play('spike');
   await director.play('ghost');
@@ -363,12 +394,6 @@ try {
 } finally {
   if (audioDescriptor) Object.defineProperty(globalThis, 'AudioContext', audioDescriptor);
   else delete globalThis.AudioContext;
-}
-
-function extractCps(score) {
-  const match = /setcps\(([\d.]+)\)/.exec(score);
-  if (!match) throw new Error('Strudel score must define setcps');
-  return Number(match[1]);
 }
 
 console.log(`Checked ${requiredFiles.length} required files, PWA manifest, seed hashing fallback, jack-out/ICE/event/deck flows, danger theme, and audio director.`);

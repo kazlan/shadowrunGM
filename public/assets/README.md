@@ -11,7 +11,7 @@ defenses/      Iconos/avatares de defensas digitales.
 logos/         Logo, wordmark, splash y variantes de marca.
 programs/      Iconos de programas: scan, spike, ghost, shield, extract.
 stats/         Iconos de atributos del deck: pulse, veil, lens, shell.
-ui/            Overlays, scanlines, bordes, efectos y elementos de interfaz.
+ui/            Overlays, scanlines, bordes, origen de hosts y elementos de interfaz.
 ```
 
 ## Convenciones de nombres esperadas
@@ -43,6 +43,8 @@ defenses/ice-piercer.svg
 defenses/ice-tracer.svg
 defenses/ice-locker.svg
 defenses/ice-crasher.svg
+ui/source-world.svg
+ui/source-sandbox.svg
 ```
 
 ## Notas
@@ -56,4 +58,4 @@ defenses/ice-crasher.svg
 
 Los placeholders SVG actuales son intencionadamente ligeros y sirven para probar carga, layout y contraste. No son arte final.
 
-La app ya usa el logo, fondos por arquetipo, iconos de programas e iconos de defensas desde estas rutas.
+La app ya usa el logo, fondos por arquetipo, iconos de programas, iconos de defensas e iconos de origen de host desde estas rutas.
