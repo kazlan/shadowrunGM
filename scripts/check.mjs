@@ -65,4 +65,144 @@ try {
   else delete globalThis.crypto;
 }
 
-console.log(`Checked ${requiredFiles.length} required files, PWA manifest, and seed hashing fallback.`);
+
+class MockAudioParam {
+  constructor(value = 1) {
+    this.value = value;
+  }
+
+  setValueAtTime(value) {
+    if (value <= 0) throw new Error('AudioParam value must stay positive for exponential ramps');
+    this.value = value;
+  }
+
+  linearRampToValueAtTime(value) {
+    if (value <= 0) throw new Error('AudioParam value must stay positive for linear ramps');
+    this.value = value;
+  }
+
+  exponentialRampToValueAtTime(value) {
+    if (this.value <= 0 || value <= 0) throw new Error('AudioParam exponential ramps require positive values');
+    this.value = value;
+  }
+}
+
+class MockAudioNode {
+  connect() {}
+}
+
+class MockOscillatorNode extends MockAudioNode {
+  constructor() {
+    super();
+    this.frequency = new MockAudioParam(440);
+    this.type = 'sine';
+    this.started = false;
+  }
+
+  start() {
+    this.started = true;
+  }
+
+  stop() {
+    if (!this.started) {
+      const error = new Error('Cannot stop before start');
+      error.name = 'InvalidStateError';
+      throw error;
+    }
+    this.started = false;
+  }
+}
+
+class MockGainNode extends MockAudioNode {
+  constructor() {
+    super();
+    this.gain = new MockAudioParam(1);
+  }
+}
+
+class MockBiquadFilterNode extends MockAudioNode {
+  constructor() {
+    super();
+    this.frequency = new MockAudioParam(350);
+    this.Q = new MockAudioParam(1);
+    this.type = 'lowpass';
+  }
+}
+
+class MockDelayNode extends MockAudioNode {
+  constructor() {
+    super();
+    this.delayTime = new MockAudioParam(0.1);
+  }
+}
+
+class MockBufferSourceNode extends MockAudioNode {
+  start() {}
+}
+
+class MockAudioContext {
+  constructor() {
+    this.currentTime = 1;
+    this.sampleRate = 8000;
+    this.state = 'suspended';
+    this.destination = new MockAudioNode();
+  }
+
+  async resume() {
+    this.state = 'running';
+  }
+
+  createGain() { return new MockGainNode(); }
+  createOscillator() { return new MockOscillatorNode(); }
+  createBiquadFilter() { return new MockBiquadFilterNode(); }
+  createDelay() { return new MockDelayNode(); }
+  createBufferSource() { return new MockBufferSourceNode(); }
+  createBuffer(channels, size) {
+    return {
+      channels,
+      size,
+      getChannelData() { return new Float32Array(size); },
+    };
+  }
+}
+
+
+const { demoPlaces } = await import('../src/world/placeProvider.js');
+const { classifyCompany } = await import('../src/world/companyArchetypes.js');
+const { valueCompany } = await import('../src/world/companyValuation.js');
+const { createRng } = await import('../src/game/rng.js');
+const { generateSystem } = await import('../src/game/mapGenerator.js');
+const { createInitialRunState } = await import('../src/game/runState.js');
+const { reduceRun } = await import('../src/game/runEngine.js');
+const { scoreRun } = await import('../src/game/runScoring.js');
+
+const jackOutPlace = demoPlaces[0];
+const jackOutSeed = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+const jackOutArchetype = classifyCompany(jackOutPlace);
+const jackOutSystem = generateSystem({
+  rng: createRng(jackOutSeed),
+  seedId: jackOutSeed.slice(0, 12),
+  company: jackOutPlace,
+  archetype: jackOutArchetype,
+  valuation: valueCompany(jackOutPlace, jackOutArchetype, jackOutSeed),
+});
+const jackOutRun = reduceRun(jackOutSystem, createInitialRunState(jackOutSystem), { type: 'jackOut' });
+if (jackOutRun.status !== 'escaped') throw new Error('Jack-out from entry should escape instead of crashing');
+if (!Number.isFinite(scoreRun(jackOutSystem, jackOutRun))) throw new Error('Jack-out run score should be finite');
+
+const audioDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'AudioContext');
+try {
+  Object.defineProperty(globalThis, 'AudioContext', { value: MockAudioContext, configurable: true });
+  const { createAudioDirector } = await import('../src/audio/proceduralAudio.js?check-audio');
+  const director = createAudioDirector();
+  if (!(await director.toggle())) throw new Error('Audio director should enable with mock AudioContext');
+  await director.play('jackOut');
+  await director.play('success');
+  if (!director.isEnabled()) throw new Error('Audio director should remain enabled after jack-out sounds');
+  if (await director.toggle()) throw new Error('Audio director should disable cleanly');
+} finally {
+  if (audioDescriptor) Object.defineProperty(globalThis, 'AudioContext', audioDescriptor);
+  else delete globalThis.AudioContext;
+}
+
+console.log(`Checked ${requiredFiles.length} required files, PWA manifest, seed hashing fallback, jack-out flow, and audio director.`);

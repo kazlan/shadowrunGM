@@ -2,6 +2,7 @@ const AudioContextCtor = globalThis.AudioContext ?? globalThis.webkitAudioContex
 
 const MUSIC_SCALE = [55, 65.41, 73.42, 82.41, 98, 110, 130.81, 146.83, 164.81, 196, 220];
 const SFX_VOLUME = 0.34;
+const MIN_AUDIO_VALUE = 0.0001;
 
 export function createAudioDirector() {
   let context = null;
@@ -21,48 +22,59 @@ export function createAudioDirector() {
     },
 
     async toggle() {
-      await ensureContext();
-      if (!context) return false;
+      try {
+        ensureContext();
+        if (!context) return false;
 
-      enabled = !enabled;
-      if (enabled) {
-        await context.resume();
-        startMusic();
-        playUiBlip();
-      } else {
-        playPowerDown();
+        enabled = !enabled;
+        if (enabled) {
+          await resumeContext();
+          startMusic();
+          playUiBlip();
+        } else {
+          playPowerDown();
+          stopMusic();
+        }
+        return enabled;
+      } catch (error) {
+        console.warn('Audio unavailable', error);
+        enabled = false;
         stopMusic();
+        return false;
       }
-      return enabled;
     },
 
     async play(eventName) {
       if (!enabled) return;
-      await ensureContext();
-      if (!context) return;
-      if (context.state === 'suspended') await context.resume();
 
-      const sounds = {
-        scan: playScan,
-        move: playMove,
-        selectProgram: playUiBlip,
-        runProgram: playProgram,
-        extract: playExtract,
-        jackOut: playJackOut,
-        openOverlay: playUiBlip,
-        target: playTarget,
-        scanner: playScanner,
-        success: playSuccess,
-        failure: playFailure,
-      };
+      try {
+        ensureContext();
+        if (!context) return;
+        await resumeContext();
 
-      sounds[eventName]?.();
+        const sounds = {
+          scan: playScan,
+          move: playMove,
+          selectProgram: playUiBlip,
+          runProgram: playProgram,
+          extract: playExtract,
+          jackOut: playJackOut,
+          openOverlay: playUiBlip,
+          target: playTarget,
+          scanner: playScanner,
+          success: playSuccess,
+          failure: playFailure,
+        };
+
+        sounds[eventName]?.();
+      } catch (error) {
+        console.warn(`Audio event failed: ${eventName}`, error);
+      }
     },
   };
 
-  async function ensureContext() {
-    if (!AudioContextCtor) return;
-    if (context) return;
+  function ensureContext() {
+    if (!AudioContextCtor || context) return;
 
     context = new AudioContextCtor();
     master = context.createGain();
@@ -86,6 +98,10 @@ export function createAudioDirector() {
     delay.connect(musicBus);
   }
 
+  async function resumeContext() {
+    if (context?.state === 'suspended') await context.resume();
+  }
+
   function startMusic() {
     if (!context || droneNodes.length > 0) return;
 
@@ -102,8 +118,8 @@ export function createAudioDirector() {
       filter.type = 'lowpass';
       filter.frequency.value = 420 + index * 120;
       filter.Q.value = 4;
-      gain.gain.value = 0;
-      gain.gain.linearRampToValueAtTime(index === 0 ? 0.1 : 0.045, now + 2.2);
+      gain.gain.value = MIN_AUDIO_VALUE;
+      rampLinear(gain.gain, index === 0 ? 0.1 : 0.045, now + 2.2);
       lfo.frequency.value = 0.035 + index * 0.017;
       lfoGain.gain.value = 120 + index * 45;
 
@@ -126,8 +142,8 @@ export function createAudioDirector() {
     if (!context) return;
     const now = context.currentTime;
     droneNodes.forEach((node) => {
-      if (node.gain) node.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
-      if (node.stop) globalThis.setTimeout(() => node.stop(), 520);
+      if (node.gain) rampExponential(node.gain, MIN_AUDIO_VALUE, now + 0.45);
+      if (node.stop) globalThis.setTimeout(() => stopNode(node), 520);
     });
     droneNodes = [];
     if (musicTimer) globalThis.clearInterval(musicTimer);
@@ -145,13 +161,13 @@ export function createAudioDirector() {
     const filter = context.createBiquadFilter();
     oscillator.type = 'sine';
     oscillator.frequency.setValueAtTime(frequency, now);
-    oscillator.frequency.exponentialRampToValueAtTime(frequency * 0.995, now + 1.4);
+    rampExponential(oscillator.frequency, frequency * 0.995, now + 1.4);
     filter.type = 'bandpass';
     filter.frequency.value = 680 + (step % 4) * 140;
     filter.Q.value = 7;
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.055, now + 0.08);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.45);
+    gain.gain.setValueAtTime(MIN_AUDIO_VALUE, now);
+    rampExponential(gain.gain, 0.055, now + 0.08);
+    rampExponential(gain.gain, MIN_AUDIO_VALUE, now + 1.45);
     oscillator.connect(filter);
     filter.connect(gain);
     gain.connect(delay);
@@ -160,16 +176,16 @@ export function createAudioDirector() {
   }
 
   function playTone({ frequency, endFrequency = frequency, duration = 0.16, type = 'sine', volume = 0.24, destination = sfxBus }) {
-    if (!context) return;
+    if (!context || !destination) return;
     const now = context.currentTime;
     const oscillator = context.createOscillator();
     const gain = context.createGain();
     oscillator.type = type;
-    oscillator.frequency.setValueAtTime(frequency, now);
-    oscillator.frequency.exponentialRampToValueAtTime(Math.max(20, endFrequency), now + duration);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(volume, now + 0.012);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    oscillator.frequency.setValueAtTime(Math.max(20, frequency), now);
+    rampExponential(oscillator.frequency, Math.max(20, endFrequency), now + duration);
+    gain.gain.setValueAtTime(MIN_AUDIO_VALUE, now);
+    rampExponential(gain.gain, Math.max(MIN_AUDIO_VALUE, volume), now + 0.012);
+    rampExponential(gain.gain, MIN_AUDIO_VALUE, now + duration);
     oscillator.connect(gain);
     gain.connect(destination);
     oscillator.start(now);
@@ -177,7 +193,7 @@ export function createAudioDirector() {
   }
 
   function playNoise({ duration = 0.18, volume = 0.16, filterFrequency = 1200, filterType = 'highpass' } = {}) {
-    if (!context) return;
+    if (!context || !sfxBus) return;
     const bufferSize = Math.max(1, Math.floor(context.sampleRate * duration));
     const buffer = context.createBuffer(1, bufferSize, context.sampleRate);
     const data = buffer.getChannelData(0);
@@ -249,5 +265,36 @@ export function createAudioDirector() {
 
   function playPowerDown() {
     playTone({ frequency: 440, endFrequency: 70, duration: 0.28, type: 'triangle', volume: 0.1 });
+  }
+}
+
+function rampLinear(audioParam, value, time) {
+  if (typeof audioParam.linearRampToValueAtTime === 'function') {
+    audioParam.linearRampToValueAtTime(Math.max(MIN_AUDIO_VALUE, value), time);
+    return;
+  }
+
+  audioParam.value = Math.max(MIN_AUDIO_VALUE, value);
+}
+
+function rampExponential(audioParam, value, time) {
+  const safeValue = Math.max(MIN_AUDIO_VALUE, value);
+  if (audioParam.value <= 0) {
+    audioParam.value = MIN_AUDIO_VALUE;
+  }
+
+  if (typeof audioParam.exponentialRampToValueAtTime === 'function') {
+    audioParam.exponentialRampToValueAtTime(safeValue, time);
+    return;
+  }
+
+  audioParam.value = safeValue;
+}
+
+function stopNode(node) {
+  try {
+    node.stop();
+  } catch (error) {
+    if (error.name !== 'InvalidStateError') throw error;
   }
 }
