@@ -2,10 +2,16 @@ import { readFile } from 'node:fs/promises';
 
 const requiredFiles = [
   'index.html',
+  '.env.example',
   'public/manifest.webmanifest',
   'public/service-worker.js',
   'src/app/main.js',
   'src/audio/proceduralAudio.js',
+  'src/firebase/firebaseConfig.js',
+  'src/firebase/firebaseClient.js',
+  'src/firebase/authClient.js',
+  'src/firebase/cloudPersistence.js',
+  'src/firebase/messagingClient.js',
   'src/assets/assetRegistry.js',
   'public/assets/README.md',
   'public/assets/ui/overlay-scanlines.svg',
@@ -33,6 +39,7 @@ const requiredFiles = [
   'src/ui/renderNodeMap.js',
   'src/ui/renderHelpOverlay.js',
   'src/ui/renderScannerOverlay.js',
+  'src/ui/themeStore.js',
   'src/ui/html.js',
   'src/game/systemView.js',
   'src/game/runState.js',
@@ -48,6 +55,7 @@ const requiredFiles = [
   'docs/plan-v1.md',
   'docs/assets.md',
   'docs/company-valuation.md',
+  'docs/firebase.md',
 ];
 
 for (const file of requiredFiles) {
@@ -57,6 +65,8 @@ for (const file of requiredFiles) {
 const manifest = JSON.parse(await readFile('public/manifest.webmanifest', 'utf8'));
 if (manifest.orientation !== 'portrait') throw new Error('Manifest orientation must be portrait');
 if (!['fullscreen', 'standalone'].includes(manifest.display)) throw new Error('Manifest display must be fullscreen or standalone');
+const mainSource = await readFile('src/app/main.js', 'utf8');
+if (!mainSource.includes('mapPointers: new Map()') || !mainSource.includes('startMapPinch') || !mainSource.includes('zoomMapAtPoint')) throw new Error('Node map should keep pinch zoom support wired into pointer handling');
 
 const { hashCompany } = await import('../src/world/companySeed.js');
 const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
@@ -195,6 +205,10 @@ const { renderDeckOverlay, renderDeckTrace } = await import('../src/ui/renderDec
 const { renderHelpOverlay, renderSettingsOverlay } = await import('../src/ui/renderHelpOverlay.js');
 const { renderHud } = await import('../src/ui/renderHud.js');
 const { renderScannerOverlay } = await import('../src/ui/renderScannerOverlay.js');
+const { applyTheme, normalizeThemeKey, themeCatalog } = await import('../src/ui/themeStore.js');
+const { getFirebaseConfig, isFirebaseConfigured, isFirebaseMessagingConfigured } = await import('../src/firebase/firebaseConfig.js');
+const { getFirebaseStatus } = await import('../src/firebase/firebaseClient.js');
+const { cloudPaths } = await import('../src/firebase/cloudPersistence.js');
 const { renderProgressPanel } = await import('../src/ui/renderProgress.js');
 const { renderCompletionScreen } = await import('../src/ui/renderCompletionScreen.js');
 const { addHostBookmark, awardRunCredits, createDefaultDeckProfile, getBookmarkCapacity, getStorageCapacity, upgradeDeckProfile } = await import('../src/world/deckStore.js');
@@ -265,6 +279,8 @@ const killedIceRun = reduceRun(iceSystem, movedIntoIce, { type: 'runProgram', pr
 if (killedIceRun.status !== 'exploring') throw new Error('Successful spike should return to exploring after neutralizing ICE');
 if (!killedIceRun.neutralizedIce.includes('n-1')) throw new Error('Successful spike should mark ICE as neutralized');
 renderNodeMap(projectSystemForRun(iceSystem, killedIceRun), killedIceRun);
+const mapMessageHtml = renderNodeMap(projectSystemForRun(iceSystem, killedIceRun), killedIceRun, undefined, { key: 'check', text: 'Ultima traza visible' });
+if (!mapMessageHtml.includes('node-map__message') || !mapMessageHtml.includes('Ultima traza visible')) throw new Error('Node map should surface the latest log message');
 if (!renderDeckTrace(upgradedDeckResult.profile, createInitialRunState(iceSystem, upgradedDeckResult.profile), 'Scan mejorado.').includes('deck-memory')) throw new Error('Deck trace should show segmented memory');
 const deckOverlayHtml = renderDeckOverlay(true, upgradedDeckResult.profile, 'Scan mejorado.');
 if (!deckOverlayHtml.includes('Software cargado')) throw new Error('Deck overlay should render loaded software');
@@ -273,11 +289,21 @@ if (!deckOverlayHtml.includes('/assets/stats/stat-pulse.svg')) throw new Error('
 const hudHtml = renderHud(iceSystem, createInitialRunState(iceSystem));
 if (!hudHtml.includes('data-action="toggleSettings"') || !hudHtml.includes('settings-icon')) throw new Error('HUD should expose settings cog next to jack-out');
 if (hudHtml.includes('data-action="toggleMusic"') || hudHtml.includes('data-action="toggleSfx"')) throw new Error('Audio controls should live inside settings, not the main HUD');
-const settingsHtml = renderSettingsOverlay(true, { music: true, sfx: false, musicVolume: 0.42, sfxVolume: 0.18 });
+const settingsHtml = renderSettingsOverlay(true, { music: true, sfx: false, musicVolume: 0.42, sfxVolume: 0.18 }, 'workbench-light');
 if (!settingsHtml.includes('settings-audio') || !settingsHtml.includes('data-audio-volume="music"') || !settingsHtml.includes('value="42"')) throw new Error('Settings overlay should render real music volume controls');
 if (!settingsHtml.includes('data-action="toggleMusic"') || !settingsHtml.includes('data-action="openHelp"')) throw new Error('Settings overlay should contain audio toggles and a help button');
 if (settingsHtml.includes('help-tabs') || settingsHtml.includes('help-panel__content')) throw new Error('Settings overlay should not embed the help manual');
+if (!settingsHtml.includes('settings-themes') || !settingsHtml.includes('theme-dropdown') || !settingsHtml.includes('theme-menu')) throw new Error('Settings overlay should render theme choices as a dropdown');
+if (!settingsHtml.includes('data-theme-option="workbench-light"') || !settingsHtml.includes('data-theme-option="solar-light"') || !settingsHtml.includes('data-theme-option="atari-light"') || !settingsHtml.includes('aria-pressed="true"')) throw new Error('Settings theme dropdown should expose light themes and active state');
+if (themeCatalog.length !== 7 || normalizeThemeKey('missing') !== 'black') throw new Error('Theme catalog should expose seven stable presets and normalize invalid values');
+globalThis.document = { documentElement: { setAttribute(name, value) { this[name] = value; } } };
+if (applyTheme('kali') !== 'kali' || globalThis.document.documentElement['data-theme'] !== 'kali') throw new Error('Theme application should update the document theme attribute');
+delete globalThis.document;
 if (!renderHelpOverlay(true, 'deck').includes('help-tabs')) throw new Error('Help overlay should render compact tab navigation in its own dialog');
+if (isFirebaseConfigured() || isFirebaseMessagingConfigured() || getFirebaseConfig() !== null) throw new Error('Firebase should stay disabled without env config');
+if (getFirebaseStatus().configured) throw new Error('Firebase status should report unconfigured in checks');
+if (cloudPaths.deckProfile('u1').join('/') !== 'users/u1/deck/profile') throw new Error('Firebase deck profile path should stay stable');
+if (cloudPaths.hostProgress('u1', 'seed').join('/') !== 'users/u1/hostProgress/seed') throw new Error('Firebase host progress path should stay stable');
 const scannerHtml = renderScannerOverlay({
   isOpen: true,
   places: [

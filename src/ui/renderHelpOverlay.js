@@ -2,6 +2,7 @@ import { programs } from '../game/programCatalog.js';
 import { nodeEvents } from '../game/nodeEvents.js';
 import { deckStatCatalog } from '../world/deckStore.js';
 import { escapeHtml } from './html.js';
+import { normalizeThemeKey, themeCatalog } from './themeStore.js';
 
 const helpTabs = [
   { key: 'run', label: 'Run' },
@@ -25,13 +26,14 @@ const statHelp = [
   },
 ];
 
-export function renderSettingsOverlay(isOpen, audioState = {}) {
+export function renderSettingsOverlay(isOpen, audioState = {}, activeTheme = 'black') {
   if (!isOpen) return '';
 
   const musicEnabled = Boolean(audioState.music);
   const sfxEnabled = Boolean(audioState.sfx);
   const musicVolume = volumePercent(audioState.musicVolume, 0.16);
   const sfxVolume = volumePercent(audioState.sfxVolume, 0.34);
+  const theme = normalizeThemeKey(activeTheme);
 
   return `<aside class="help-overlay settings-overlay" role="dialog" aria-modal="true" aria-labelledby="settings-title">
     <button class="help-overlay__backdrop" data-action="closeSettings" type="button" aria-label="Cerrar ajustes"></button>
@@ -47,11 +49,43 @@ export function renderSettingsOverlay(isOpen, audioState = {}) {
         ${renderAudioControl('music', 'Música', musicEnabled, musicVolume)}
         ${renderAudioControl('sfx', 'Efectos', sfxEnabled, sfxVolume)}
       </div>
+      <div class="settings-themes" aria-label="Temas visuales">
+        <h3>Tema</h3>
+        <details class="theme-dropdown">
+          <summary aria-label="Seleccionar tema visual">${renderThemeSummary(theme)}</summary>
+          <div class="theme-menu" role="listbox" aria-label="Lista de temas">
+            ${renderThemeOptions(theme)}
+          </div>
+        </details>
+      </div>
       <div class="settings-actions">
         <button data-action="openHelp" type="button">Help</button>
       </div>
     </section>
   </aside>`;
+}
+
+function renderThemeSummary(activeTheme) {
+  const theme = themeCatalog.find((candidate) => candidate.key === activeTheme) ?? themeCatalog[0];
+  return `<span class="theme-option theme-option--summary">
+    ${renderThemeSwatches(theme)}
+    <strong>${escapeHtml(theme.label)}</strong>
+  </span>`;
+}
+
+function renderThemeOptions(activeTheme) {
+  return themeCatalog
+    .map((theme) => `<button class="theme-option ${theme.key === activeTheme ? 'is-active' : ''}" data-theme-option="${escapeHtml(theme.key)}" type="button" aria-pressed="${theme.key === activeTheme ? 'true' : 'false'}" title="${escapeHtml(theme.description)}">
+      ${renderThemeSwatches(theme)}
+      <strong>${escapeHtml(theme.label)}</strong>
+    </button>`)
+    .join('');
+}
+
+function renderThemeSwatches(theme) {
+  return `<span class="theme-option__swatches" aria-hidden="true">
+    ${theme.swatches.map((color) => `<i style="--swatch:${escapeHtml(color)}"></i>`).join('')}
+  </span>`;
 }
 
 export function renderHelpOverlay(isOpen, activeTab = 'run') {

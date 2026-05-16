@@ -1,7 +1,7 @@
 export function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
 
-  if (isLocalDev()) {
+  if (isLocalDev() && !shouldUseLocalServiceWorker()) {
     window.addEventListener('load', () => {
       void clearLocalServiceWorkers();
     });
@@ -9,10 +9,16 @@ export function registerServiceWorker() {
   }
 
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js').catch((error) => {
+    getAppServiceWorkerRegistration().catch((error) => {
       console.warn('Service worker registration failed', error);
     });
   });
+}
+
+export async function getAppServiceWorkerRegistration() {
+  if (!('serviceWorker' in navigator)) return null;
+  if (isLocalDev() && !shouldUseLocalServiceWorker()) return null;
+  return navigator.serviceWorker.register('/service-worker.js');
 }
 
 async function clearLocalServiceWorkers() {
@@ -30,4 +36,8 @@ async function clearLocalServiceWorkers() {
 
 function isLocalDev() {
   return import.meta.env?.DEV || ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+}
+
+function shouldUseLocalServiceWorker() {
+  return import.meta.env?.VITE_FIREBASE_ENABLE_MESSAGING === 'true';
 }

@@ -13,7 +13,7 @@ const nodeGlyph = {
   exit: 'OUT',
 };
 
-export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, height: 100 }) {
+export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, height: 100 }, mapMessage = null) {
   const edges = system.edges
     .map((edge) => {
       const from = system.nodes.find((node) => node.id === edge.from);
@@ -58,6 +58,7 @@ export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, h
       <button data-map-action="reset" type="button" aria-label="Recentrar mapa">R</button>
       <button data-map-action="zoomIn" type="button" aria-label="Acercar mapa">+</button>
     </div>
+    ${renderMapMessage(mapMessage)}
     <svg viewBox="${formatViewBox(mapView)}" role="img" data-map-surface="true">
       <defs>
         <filter id="glow">
@@ -74,6 +75,13 @@ export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, h
       </g>
     </svg>
   </section>`;
+}
+
+function renderMapMessage(mapMessage) {
+  if (!mapMessage?.text) return '';
+  return `<div class="node-map__message" aria-live="polite" data-log-key="${escapeHtml(mapMessage.key ?? 'log')}">
+    <span>${escapeHtml(mapMessage.text)}</span>
+  </div>`;
 }
 
 function formatViewBox(view) {

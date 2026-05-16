@@ -17,6 +17,7 @@ import { renderNodeMap } from '../ui/renderNodeMap.js';
 import { renderProgressPanel } from '../ui/renderProgress.js';
 import { renderRunLog } from '../ui/renderRunLog.js';
 import { renderScannerOverlay } from '../ui/renderScannerOverlay.js';
+import { applyTheme, loadThemePreference, saveThemePreference } from '../ui/themeStore.js';
 import { classifyCompany } from '../world/companyArchetypes.js';
 import { hashCompany } from '../world/companySeed.js';
 import { valueCompany } from '../world/companyValuation.js';
@@ -33,6 +34,7 @@ const DEFAULT_MAP_VIEW = { x: 0, y: 0, width: 100, height: 100 };
 const MIN_MAP_SIZE = 32;
 const MAX_MAP_SIZE = 100;
 const MAP_DRAG_THRESHOLD_PX = 12;
+const MAP_LOG_MESSAGE_MS = 5200;
 const appState = {
   places: demoPlaces,
   selectedPlace: demoPlaces[0],
@@ -43,6 +45,9 @@ const appState = {
   recentProgress: [],
   deckProfile: loadDeckProfile(),
   deckMessage: '',
+  theme: applyTheme(loadThemePreference()),
+  mapLogMessage: null,
+  lastMapLogLength: 0,
   completion: null,
   lastRecordedStatus: null,
   isSettingsOpen: false,
@@ -52,6 +57,9 @@ const appState = {
   isScannerOpen: false,
   mapView: { ...DEFAULT_MAP_VIEW },
   mapPointer: null,
+  mapPointers: new Map(),
+  mapPinch: null,
+  mapGestureMoved: false,
   ignoreNextNodeClick: false,
 };
 
@@ -71,11 +79,16 @@ async function startRun(place) {
   appState.deckMessage = '';
   appState.isDeckOpen = false;
   appState.run = createInitialRunState(appState.system, appState.deckProfile);
+  appState.lastMapLogLength = 0;
+  updateMapLogMessage(true);
   appState.currentProgress = getHostProgress(appState.system.seedId);
   appState.recentProgress = listRecentProgress();
   appState.lastRecordedStatus = null;
   appState.mapView = { ...DEFAULT_MAP_VIEW };
   appState.mapPointer = null;
+  appState.mapPointers.clear();
+  appState.mapPinch = null;
+  appState.mapGestureMoved = false;
   appState.ignoreNextNodeClick = false;
   syncAudioState();
   render();
@@ -85,6 +98,7 @@ function dispatch(action) {
   if (!appState.system || !appState.run) return;
   appState.deckMessage = '';
   appState.run = reduceRun(appState.system, appState.run, action, appState.deckProfile);
+  updateMapLogMessage();
   syncAudioState();
   void audioDirector.play(audioEventForAction(action));
   syncRunResult();
@@ -93,6 +107,7 @@ function dispatch(action) {
 
 function render() {
   if (!root) return;
+  applyTheme(appState.theme);
   if (appState.completion) {
     root.innerHTML = `${renderCompletionScreen(appState.completion, appState.deckProfile)}
       ${renderScannerOverlay({
@@ -119,14 +134,14 @@ function render() {
   root.innerHTML = `<main class="app-shell" style="--host-bg: url('${backgroundUrl}'); --danger-level: ${dangerTheme.level}; --danger-color: ${dangerTheme.color}; --danger-border: ${dangerTheme.border}; --danger-glow: ${dangerTheme.glow}">
     <div class="scanline"></div>
     ${renderHud(runtimeSystem, appState.run)}
-    ${renderNodeMap(runtimeSystem, appState.run, appState.mapView)}
+    ${renderNodeMap(runtimeSystem, appState.run, appState.mapView, getVisibleMapLogMessage())}
     ${renderProgramDock(appState.run)}
     ${renderRunLog(appState.run)}
     ${renderDeckTrace(appState.deckProfile, appState.run, appState.deckMessage)}
     ${renderProgressPanel(appState.currentProgress, appState.recentProgress)}
     <button class="scanner-toggle" data-action="toggleScanner" type="button">Objetivos / scanner</button>
     ${renderDeckOverlay(appState.isDeckOpen, appState.deckProfile, appState.deckMessage)}
-    ${renderSettingsOverlay(appState.isSettingsOpen, audioDirector.getState())}
+    ${renderSettingsOverlay(appState.isSettingsOpen, audioDirector.getState(), appState.theme)}
     ${renderHelpOverlay(appState.isHelpOpen, appState.helpTab)}
     ${renderScannerOverlay({
       isOpen: appState.isScannerOpen,
@@ -212,6 +227,14 @@ function bindEvents() {
       if (input.dataset.audioVolume === 'sfx') audioDirector.setSfxVolume(value);
       const output = input.closest('.settings-audio-row')?.querySelector('strong');
       if (output) output.textContent = String(Math.round(value * 100));
+    });
+  });
+
+  root.querySelectorAll('[data-theme-option]').forEach((button) => {
+    button.addEventListener('click', () => {
+      appState.theme = applyTheme(saveThemePreference(button.dataset.themeOption));
+      void audioDirector.play('selectProgram');
+      render();
     });
   });
 
@@ -341,43 +364,60 @@ function scrollRunLogToLatest() {
   log.scrollTop = log.scrollHeight;
 }
 
+function updateMapLogMessage(force = false) {
+  const length = appState.run?.log?.length ?? 0;
+  if (!force && length <= appState.lastMapLogLength) return;
+  appState.lastMapLogLength = length;
+  const text = appState.run?.log?.[length - 1];
+  if (!text) {
+    appState.mapLogMessage = null;
+    return;
+  }
+
+  appState.mapLogMessage = {
+    key: `${length}-${appState.run.turn ?? 0}`,
+    text,
+    expiresAt: Date.now() + MAP_LOG_MESSAGE_MS,
+  };
+}
+
+function getVisibleMapLogMessage() {
+  if (!appState.mapLogMessage) return null;
+  if (Date.now() > appState.mapLogMessage.expiresAt) return null;
+  return appState.mapLogMessage;
+}
+
 function bindNodeMapEvents() {
   const surface = root?.querySelector('[data-map-surface]');
   if (!surface) return;
 
   surface.addEventListener('wheel', (event) => {
     event.preventDefault();
-    zoomMap(event.deltaY > 0 ? 1.16 : 0.86, event);
+    zoomMapAtPoint(event.deltaY > 0 ? 1.16 : 0.86, event.clientX, event.clientY);
   }, { passive: false });
 
   surface.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return;
     if (event.target.closest?.('[data-node-id]')) return;
-    appState.mapPointer = {
-      id: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      startView: { ...appState.mapView },
-      hasMoved: false,
-    };
+
+    if (appState.mapPointers.size === 0) appState.mapGestureMoved = false;
+    appState.mapPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     surface.setPointerCapture?.(event.pointerId);
+
+    if (appState.mapPointers.size === 1) startMapPan(event);
+    if (appState.mapPointers.size === 2) startMapPinch();
   });
 
   surface.addEventListener('pointermove', (event) => {
-    const pointer = appState.mapPointer;
-    if (!pointer || pointer.id !== event.pointerId) return;
+    if (!appState.mapPointers.has(event.pointerId)) return;
+    appState.mapPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
-    const rect = surface.getBoundingClientRect();
-    const deltaX = event.clientX - pointer.startX;
-    const deltaY = event.clientY - pointer.startY;
-    if (Math.abs(deltaX) + Math.abs(deltaY) > MAP_DRAG_THRESHOLD_PX) pointer.hasMoved = true;
+    if (appState.mapPointers.size >= 2) {
+      updateMapPinch();
+      return;
+    }
 
-    const nextView = {
-      ...pointer.startView,
-      x: pointer.startView.x - (deltaX / rect.width) * pointer.startView.width,
-      y: pointer.startView.y - (deltaY / rect.height) * pointer.startView.height,
-    };
-    setMapView(nextView);
+    updateMapPan(event, surface);
   });
 
   surface.addEventListener('pointerup', finishMapPointer);
@@ -385,15 +425,92 @@ function bindNodeMapEvents() {
 }
 
 function finishMapPointer(event) {
-  const pointer = appState.mapPointer;
-  if (!pointer || pointer.id !== event.pointerId) return;
-  appState.ignoreNextNodeClick = pointer.hasMoved;
-  appState.mapPointer = null;
+  const wasTrackingPointer = appState.mapPointers.has(event.pointerId);
+  const finishedPan = appState.mapPointer?.id === event.pointerId;
+  if (!wasTrackingPointer && !finishedPan && !appState.mapPinch) return;
+
+  appState.mapPointers.delete(event.pointerId);
+  if (finishedPan) appState.mapPointer = null;
+  if (appState.mapPointers.size < 2) appState.mapPinch = null;
+  if (appState.mapPointers.size > 0) return;
+
+  appState.ignoreNextNodeClick = appState.mapGestureMoved;
+  appState.mapGestureMoved = false;
   if (appState.ignoreNextNodeClick) {
     globalThis.setTimeout(() => {
       appState.ignoreNextNodeClick = false;
     }, 80);
   }
+}
+
+function startMapPan(event) {
+  appState.mapPointer = {
+    id: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    startView: { ...appState.mapView },
+    hasMoved: false,
+  };
+}
+
+function updateMapPan(event, surface) {
+  const pointer = appState.mapPointer;
+  if (!pointer || pointer.id !== event.pointerId) return;
+
+  const rect = surface.getBoundingClientRect();
+  const deltaX = event.clientX - pointer.startX;
+  const deltaY = event.clientY - pointer.startY;
+  if (Math.abs(deltaX) + Math.abs(deltaY) > MAP_DRAG_THRESHOLD_PX) {
+    pointer.hasMoved = true;
+    appState.mapGestureMoved = true;
+  }
+
+  const nextView = {
+    ...pointer.startView,
+    x: pointer.startView.x - (deltaX / rect.width) * pointer.startView.width,
+    y: pointer.startView.y - (deltaY / rect.height) * pointer.startView.height,
+  };
+  setMapView(nextView);
+}
+
+function startMapPinch() {
+  const pointers = getFirstTwoMapPointers();
+  if (!pointers) return;
+  const [first, second] = pointers;
+  appState.mapPointer = null;
+  appState.mapGestureMoved = true;
+  appState.mapPinch = {
+    startDistance: getPointerDistance(first, second),
+    startView: { ...appState.mapView },
+  };
+}
+
+function updateMapPinch() {
+  const pinch = appState.mapPinch;
+  const pointers = getFirstTwoMapPointers();
+  if (!pinch || !pointers) return;
+  const [first, second] = pointers;
+  const distance = getPointerDistance(first, second);
+  if (distance < 4 || pinch.startDistance < 4) return;
+  const center = getPointerCenter(first, second);
+  zoomMapAtPoint(pinch.startDistance / distance, center.x, center.y, pinch.startView);
+}
+
+function getFirstTwoMapPointers() {
+  const pointers = [...appState.mapPointers.values()];
+  if (pointers.length < 2) return null;
+  return [pointers[0], pointers[1]];
+}
+
+function getPointerDistance(first, second) {
+  return Math.hypot(second.x - first.x, second.y - first.y);
+}
+
+function getPointerCenter(first, second) {
+  return {
+    x: (first.x + second.x) / 2,
+    y: (first.y + second.y) / 2,
+  };
 }
 
 async function scanFromBookmark(bookmark) {
@@ -419,19 +536,34 @@ async function scanFromPosition(position, successLabel) {
 }
 
 function zoomMap(factor, originEvent) {
-  const surface = root?.querySelector('[data-map-surface]');
-  const view = appState.mapView;
-  const width = clamp(view.width * factor, MIN_MAP_SIZE, MAX_MAP_SIZE);
-  const height = clamp(view.height * factor, MIN_MAP_SIZE, MAX_MAP_SIZE);
-  let anchorX = view.x + view.width / 2;
-  let anchorY = view.y + view.height / 2;
-
-  if (originEvent && surface) {
-    const rect = surface.getBoundingClientRect();
-    anchorX = view.x + ((originEvent.clientX - rect.left) / rect.width) * view.width;
-    anchorY = view.y + ((originEvent.clientY - rect.top) / rect.height) * view.height;
+  if (originEvent) {
+    zoomMapAtPoint(factor, originEvent.clientX, originEvent.clientY);
+    return;
   }
 
+  zoomMapAtCenter(factor);
+}
+
+function zoomMapAtCenter(factor) {
+  const view = appState.mapView;
+  zoomMapFromView(factor, view.x + view.width / 2, view.y + view.height / 2, view);
+}
+
+function zoomMapAtPoint(factor, clientX, clientY, sourceView = appState.mapView) {
+  const surface = root?.querySelector('[data-map-surface]');
+  if (!surface) {
+    zoomMapAtCenter(factor);
+    return;
+  }
+  const rect = surface.getBoundingClientRect();
+  const anchorX = sourceView.x + ((clientX - rect.left) / rect.width) * sourceView.width;
+  const anchorY = sourceView.y + ((clientY - rect.top) / rect.height) * sourceView.height;
+  zoomMapFromView(factor, anchorX, anchorY, sourceView);
+}
+
+function zoomMapFromView(factor, anchorX, anchorY, view = appState.mapView) {
+  const width = clamp(view.width * factor, MIN_MAP_SIZE, MAX_MAP_SIZE);
+  const height = clamp(view.height * factor, MIN_MAP_SIZE, MAX_MAP_SIZE);
   const x = anchorX - ((anchorX - view.x) / view.width) * width;
   const y = anchorY - ((anchorY - view.y) / view.height) * height;
   setMapView({ x, y, width, height });
