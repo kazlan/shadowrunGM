@@ -131,13 +131,18 @@ function shield(system, run) {
 }
 
 function ghost(system, run) {
+  if (run.alert <= 0 && run.trace <= 0) {
+    return addLog(run, 'Ghost no encuentra firma activa que ocultar.');
+  }
+
   return enforceFailure(
     advanceTurn(
       {
         ...run,
         alert: clamp(run.alert - 1, 0, run.maxAlert),
         trace: clamp(run.trace - 1, 0, run.maxTrace),
-        log: appendLog(run.log, 'Ghost reduce firma y difumina la traza.'),
+        integrity: clamp(run.integrity - 1, 0, run.maxIntegrity),
+        log: appendLog(run.log, 'Ghost quema shell para reducir firma y difuminar la traza.'),
       },
       system,
     ),

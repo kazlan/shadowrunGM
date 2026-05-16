@@ -241,87 +241,106 @@ export function createAudioDirector() {
 }
 
 export function createStrudelScore(profile, host) {
-  const music = createMusicProfile(profile, host);
-
   return `
-setcps(${music.cps})
+samples('github:eddyflux/crate')
+setcps(.75)
+let chords = chord("<Bbm9 Fm9>/4").dict('ireal')
 stack(
-  note("${music.subDronePattern}").sound("sine").gain(${music.subDroneGain}).attack(.45).decay(.8).sustain(.68).release(1.8).lpf(${music.subDroneFilter}).room(${music.deepRoom}),
-  note("${music.pulseBassPattern}").sound("${music.bassSound}").gain(${music.bassGain}).attack(.03).decay(.22).sustain(.28).release(.24).lpf(${music.bassFilter}).shape(${music.shape}),
-  note("${music.padPattern}").sound("${music.padSound}").gain(${music.padGain}).attack(.35).decay(.7).sustain(.62).release(2.4).lpf(${music.padFilter}).room(${music.padRoom}).delay(${music.padDelay}),
-  note("${music.glassArpPattern}").sound("${music.arpSound}").gain(${music.arpGain}).attack(.02).decay(.18).sustain(.2).release(.2).lpf(${music.arpFilter}).delay(${music.arpDelay}).room(${music.arpRoom}),
-  sound("${music.texturePattern}").gain(${music.textureGain}).decay(${music.textureDecay}).sustain(0).hpf(${music.textureHighpass}).lpf(${music.textureLowpass}).room(.3),
-  ${music.tensionLead}
-)`;
+  stack(
+    s("bd").struct("<[x*<1 2> [~@3 x]] x>"),
+    s("~ [rim, sd:<2 3>]").room("<0 .2>"),
+    n("[0 <1 3>]*<2!3 4>").s("hh"),
+    s("rd:<1!3 2>*2").mask("<0 0 1 1>/16").gain(.5)
+  ).bank('crate')
+  .mask("<[0 1] 1 1 1>/16".early(.5)),
+  chords.offset(-1).voicing().s("gm_epiano1:1")
+  .phaser(4).room(.5),
+  n("<0!3 1*2>").set(chords).mode("root:g2")
+  .voicing().s("gm_acoustic_bass"),
+  chords.n("[0 <4 3 <2 5>>*2](<3 5>,8)")
+  .anchor("D5").voicing()
+  .segment(4).clip(rand.range(.4,.8))
+  .room(.75).shape(.3).delay(.25)
+  .fm(sine.range(3,8).slow(8))
+  .lpf(sine.range(500,1000).slow(8)).lpq(5)
+  .rarely(ply("2")).chunk(4, fast(2))
+  .gain(perlin.range(.6, .9))
+  .mask("<0 1 1 0>/16")
+)
+.late("[0 .01]*4").late("[0 .01]*2").size(4)`;
 }
 
 function createMusicProfile(profile = createRunProfile(), host = createHostProfile('default')) {
   const variant = host.variant ?? 0;
   const stage = clamp(Math.round(profile.stage ?? 0), 0, 3);
-  const roots = ['c2', 'd2', 'eb2', 'f2', 'g1'];
-  const root = roots[variant % roots.length];
-  const subRoot = transpose(root, -12);
-  const padRoot = transpose(root, 12);
-  const leadRoot = transpose(root, 24);
-  const fifth = transpose(root, 7);
-  const minorThird = transpose(root, 3);
-  const leadMinorThird = transpose(leadRoot, 3);
-  const leadFifth = transpose(leadRoot, 7);
-  const leadSeventh = transpose(leadRoot, 10);
-  const leadNinth = transpose(leadRoot, 14);
-  const leadStepDown = transpose(leadNinth, -2);
   const stagePressure = clamp((profile.alert * 0.78) + (profile.pressure * 0.22), 0, 1);
-  const cpsByStage = [0.42, 0.5, 0.56, 0.62];
-  const cps = (cpsByStage[stage] + (host.tempoOffset ?? 0) + (stagePressure * 0.025)).toFixed(2);
+  const cpsByStage = [0.58, 0.64, 0.7, 0.76];
+  const cps = (cpsByStage[stage] + (host.tempoOffset ?? 0) + (stagePressure * 0.02)).toFixed(2);
   const motif = variant % 3;
-  const arpPatterns = [
-    [`~`, `<${leadRoot} ~ ${leadFifth} ~>/2`, `<${leadRoot} ${leadMinorThird} ~ ${leadFifth}>/2`, `<${leadRoot} ${leadFifth} ${leadMinorThird} ~>`],
-    [`~`, `<${leadFifth} ~ ${leadRoot} ~>/2`, `<${leadFifth} ${leadRoot} ~ ${leadSeventh}>/2`, `<${leadFifth} ${leadRoot} ${leadSeventh} ~>`],
-    [`~`, `<${leadMinorThird} ~ ${leadFifth} ~>/2`, `<${leadMinorThird} ${leadFifth} ~ ${leadRoot}>/2`, `<${leadMinorThird} ${leadFifth} ${leadNinth} ~>`],
+  const chordRoots = [
+    ['Cm9', 'Gm9'],
+    ['Ebm9', 'Bbm9'],
+    ['Fm9', 'Cm9'],
+    ['Gm9', 'Dm9'],
+    ['Am9', 'Em9'],
   ];
-  const padProgressions = [
-    [makeChord(padRoot, [0, 3, 7]), makeChord(transpose(padRoot, -2), [0, 5, 7])],
-    [makeChord(padRoot, [0, 2, 7]), makeChord(transpose(padRoot, -5), [0, 3, 10])],
-    [makeChord(padRoot, [0, 3, 10]), makeChord(transpose(padRoot, 3), [0, 2, 7])],
+  const chordPair = chordRoots[variant % chordRoots.length];
+  const melodyMasks = ['<0 1 1 0>/16', '<0 1 0 1>/16', '<1 0 1 0>/16'];
+  const melodyPatterns = [
+    '[0 <4 3 <2 5>>*2](<2 4>,8)',
+    '[0 <3 4 <1 5>>*2](<3 5>,8)',
+    '[0 <5 3 <2 4>>*2](<2 5>,8)',
   ];
-  const padPair = padProgressions[motif];
+  const bassPatterns = ['<0!3 1*2>', '<0!2 1 0>', '<0 0 1*2>', '<0!2 1*2>'];
+  const drumMasks = [
+    '<0 0 1 0>/16',
+    '<[0 1] 1 0 1>/16',
+    '<[0 1] 1 1 0>/16',
+    '<[0 1] 1 1 1>/16',
+  ];
 
   return {
     cps,
-    subDronePattern: `<${subRoot} ~ ${root} ~>/8`,
-    subDroneGain: formatGain(0.11 + stage * 0.015 + profile.pressure * 0.025),
-    subDroneFilter: 180 + Math.round(stagePressure * 260),
-    deepRoom: (0.45 + profile.trace * 0.12).toFixed(2),
-    pulseBassPattern: [
-      `${root} ~ ~ ~`,
-      `${root} ~ ~ ${fifth}`,
-      `${root} ~ ${minorThird} ~`,
-      `${root} ~ ${fifth} ${minorThird} ~`,
-    ][stage],
-    bassSound: stage >= 2 && variant % 2 ? 'sawtooth' : 'triangle',
-    bassGain: formatGain(0.13 + stage * 0.025 + profile.alert * 0.035),
-    bassFilter: 320 + Math.round(stagePressure * 640),
-    padPattern: `<${padPair[0]} ${padPair[1]}>/6`,
-    padSound: variant % 2 ? 'sine' : 'triangle',
-    padGain: formatGain(0.12 + profile.trace * 0.025 - stage * 0.006),
-    padFilter: 520 + Math.round(stagePressure * 760),
-    padDelay: [0.34, 0.32, 0.28, 0.24][stage].toFixed(2),
-    padRoom: (0.62 - stage * 0.04 + profile.trace * 0.1).toFixed(2),
-    glassArpPattern: arpPatterns[motif][stage],
-    arpSound: stage >= 3 && variant % 2 ? 'triangle' : 'sine',
-    arpGain: formatGain([0, 0.045, 0.065, 0.085][stage] + profile.pressure * 0.025),
-    arpFilter: 900 + Math.round(stagePressure * 1500),
-    arpDelay: [0.42, 0.38, 0.34, 0.3][stage].toFixed(2),
-    arpRoom: (0.54 - stage * 0.04).toFixed(2),
-    texturePattern: ['~', 'brown ~ ~ ~', 'brown ~ brown ~', 'brown ~ pink ~'][stage],
-    textureGain: formatGain([0, 0.025, 0.035, 0.045][stage] + profile.alert * 0.012),
-    textureDecay: [0.08, 0.16, 0.18, 0.22][stage].toFixed(2),
-    textureHighpass: 1200 + Math.round(stagePressure * 1600),
-    textureLowpass: 2800 + Math.round(stagePressure * 1800),
-    shape: (0.04 + stagePressure * 0.16).toFixed(2),
-    tensionLead: stage >= 3
-      ? `note("<${leadNinth} ~ ${leadStepDown} ~>/2").sound("sine").gain(${formatGain(0.04 + profile.alert * 0.035)}).attack(.04).decay(.24).sustain(.12).release(.5).lpf(${1100 + Math.round(stagePressure * 1800)}).delay(.32).room(.35)`
-      : 'note("~")',
+    chordPattern: `<${chordPair[0]} ${chordPair[1]}>/4`,
+    kickPattern: 'bd',
+    kickStructure: ['<[~@3 x] ~>', '<[x ~@3] ~>', '<[x ~@2 x] ~>', '<[x*2 [~@3 x]] x>'][stage],
+    kickGain: formatGain([0.14, 0.18, 0.22, 0.26][stage]),
+    snarePattern: ['~', '~ rim', '~ [rim, sd:2]', '~ [rim, sd:3]'][stage],
+    snareGain: formatGain([0, 0.13, 0.16, 0.19][stage]),
+    drumRoom: (0.08 + stage * 0.04).toFixed(2),
+    hatPattern: ['~', '[0 ~]*2', '[0 <1 3>]*2', '[0 <1 3>]*<2!3 4>'][stage],
+    hatGain: formatGain([0, 0.08, 0.11, 0.14][stage]),
+    ridePattern: ['~', '~', 'rd:1*2', 'rd:<1!3 2>*2'][stage],
+    rideMask: '<0 0 1 1>/16',
+    rideGain: formatGain([0, 0, 0.22, 0.28][stage]),
+    drumMask: drumMasks[stage],
+    chordSound: 'gm_epiano1:1',
+    chordGain: formatGain(0.42 + profile.trace * 0.05),
+    chordRoom: (0.44 + profile.trace * 0.1).toFixed(2),
+    chordDelay: [0.16, 0.18, 0.2, 0.22][stage].toFixed(2),
+    phaser: [2, 3, 4, 5][stage],
+    bassPattern: bassPatterns[stage],
+    bassAnchor: ['g1', 'g1', 'g2', 'g2'][stage],
+    bassSound: 'gm_acoustic_bass',
+    bassGain: formatGain(0.48 + stage * 0.04 + profile.alert * 0.04),
+    bassFilter: 520 + Math.round(stagePressure * 520),
+    shape: (0.06 + stagePressure * 0.12).toFixed(2),
+    melodyPattern: melodyPatterns[motif],
+    melodyAnchor: ['D5', 'Eb5', 'G5'][motif],
+    melodySegment: [2, 3, 4, 4][stage],
+    melodyClip: `rand.range(${[0.28, 0.34, 0.4, 0.46][stage]},${[0.52, 0.62, 0.72, 0.82][stage]})`,
+    melodyRoom: (0.56 + stage * 0.05).toFixed(2),
+    melodyShape: (0.12 + stagePressure * 0.16).toFixed(2),
+    melodyDelay: (0.18 + stage * 0.025).toFixed(2),
+    fmLow: [1.5, 2, 2.5, 3][stage],
+    fmHigh: [4, 5, 6, 7][stage],
+    filterLow: 420 + Math.round(stagePressure * 120),
+    filterHigh: 820 + Math.round(stagePressure * 360),
+    lpq: [3, 4, 5, 5][stage],
+    melodyGain: `perlin.range(${[0.36, 0.42, 0.5, 0.56][stage]},${[0.58, 0.68, 0.78, 0.86][stage]})`,
+    melodyMask: melodyMasks[motif],
+    latePattern: '[0 .01]*4',
+    size: [2, 3, 4, 4][stage],
   };
 }
 

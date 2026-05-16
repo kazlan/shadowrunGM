@@ -4,14 +4,6 @@ import { programs } from '../game/programCatalog.js';
 
 export function renderHud(system, run, isAudioEnabled = false) {
   return `<header class="hud-top">
-      <div class="brand-line">
-        <img class="brand-mark" src="${assetPaths.logo}" alt="" />
-        <div class="host-heading">
-          <p class="eyebrow">Turno ${run.turn} · ${escapeHtml(system.valuation?.tier ?? 'C')} ${system.valuation?.score ?? 0}/100</p>
-          <h1>${escapeHtml(system.alias)}</h1>
-          <small>${escapeHtml(system.company.name)} · Seg ${system.effectiveSecurity ?? system.archetype.security}</small>
-        </div>
-      </div>
       <div class="hud-actions">
         <button class="audio-toggle ${isAudioEnabled ? 'is-active' : ''}" data-action="toggleAudio" type="button" aria-label="${isAudioEnabled ? 'Silenciar audio' : 'Activar música y efectos'}">♪</button>
         <button class="help-toggle" data-action="toggleHelp" type="button" aria-label="Abrir ayuda de juego">?</button>

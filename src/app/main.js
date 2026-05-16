@@ -29,6 +29,7 @@ const demoNearbyProvider = createDemoNearbyProvider();
 const DEFAULT_MAP_VIEW = { x: 0, y: 0, width: 100, height: 100 };
 const MIN_MAP_SIZE = 32;
 const MAX_MAP_SIZE = 100;
+const MAP_DRAG_THRESHOLD_PX = 12;
 const appState = {
   places: demoPlaces,
   selectedPlace: demoPlaces[0],
@@ -250,6 +251,7 @@ function bindNodeMapEvents() {
 
   surface.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return;
+    if (event.target.closest?.('[data-node-id]')) return;
     appState.mapPointer = {
       id: event.pointerId,
       startX: event.clientX,
@@ -267,7 +269,7 @@ function bindNodeMapEvents() {
     const rect = surface.getBoundingClientRect();
     const deltaX = event.clientX - pointer.startX;
     const deltaY = event.clientY - pointer.startY;
-    if (Math.abs(deltaX) + Math.abs(deltaY) > 4) pointer.hasMoved = true;
+    if (Math.abs(deltaX) + Math.abs(deltaY) > MAP_DRAG_THRESHOLD_PX) pointer.hasMoved = true;
 
     const nextView = {
       ...pointer.startView,

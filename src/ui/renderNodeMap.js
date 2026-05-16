@@ -1,5 +1,6 @@
 import { assetPaths } from '../assets/assetRegistry.js';
 import { iceCatalog } from '../game/iceCatalog.js';
+import { escapeHtml } from './html.js';
 
 const nodeGlyph = {
   entry: 'IN',
@@ -40,6 +41,11 @@ export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, h
     .join('');
 
   return `<section class="node-map" aria-label="Mapa de nodos del host">
+    <div class="node-map__heading">
+      <p class="eyebrow">Turno ${run.turn} · ${escapeHtml(system.valuation?.tier ?? 'C')} ${system.valuation?.score ?? 0}/100</p>
+      <strong>${escapeHtml(system.alias)}</strong>
+      <small>${escapeHtml(system.company.name)} · Seg ${system.effectiveSecurity ?? system.archetype.security}</small>
+    </div>
     <div class="node-map__controls" aria-label="Controles del mapa">
       <button data-map-action="zoomOut" type="button" aria-label="Alejar mapa">-</button>
       <button data-map-action="reset" type="button" aria-label="Recentrar mapa">R</button>
@@ -55,8 +61,10 @@ export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, h
           </feMerge>
         </filter>
       </defs>
-      ${edges}
-      ${nodes}
+      <g class="node-map__graph" transform="translate(0 20)">
+        ${edges}
+        ${nodes}
+      </g>
     </svg>
   </section>`;
 }

@@ -180,6 +180,7 @@ const { scoreRun } = await import('../src/game/runScoring.js');
 const { getDangerTheme } = await import('../src/ui/dangerTheme.js');
 const { projectSystemForRun } = await import('../src/game/systemView.js');
 const { renderNodeMap } = await import('../src/ui/renderNodeMap.js');
+const { renderProgressPanel } = await import('../src/ui/renderProgress.js');
 
 const jackOutPlace = demoPlaces[0];
 const jackOutSeed = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
@@ -215,6 +216,13 @@ const killedIceRun = reduceRun(iceSystem, movedIntoIce, { type: 'runProgram', pr
 if (killedIceRun.status !== 'exploring') throw new Error('Successful spike should return to exploring after neutralizing ICE');
 if (!killedIceRun.neutralizedIce.includes('n-1')) throw new Error('Successful spike should mark ICE as neutralized');
 renderNodeMap(projectSystemForRun(iceSystem, killedIceRun), killedIceRun);
+renderProgressPanel({ valueTier: 'B', companyValue: 60, completedRuns: 2, bestScore: 140 }, []);
+
+const ghostPressureRun = reduceRun(iceSystem, { ...createInitialRunState(iceSystem), alert: 3, trace: 2 }, { type: 'runProgram', program: 'ghost' });
+if (ghostPressureRun.alert !== 2 || ghostPressureRun.trace !== 1) throw new Error('Ghost should reduce alert and trace when pressure exists');
+if (ghostPressureRun.integrity !== 9) throw new Error('Ghost should cost one shell when hiding an active signature');
+const ghostIdleRun = reduceRun(iceSystem, createInitialRunState(iceSystem), { type: 'runProgram', program: 'ghost' });
+if (ghostIdleRun.turn !== 1 || ghostIdleRun.integrity !== 10) throw new Error('Ghost should not be spammable at zero pressure');
 
 const lowDanger = getDangerTheme(createInitialRunState(iceSystem));
 const highDanger = getDangerTheme({ ...createInitialRunState(iceSystem), alert: 10, trace: 8, integrity: 1 });
@@ -233,20 +241,22 @@ try {
   const hostProfile = { variant: initialProfile.hostVariant, tempoOffset: 0 };
   const lowScore = createStrudelScore(initialProfile, hostProfile);
   const mediumScore = createStrudelScore(mediumAlertProfile, hostProfile);
-  if (lowScore === mediumScore) throw new Error('Low and medium Strudel scores should differ');
-  if (extractCps(lowScore) >= extractCps(mediumScore)) throw new Error('Medium Strudel score should raise the cycle tempo');
-  if (!mediumScore.includes('brown ~ ~ ~')) throw new Error('Medium Strudel score should introduce subtle ambient texture');
-  if (mediumScore.includes('white*')) throw new Error('Medium Strudel score should avoid constant hat patterns');
+  if (lowScore !== mediumScore) throw new Error('Reference Strudel snippet should stay fixed while auditioning');
+  if (extractCps(lowScore) !== 0.75) throw new Error('Reference Strudel snippet should keep the original cycle tempo');
+  if (!mediumScore.includes("samples('github:eddyflux/crate')")) throw new Error('Reference Strudel snippet should load the crate sample pack');
+  if (!mediumScore.includes('chord("<Bbm9 Fm9>/4")')) throw new Error('Reference Strudel snippet should keep the provided chord progression');
+  if (!mediumScore.includes(".bank('crate')")) throw new Error('Reference Strudel snippet should use the crate drum bank');
+  if (!mediumScore.includes('gm_epiano1:1')) throw new Error('Reference Strudel snippet should use electric piano chords');
+  if (!mediumScore.includes('gm_acoustic_bass')) throw new Error('Reference Strudel snippet should use the provided bass voice');
   if (!(await director.toggle())) throw new Error('Audio director should enable with mock AudioContext');
   await director.play('jackOut');
   await director.play('success');
   const highProfile = director.updateRunState({ ...createInitialRunState(iceSystem), alert: 10, trace: 8, integrity: 1 }, iceSystem);
   if (highProfile.level !== 'high') throw new Error('High danger should move audio profile to high pressure');
   const highScore = createStrudelScore(highProfile, hostProfile);
-  if (extractCps(mediumScore) >= extractCps(highScore)) throw new Error('High Strudel score should raise the cycle tempo again');
-  if (highScore.includes('white*8')) throw new Error('High Strudel score should avoid constant hat density');
-  if (/\b[a-g][b#]?\d\*4\b/.test(highScore)) throw new Error('High Strudel score should avoid four-on-the-floor note pulses');
-  if (!highScore.includes('delay(.32).room(.35)')) throw new Error('High Strudel score should add a filtered cinematic tension lead');
+  if (highScore !== lowScore) throw new Error('Reference Strudel snippet should not react to alert while auditioning');
+  if (!highScore.includes('rd:<1!3 2>*2')) throw new Error('Reference Strudel snippet should include the ride layer');
+  if (!highScore.includes('fm(sine.range(3,8).slow(8))')) throw new Error('Reference Strudel snippet should include the evolving FM melody');
   await director.play('spike');
   if (!director.isEnabled()) throw new Error('Audio director should remain enabled after jack-out sounds');
   if (await director.toggle()) throw new Error('Audio director should disable cleanly');

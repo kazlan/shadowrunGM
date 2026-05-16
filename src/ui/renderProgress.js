@@ -2,7 +2,7 @@ import { escapeHtml } from './html.js';
 
 export function renderProgressPanel(currentProgress, recentProgress) {
   const current = currentProgress
-    ? `<p>Host conocido · Valor ${escapeHtml(current.valueTier ?? 'C')} ${current.companyValue ?? 0}/100 · ${current.completedRuns} extracción(es) · Mejor ${current.bestScore}</p>`
+    ? `<p>Host conocido · Valor ${escapeHtml(currentProgress.valueTier ?? 'C')} ${currentProgress.companyValue ?? 0}/100 · ${currentProgress.completedRuns} extracción(es) · Mejor ${currentProgress.bestScore}</p>`
     : '<p>Host nuevo · sin historial local</p>';
 
   const recent = recentProgress.length > 0
