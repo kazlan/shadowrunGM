@@ -10,6 +10,7 @@ const firebaseEnv = {
 
 export const firebaseVapidKey = import.meta.env?.VITE_FIREBASE_MESSAGING_VAPID_KEY ?? '';
 export const firebaseMessagingEnabled = import.meta.env?.VITE_FIREBASE_ENABLE_MESSAGING === 'true';
+export const firebaseFirestoreDatabaseId = import.meta.env?.VITE_FIREBASE_FIRESTORE_DATABASE_ID ?? '(default)';
 
 const requiredConfigKeys = ['apiKey', 'authDomain', 'projectId', 'appId'];
 

@@ -1,6 +1,6 @@
 import { programs } from '../game/programCatalog.js';
 import { nodeEvents } from '../game/nodeEvents.js';
-import { deckStatCatalog } from '../world/deckStore.js';
+import { avatarCatalog, deckStatCatalog } from '../world/deckStore.js';
 import { escapeHtml } from './html.js';
 import { normalizeThemeKey, themeCatalog } from './themeStore.js';
 
@@ -26,7 +26,7 @@ const statHelp = [
   },
 ];
 
-export function renderSettingsOverlay(isOpen, audioState = {}, activeTheme = 'black') {
+export function renderSettingsOverlay(isOpen, audioState = {}, activeTheme = 'black', cloudState = null, deckProfile = null) {
   if (!isOpen) return '';
 
   const musicEnabled = Boolean(audioState.music);
@@ -49,6 +49,8 @@ export function renderSettingsOverlay(isOpen, audioState = {}, activeTheme = 'bl
         ${renderAudioControl('music', 'Música', musicEnabled, musicVolume)}
         ${renderAudioControl('sfx', 'Efectos', sfxEnabled, sfxVolume)}
       </div>
+      ${renderCloudControl(cloudState, deckProfile)}
+      ${renderIdentityControl(deckProfile)}
       <div class="settings-themes" aria-label="Temas visuales">
         <h3>Tema</h3>
         <details class="theme-dropdown">
@@ -63,6 +65,92 @@ export function renderSettingsOverlay(isOpen, audioState = {}, activeTheme = 'bl
       </div>
     </section>
   </aside>`;
+}
+
+function renderIdentityControl(deckProfile) {
+  const player = deckProfile?.player ?? { shadowName: 'NEON GHOST', avatar: 'ghost' };
+  const avatars = avatarCatalog
+    .map((avatar) => `<button class="${avatar.key === player.avatar ? 'is-active' : ''}" data-avatar-option="${escapeHtml(avatar.key)}" type="button" aria-pressed="${avatar.key === player.avatar ? 'true' : 'false'}" title="${escapeHtml(avatar.label)}">
+      <b>${escapeHtml(avatar.glyph)}</b>
+      <span>${escapeHtml(avatar.label)}</span>
+    </button>`)
+    .join('');
+
+  return `<div class="settings-identity" aria-label="Identidad del runner">
+    <div class="settings-identity__name">
+      <label>
+        <span>Shadow Name</span>
+        <input data-shadow-name-input type="text" maxlength="24" value="${escapeHtml(player.shadowName)}" autocomplete="off" spellcheck="false" aria-label="Shadow Name">
+      </label>
+      <button data-shadow-name-save type="button">Guardar</button>
+    </div>
+    <div class="settings-identity__avatars" role="listbox" aria-label="Avatar">${avatars}</div>
+  </div>`;
+}
+
+function renderCloudControl(cloudState, deckProfile) {
+  const state = cloudState ?? { configured: false, status: 'disabled', message: 'Firebase no configurado.' };
+  const connected = Boolean(state.user);
+  const disabled = !state.configured || state.status === 'syncing';
+  const player = deckProfile?.player ?? { shadowName: 'NEON GHOST', avatar: 'ghost' };
+  const avatar = avatarCatalog.find((candidate) => candidate.key === player.avatar) ?? avatarCatalog[0];
+  const accountLabel = connected ? cloudAccountLabel(state.user) : 'Modo local';
+  const status = cloudStatusLabel(state);
+
+  return `<div class="settings-cloud settings-cloud--${connected ? 'connected' : 'signed-out'}" aria-label="Conexion Nexus">
+    <div class="settings-cloud__header">
+      <span class="settings-cloud__avatar">${escapeHtml(avatar.glyph)}</span>
+      <div>
+        <h3>Conectar deck a Nexus</h3>
+        <strong>${escapeHtml(player.shadowName)}</strong>
+        <small>${escapeHtml(accountLabel)}</small>
+      </div>
+    </div>
+    <p>${escapeHtml(status)}</p>
+    ${connected ? renderConnectedCloudActions(state, disabled) : renderSignedOutCloudActions(disabled)}
+  </div>`;
+}
+
+function renderSignedOutCloudActions(disabled) {
+  return `<div class="settings-cloud__actions settings-cloud__actions--three">
+    <button data-action="signInGuest" type="button" ${disabled ? 'disabled' : ''}>Invitado</button>
+    <button data-action="signInGoogle" type="button" ${disabled ? 'disabled' : ''}>Google</button>
+    <button data-action="continueLocal" type="button">Local</button>
+  </div>`;
+}
+
+function renderConnectedCloudActions(state, disabled) {
+  const linkButton = state.user?.isAnonymous
+    ? `<button data-action="linkGoogle" type="button" ${disabled ? 'disabled' : ''}>Vincular Google</button>`
+    : '';
+  return `<div class="settings-cloud__account">
+    <span>${escapeHtml(accountDetail(state.user))}</span>
+    <div class="settings-cloud__actions">
+      ${linkButton}
+      <button data-action="signOutCloud" type="button" ${disabled ? 'disabled' : ''}>Salir</button>
+    </div>
+  </div>`;
+}
+
+function cloudAccountLabel(user) {
+  if (!user) return 'Local';
+  if (user.displayName) return user.displayName;
+  if (user.email) return user.email;
+  return user.isAnonymous ? 'Invitado Nexus' : 'Cuenta Nexus';
+}
+
+function accountDetail(user) {
+  if (!user) return 'Sin cuenta conectada';
+  if (user.email) return user.email;
+  return user.isAnonymous ? 'Cuenta invitada vinculable' : user.uid;
+}
+
+function cloudStatusLabel(state) {
+  if (!state.configured) return 'Firebase no configurado.';
+  if (state.status === 'syncing') return state.message || 'Sincronizando...';
+  if (state.status === 'error') return state.message || 'Cloud sin sincronizar.';
+  if (state.user) return state.message || 'Conectado.';
+  return state.message || 'Cloud desconectado.';
 }
 
 function renderThemeSummary(activeTheme) {

@@ -11,6 +11,7 @@ const requiredFiles = [
   'src/firebase/firebaseClient.js',
   'src/firebase/authClient.js',
   'src/firebase/cloudPersistence.js',
+  'src/firebase/cloudSync.js',
   'src/firebase/messagingClient.js',
   'src/assets/assetRegistry.js',
   'public/assets/README.md',
@@ -66,6 +67,10 @@ const manifest = JSON.parse(await readFile('public/manifest.webmanifest', 'utf8'
 if (manifest.orientation !== 'portrait') throw new Error('Manifest orientation must be portrait');
 if (!['fullscreen', 'standalone'].includes(manifest.display)) throw new Error('Manifest display must be fullscreen or standalone');
 const mainSource = await readFile('src/app/main.js', 'utf8');
+const authSource = await readFile('src/firebase/authClient.js', 'utf8');
+if (authSource.includes('signInWithPopup') || !authSource.includes('signInWithRedirect') || !authSource.includes('linkWithRedirect') || !authSource.includes('getRedirectResult')) {
+  throw new Error('Google auth should use redirect flow and support guest-to-Google linking');
+}
 if (!mainSource.includes('mapPointers: new Map()') || !mainSource.includes('startMapPinch') || !mainSource.includes('zoomMapAtPoint')) throw new Error('Node map should keep pinch zoom support wired into pointer handling');
 const scanLocalBody = mainSource.match(/async function scanLocalTargets\(\) \{[\s\S]*?\n\}/)?.[0] ?? '';
 if (scanLocalBody.includes('startRun(') || !scanLocalBody.includes('appState.isScannerOpen = true;')) throw new Error('Local scanner should keep the target picker open instead of auto-starting a run');
@@ -217,13 +222,14 @@ const { renderHud, renderProgramDock } = await import('../src/ui/renderHud.js');
 const { renderPostRunScannerPanel } = await import('../src/ui/renderRunLog.js');
 const { renderScannerOverlay } = await import('../src/ui/renderScannerOverlay.js');
 const { applyTheme, normalizeThemeKey, themeCatalog } = await import('../src/ui/themeStore.js');
-const { getFirebaseConfig, isFirebaseConfigured, isFirebaseMessagingConfigured } = await import('../src/firebase/firebaseConfig.js');
+const { firebaseFirestoreDatabaseId, getFirebaseConfig, isFirebaseConfigured, isFirebaseMessagingConfigured } = await import('../src/firebase/firebaseConfig.js');
 const { getFirebaseStatus } = await import('../src/firebase/firebaseClient.js');
 const { cloudPaths } = await import('../src/firebase/cloudPersistence.js');
+const { mergeDeckProfiles } = await import('../src/firebase/cloudSync.js');
 const { createOverpassProvider } = await import('../src/world/overpassProvider.js');
 const { renderProgressPanel } = await import('../src/ui/renderProgress.js');
 const { renderCompletionScreen } = await import('../src/ui/renderCompletionScreen.js');
-const { addHostBookmark, awardRunCredits, createDefaultDeckProfile, getBookmarkCapacity, getStorageCapacity, upgradeDeckProfile } = await import('../src/world/deckStore.js');
+const { addHostBookmark, avatarCatalog, awardRunCredits, createDefaultDeckProfile, getBookmarkCapacity, getStorageCapacity, updatePlayerProfile, upgradeDeckProfile } = await import('../src/world/deckStore.js');
 
 const jackOutPlace = demoPlaces[0];
 const jackOutSeed = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
@@ -271,6 +277,17 @@ const jackOutRun = reduceRun(jackOutSystem, createInitialRunState(jackOutSystem)
 if (jackOutRun.status !== 'escaped') throw new Error('Jack-out from entry should escape instead of crashing');
 if (!Number.isFinite(scoreRun(jackOutSystem, jackOutRun))) throw new Error('Jack-out run score should be finite');
 const defaultDeck = createDefaultDeckProfile();
+if (defaultDeck.player.shadowName !== 'NEON GHOST' || avatarCatalog.length < 5) throw new Error('Default deck should include runner identity and avatar presets');
+const identityDeck = updatePlayerProfile(defaultDeck, { shadowName: 'HEX MANTA', avatar: 'cipher' });
+if (identityDeck.player.shadowName !== 'HEX MANTA' || identityDeck.player.avatar !== 'cipher') throw new Error('Runner identity updates should persist through deck normalization');
+if (!renderHud(jackOutSystem, createInitialRunState(jackOutSystem, identityDeck), false, identityDeck.player).includes('HEX MANTA')) throw new Error('HUD should render the runner shadow name');
+const identitySettingsHtml = renderSettingsOverlay(true, {}, 'black', null, identityDeck);
+if (!identitySettingsHtml.includes('data-shadow-name-input') || !identitySettingsHtml.includes('data-avatar-option="cipher"')) {
+  throw new Error('Settings should expose runner identity editing');
+}
+if (!identitySettingsHtml.includes('Conectar deck a Nexus') || !identitySettingsHtml.includes('data-action="signInGoogle"') || !identitySettingsHtml.includes('data-action="continueLocal"')) {
+  throw new Error('Settings should render the Nexus connection panel with Google redirect and local continuation');
+}
 const upgradedShellDeck = { ...defaultDeck, deck: { ...defaultDeck.deck, shell: 4 }, programs: { ...defaultDeck.programs } };
 const upgradedInitialRun = createInitialRunState(jackOutSystem, upgradedShellDeck);
 if (upgradedInitialRun.maxIntegrity <= createInitialRunState(jackOutSystem).maxIntegrity) throw new Error('Shell deck upgrades should increase max integrity');
@@ -368,8 +385,18 @@ if (!killedIceRun.neutralizedIce.includes('n-1')) throw new Error('Successful sp
 renderNodeMap(projectSystemForRun(iceSystem, killedIceRun), killedIceRun);
 const finishedMapHtml = renderNodeMap(projectSystemForRun(jackOutSystem, jackOutRun), jackOutRun, undefined, null, { score: 55, reward: 12, lootTokens: 0, operator: 'usr@sh' });
 if (!finishedMapHtml.includes('run_complete.sh') || !finishedMapHtml.includes('node-map--result')) throw new Error('Finished runs should render completion terminal inside the node window');
+const cleanedSuccessMapHtml = renderNodeMap(projectSystemForRun(jackOutSystem, { ...jackOutRun, hasPayload: false, lootTokens: 0 }), { ...jackOutRun, hasPayload: false, lootTokens: 0 }, undefined, null, { status: 'escaped', score: 55, reward: 12, lootTokens: 2, operator: 'usr@sh' });
+if (!cleanedSuccessMapHtml.includes('--status success') || cleanedSuccessMapHtml.includes('CRITICAL FALLBACK')) throw new Error('Successful cleaned runs should still render the success terminal from the run result snapshot');
 const mapMessageHtml = renderNodeMap(projectSystemForRun(iceSystem, killedIceRun), killedIceRun, undefined, { key: 'check', text: 'Ultima traza visible' });
 if (!mapMessageHtml.includes('node-map__message') || !mapMessageHtml.includes('Ultima traza visible')) throw new Error('Node map should surface the latest log message');
+const nodeVisitHtml = renderNodeMap(projectSystemForRun(iceSystem, movedIntoIce), movedIntoIce, undefined, null, null, true, {
+  nodeId: 'n-1',
+  phase: 'focus',
+  previousMapView: { x: 0, y: 0, width: 100, height: 100 },
+  recommendedProgram: 'spike',
+  autoDismiss: false,
+});
+if (!nodeVisitHtml.includes('node-diorama') || !nodeVisitHtml.includes('Centinela') || !nodeVisitHtml.includes('Spike')) throw new Error('Node visits should render a tactical diorama with ICE and recommendation');
 if (!renderDeckTrace(upgradedDeckResult.profile, createInitialRunState(iceSystem, upgradedDeckResult.profile), 'Scan mejorado.').includes('deck-memory')) throw new Error('Deck trace should show segmented memory');
 const finishedDeckTraceHtml = renderDeckTrace(upgradedDeckResult.profile, { ...createInitialRunState(iceSystem, upgradedDeckResult.profile), status: 'escaped', lootTokens: 3, deckCash: 99 }, 'Run limpia.');
 if (!finishedDeckTraceHtml.includes('RUN 0') || !finishedDeckTraceHtml.includes('CTA') || !finishedDeckTraceHtml.includes('0/5')) throw new Error('Finished runs should empty deck cash and memory in the deck trace');
@@ -384,6 +411,7 @@ if (!hudHtml.includes('data-action="toggleSettings"') || !hudHtml.includes('sett
 if (hudHtml.includes('data-action="toggleMusic"') || hudHtml.includes('data-action="toggleSfx"')) throw new Error('Audio controls should live inside settings, not the main HUD');
 if (!renderHud(iceSystem, { ...jackOutRun, selectedProgram: 'scan', disabledPrograms: [] }, true).includes('disabled')) throw new Error('Finished runs should disable jack-out controls');
 if (!renderProgramDock({ ...jackOutRun, selectedProgram: 'scan', disabledPrograms: [] }, true).includes('program-dock--inactive')) throw new Error('Finished runs should fade and disable program controls');
+if (!renderProgramDock({ ...jackOutRun, selectedProgram: 'scan', disabledPrograms: [] }, false, 'spike').includes('is-recommended')) throw new Error('Program dock should mark the recommended node visit program');
 const settingsHtml = renderSettingsOverlay(true, { music: true, sfx: false, musicVolume: 0.42, sfxVolume: 0.18 }, 'workbench-light');
 if (!settingsHtml.includes('settings-audio') || !settingsHtml.includes('data-audio-volume="music"') || !settingsHtml.includes('value="42"')) throw new Error('Settings overlay should render real music volume controls');
 if (!settingsHtml.includes('data-action="toggleMusic"') || !settingsHtml.includes('data-action="openHelp"')) throw new Error('Settings overlay should contain audio toggles and a help button');
@@ -397,8 +425,14 @@ delete globalThis.document;
 if (!renderHelpOverlay(true, 'deck').includes('help-tabs')) throw new Error('Help overlay should render compact tab navigation in its own dialog');
 if (isFirebaseConfigured() || isFirebaseMessagingConfigured() || getFirebaseConfig() !== null) throw new Error('Firebase should stay disabled without env config');
 if (getFirebaseStatus().configured) throw new Error('Firebase status should report unconfigured in checks');
+if (firebaseFirestoreDatabaseId !== '(default)' || getFirebaseStatus().databaseId !== '(default)') throw new Error('Firebase database id should default to the default database without env config');
 if (cloudPaths.deckProfile('u1').join('/') !== 'users/u1/deck/profile') throw new Error('Firebase deck profile path should stay stable');
 if (cloudPaths.hostProgress('u1', 'seed').join('/') !== 'users/u1/hostProgress/seed') throw new Error('Firebase host progress path should stay stable');
+const mergedCloudDeck = mergeDeckProfiles(
+  { ...defaultDeck, totalEarned: 20, credits: 20, bookmarks: [{ seedId: 'local', name: 'Local', hostAlias: 'LOCAL', category: 'shop', lat: 1, lon: 1, savedAt: '2026-01-02T00:00:00.000Z' }] },
+  { ...defaultDeck, totalEarned: 40, credits: 40, bookmarks: [{ seedId: 'remote', name: 'Remote', hostAlias: 'REMOTE', category: 'shop', lat: 2, lon: 2, savedAt: '2026-01-01T00:00:00.000Z' }] },
+);
+if (mergedCloudDeck.credits !== 40 || mergedCloudDeck.bookmarks.length !== 2) throw new Error('Cloud deck merge should keep richer deck and combine bookmarks');
 const scannerHtml = renderScannerOverlay({
   isOpen: true,
   places: [

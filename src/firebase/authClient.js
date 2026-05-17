@@ -1,9 +1,11 @@
 import {
+  getRedirectResult,
   GoogleAuthProvider,
+  linkWithRedirect,
   onAuthStateChanged,
   signInAnonymously,
   signInWithEmailAndPassword,
-  signInWithPopup,
+  signInWithRedirect,
   signOut,
 } from 'firebase/auth';
 import { getFirebaseAuth } from './firebaseClient.js';
@@ -24,7 +26,19 @@ export async function signInGuest() {
 
 export async function signInWithGoogle() {
   const auth = requireAuth();
-  return signInWithPopup(auth, new GoogleAuthProvider());
+  return signInWithRedirect(auth, createGoogleProvider());
+}
+
+export async function linkCurrentUserWithGoogle() {
+  const auth = requireAuth();
+  if (!auth.currentUser) return signInWithGoogle();
+  return linkWithRedirect(auth.currentUser, createGoogleProvider());
+}
+
+export async function resolveAuthRedirect() {
+  const auth = getFirebaseAuth();
+  if (!auth) return null;
+  return getRedirectResult(auth);
 }
 
 export async function signInWithEmail(email, password) {
@@ -41,4 +55,10 @@ function requireAuth() {
   const auth = getFirebaseAuth();
   if (!auth) throw new Error('Firebase no está configurado.');
   return auth;
+}
+
+function createGoogleProvider() {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  return provider;
 }

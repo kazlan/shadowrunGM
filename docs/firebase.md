@@ -10,6 +10,7 @@ Copiar `.env.example` a `.env.local` y completar:
 VITE_FIREBASE_API_KEY=
 VITE_FIREBASE_AUTH_DOMAIN=
 VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_FIRESTORE_DATABASE_ID=
 VITE_FIREBASE_STORAGE_BUCKET=
 VITE_FIREBASE_MESSAGING_SENDER_ID=
 VITE_FIREBASE_APP_ID=
@@ -20,10 +21,19 @@ VITE_FIREBASE_ENABLE_MESSAGING=false
 
 `MEASUREMENT_ID` es opcional. `VAPID_KEY` y `ENABLE_MESSAGING=true` solo son necesarios para Web Push/FCM.
 
+Para el proyecto Firebase **nexus** (`nexus-f20f5`) se usa una base Firestore Native nombrada, creada en `europe-southwest1`:
+
+```text
+VITE_FIREBASE_FIRESTORE_DATABASE_ID=shadowhack
+```
+
+La base `(default)` del proyecto Nexus esta en `DATASTORE_MODE`, asi que no se usa desde el SDK web de Firebase.
+
 ## Servicios previstos
 
-- **Authentication**: login anónimo, Google y email/password preparados en `src/firebase/authClient.js`.
+- **Authentication**: login anónimo, Google con redirect, email/password preparado y vinculación de invitado con Google en `src/firebase/authClient.js`.
 - **Cloud Firestore**: helpers iniciales en `src/firebase/cloudPersistence.js`.
+- **Cloud sync**: controlador offline-first en `src/firebase/cloudSync.js`, conectado a ajustes, deck y resultados de run.
 - **Cloud Messaging**: token Web Push mediante `src/firebase/messagingClient.js` y handler genérico en `public/service-worker.js`.
 
 ## Estructura Firestore v1
@@ -42,11 +52,49 @@ Datos previstos:
 
 ## Decisiones pendientes
 
-- Proveedor de login principal: Google, email/password, anónimo o mezcla.
-- Si el progreso local debe sincronizarse automáticamente al iniciar sesión o solo con un botón.
+- Activar en Firebase Console los proveedores de Auth que se vayan a usar: anónimo y Google para v1.
+- Google Auth usa `signInWithRedirect` para móvil/PWA; la pantalla de Google no se puede personalizar, pero el panel previo vive en ajustes como "Conectar deck a Nexus".
 - Si los bookmarks deben ser privados por usuario o exportables/compartibles más adelante.
 - Qué tipos de mensajes usaremos: recordatorios, retos, eventos de host, alertas de run asíncrona, etc.
 - Reglas de seguridad definitivas antes de activar producción.
+
+## CLI y despliegue
+
+El repo usa Firebase CLI local:
+
+```bash
+npm run firebase -- --version
+npm run firebase -- projects:list
+```
+
+Archivos preparados:
+
+```text
+.firebaserc
+firebase.json
+firestore.rules
+firestore.indexes.json
+```
+
+Crear la base Firestore Native europea si no existe:
+
+```bash
+npm run firebase -- firestore:databases:create shadowhack --location europe-southwest1 --edition standard --project nexus-f20f5
+```
+
+Comprobarla:
+
+```bash
+npm run firebase -- firestore:databases:get shadowhack --project nexus-f20f5
+```
+
+Desplegar reglas:
+
+```bash
+npm run firebase -- deploy --only firestore --project nexus-f20f5
+```
+
+Si el deploy falla indicando que `serviceusage.googleapis.com` esta deshabilitada, activar la **Service Usage API** en Google Cloud para `nexus-f20f5` y reintentar el comando de deploy.
 
 ## Notas de seguridad
 

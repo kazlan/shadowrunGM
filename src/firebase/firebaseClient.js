@@ -2,7 +2,7 @@ import { getApp, getApps, initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getMessaging, isSupported } from 'firebase/messaging';
-import { getFirebaseConfig, isFirebaseConfigured } from './firebaseConfig.js';
+import { firebaseFirestoreDatabaseId, getFirebaseConfig, isFirebaseConfigured } from './firebaseConfig.js';
 
 let app = null;
 let auth = null;
@@ -12,6 +12,7 @@ let messagingPromise = null;
 export function getFirebaseStatus() {
   return {
     configured: isFirebaseConfigured(),
+    databaseId: firebaseFirestoreDatabaseId,
     projectId: getFirebaseConfig()?.projectId ?? null,
   };
 }
@@ -34,7 +35,9 @@ export function getFirebaseAuth() {
 export function getFirebaseDb() {
   const activeApp = getFirebaseApp();
   if (!activeApp) return null;
-  db ??= getFirestore(activeApp);
+  db ??= firebaseFirestoreDatabaseId === '(default)'
+    ? getFirestore(activeApp)
+    : getFirestore(activeApp, firebaseFirestoreDatabaseId);
   return db;
 }
 

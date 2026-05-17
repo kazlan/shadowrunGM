@@ -2,8 +2,24 @@ import { assetPaths } from '../assets/assetRegistry.js';
 import { escapeHtml } from './html.js';
 import { programs } from '../game/programCatalog.js';
 
-export function renderHud(system, run, finished = false) {
+const avatarGlyphs = {
+  ghost: 'GH',
+  spark: 'SP',
+  cipher: 'CI',
+  vector: 'VX',
+  null: 'N0',
+};
+
+export function renderHud(system, run, finished = false, player = null) {
+  const identity = normalizeHudIdentity(player);
   return `<header class="hud-top">
+      <div class="runner-id runner-id--${escapeHtml(identity.avatar)}" aria-label="Runner activo">
+        <span class="runner-id__avatar">${escapeHtml(avatarGlyphs[identity.avatar] ?? 'GH')}</span>
+        <span class="runner-id__text">
+          <b>${escapeHtml(identity.shadowName)}</b>
+          <small>${escapeHtml(system.alias)}</small>
+        </span>
+      </div>
       <div class="hud-actions">
         <button class="jack-out" data-action="jackOut" type="button" ${finished ? 'disabled' : ''}>Jack out</button>
         <button class="settings-toggle" data-action="toggleSettings" type="button" aria-label="Abrir ajustes">
@@ -18,6 +34,13 @@ export function renderHud(system, run, finished = false) {
     </section>`;
 }
 
+function normalizeHudIdentity(player) {
+  return {
+    shadowName: String(player?.shadowName || 'NEON GHOST').slice(0, 24),
+    avatar: Object.hasOwn(avatarGlyphs, player?.avatar) ? player.avatar : 'ghost',
+  };
+}
+
 function renderCogIcon() {
   return `<svg class="settings-icon" viewBox="0 0 24 24" aria-hidden="true">
     <path d="M12 8.2a3.8 3.8 0 1 1 0 7.6 3.8 3.8 0 0 1 0-7.6Z" fill="none" stroke="currentColor" stroke-width="1.8"/>
@@ -25,13 +48,15 @@ function renderCogIcon() {
   </svg>`;
 }
 
-export function renderProgramDock(run, finished = false) {
+export function renderProgramDock(run, finished = false, recommendedProgram = null) {
   const programButtons = programs
     .map((program) => {
       const active = run.selectedProgram === program.kind;
       const disabled = finished || run.disabledPrograms.includes(program.kind);
+      const recommended = !disabled && recommendedProgram === program.kind;
       const stateLabel = finished ? 'Run cerrada' : disabled ? 'Bloqueado' : program.description;
-      return `<button class="${active ? 'is-active' : ''}" data-program="${program.kind}" type="button" aria-label="${escapeHtml(`Ejecutar ${program.label}: ${stateLabel}`)}" title="${escapeHtml(stateLabel)}" ${disabled ? 'disabled' : ''}>
+      const classes = [active ? 'is-active' : '', recommended ? 'is-recommended' : ''].filter(Boolean).join(' ');
+      return `<button class="${classes}" data-program="${program.kind}" type="button" aria-label="${escapeHtml(`Ejecutar ${program.label}: ${stateLabel}`)}" title="${escapeHtml(stateLabel)}" ${disabled ? 'disabled' : ''}>
         <img src="${assetPaths.programs[program.kind]}" alt="" loading="lazy" />
         <strong>${escapeHtml(program.label)}</strong>
       </button>`;

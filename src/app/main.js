@@ -1,9 +1,11 @@
 import { createAudioDirector } from '../audio/proceduralAudio.js';
 import { getHostBackground } from '../assets/assetRegistry.js';
+import { createCloudSyncController } from '../firebase/cloudSync.js';
 import { generateSystem } from '../game/mapGenerator.js';
 import { reduceRun } from '../game/runEngine.js';
 import { scoreRun } from '../game/runScoring.js';
-import { createInitialRunState, isRunFinished } from '../game/runState.js';
+import { createInitialRunState, isRunFinished, NODE_RUNTIME_STATE } from '../game/runState.js';
+import { nodeEvents } from '../game/nodeEvents.js';
 import { createRng } from '../game/rng.js';
 import { projectSystemForRun } from '../game/systemView.js';
 import { getGeolocationPermissionState, requestCurrentPosition } from '../location/locationService.js';
@@ -23,7 +25,7 @@ import { hashCompany } from '../world/companySeed.js';
 import { valueCompany } from '../world/companyValuation.js';
 import { createOverpassProvider } from '../world/overpassProvider.js';
 import { createDemoNearbyProvider, demoPlaces, searchNearbyPlaces } from '../world/placeProvider.js';
-import { addHostBookmark, awardRunCredits, getBookmarkCapacity, loadDeckProfile, upgradeDeckProfile } from '../world/deckStore.js';
+import { addHostBookmark, awardRunCredits, getBookmarkCapacity, loadDeckProfile, updatePlayerProfile, upgradeDeckProfile } from '../world/deckStore.js';
 import { getHostProgress, listRecentProgress, recordRunResult } from '../world/progressStore.js';
 
 const root = document.querySelector('#root');
@@ -37,6 +39,10 @@ const MAP_DRAG_THRESHOLD_PX = 12;
 const MAP_LOG_MESSAGE_MS = 5200;
 const DISCONNECT_GLITCH_MS = 2000;
 const DECK_COUNTER_ANIMATION_MS = 1000;
+const NODE_VISIT_FOCUS_MS = 1800;
+const NODE_VISIT_RESOLVE_MS = 800;
+const DEBUG_LOG_LIMIT = 90;
+const DEBUG_LOG_STORAGE_KEY = 'shadowHack.debugLog';
 const EXPANDED_SCAN_RADIUS = 1500;
 const MIN_SCANNER_TARGETS = 4;
 const VALENCIA_TEST_POSITION = { lat: 39.4699, lon: -0.3763 };
@@ -51,6 +57,7 @@ const appState = {
   recentProgress: [],
   deckProfile: loadDeckProfile(),
   deckMessage: '',
+  cloud: null,
   theme: applyTheme(loadThemePreference()),
   mapLogMessage: null,
   lastMapLogLength: 0,
@@ -71,9 +78,24 @@ const appState = {
   ignoreNextNodeClick: false,
   disconnectGlitchUntil: 0,
   disconnectGlitchTimer: null,
+  nodeVisit: null,
+  nodeVisitTimer: null,
+  nodeVisitSequence: 0,
+  runSessionId: 0,
   deckAnimation: null,
   deckAnimationFrame: null,
 };
+const cloudSync = createCloudSyncController({
+  onDeckLoaded(profile) {
+    appState.deckProfile = profile;
+    renderActiveView();
+  },
+  onStatusChange(cloud) {
+    appState.cloud = cloud;
+    renderActiveView();
+  },
+});
+appState.cloud = cloudSync.getState();
 
 async function buildSystem(place) {
   const seed = await hashCompany(place);
@@ -85,6 +107,8 @@ async function buildSystem(place) {
 
 async function startRun(place) {
   stopDeckAnimation();
+  appState.runSessionId += 1;
+  debugLog('startRun:begin', { place: place?.name, providerId: place?.providerId });
   appState.selectedPlace = place;
   appState.completion = null;
   appState.runResult = null;
@@ -105,8 +129,14 @@ async function startRun(place) {
   appState.mapPinch = null;
   appState.mapGestureMoved = false;
   appState.ignoreNextNodeClick = false;
+  clearNodeVisit(false);
   stopDisconnectGlitch();
   syncAudioState();
+  debugLog('startRun:ready', {
+    seedId: appState.system.seedId,
+    entryNodeId: appState.system.entryNodeId,
+    nodeCount: appState.system.nodes.length,
+  });
   render();
 }
 
@@ -114,9 +144,16 @@ function dispatch(action) {
   if (!appState.system || !appState.run) return;
   const previousRun = appState.run;
   const previousStatus = appState.run.status;
+  debugLog('dispatch:before', { action });
   appState.deckMessage = '';
   appState.run = reduceRun(appState.system, appState.run, action, appState.deckProfile);
+  debugLog('dispatch:afterReduce', {
+    action,
+    previous: summarizeRun(previousRun),
+    next: summarizeRun(appState.run),
+  });
   startExtractAnimation(action, previousRun, appState.run);
+  syncNodeVisit(action, previousRun, appState.run);
   if (previousStatus !== 'dumped' && appState.run.status === 'dumped') {
     triggerDisconnectGlitch();
   }
@@ -124,6 +161,7 @@ function dispatch(action) {
   syncAudioState();
   void audioDirector.play(audioEventForAction(action));
   syncRunResult();
+  debugLog('dispatch:render', { action, runResultStatus: appState.runResult?.status ?? null });
   render();
 }
 
@@ -148,14 +186,14 @@ function render() {
     ${shockActive ? renderDisconnectFilter() : ''}
     <div class="scanline"></div>
     <div class="crt-vignette"></div>
-    ${renderHud(runtimeSystem, appState.run, finished)}
-    ${renderNodeMap(runtimeSystem, appState.run, appState.mapView, getVisibleMapLogMessage(), appState.runResult, resultVisible)}
-    ${renderProgramDock(appState.run, finished)}
+    ${renderHud(runtimeSystem, appState.run, finished, appState.deckProfile.player)}
+    ${renderNodeMap(runtimeSystem, appState.run, appState.mapView, getVisibleMapLogMessage(), appState.runResult, resultVisible, appState.nodeVisit)}
+    ${renderProgramDock(appState.run, finished, appState.nodeVisit?.recommendedProgram)}
     ${postRunPanelVisible ? renderPostRunScannerPanel(appState.runResult, appState.completion, appState.deckProfile, appState.postRunRebooted) : renderRunLog(appState.run)}
     ${renderDeckTrace(appState.deckProfile, appState.run, appState.deckMessage, getDeckTraceView())}
     ${renderProgressPanel(appState.currentProgress, appState.recentProgress)}
     ${renderDeckOverlay(appState.isDeckOpen, appState.deckProfile, appState.deckMessage)}
-    ${renderSettingsOverlay(appState.isSettingsOpen, audioDirector.getState(), appState.theme)}
+    ${renderSettingsOverlay(appState.isSettingsOpen, audioDirector.getState(), appState.theme, appState.cloud, appState.deckProfile)}
     ${renderHelpOverlay(appState.isHelpOpen, appState.helpTab)}
     ${renderScannerOverlay({
       isOpen: appState.isScannerOpen,
@@ -187,6 +225,15 @@ async function boot() {
   }
 
   await startRun(appState.selectedPlace);
+}
+
+function renderActiveView() {
+  if (getAppRoute() !== 'play') {
+    renderLanding();
+    return;
+  }
+  if (!appState.system || !appState.run) return;
+  render();
 }
 
 function renderLanding() {
@@ -278,6 +325,7 @@ function bindEvents() {
   root.querySelectorAll('[data-node-id]').forEach((node) => {
     node.addEventListener('click', () => {
       if (isRunFinished(appState.run)) return;
+      if (appState.nodeVisit) return;
       if (appState.ignoreNextNodeClick) {
         appState.ignoreNextNodeClick = false;
         return;
@@ -288,6 +336,7 @@ function bindEvents() {
 
   root.querySelectorAll('[data-map-action]').forEach((button) => {
     button.addEventListener('click', () => {
+      if (appState.nodeVisit) return;
       const action = button.dataset.mapAction;
       if (action === 'zoomIn') zoomMap(0.72);
       if (action === 'zoomOut') zoomMap(1.28);
@@ -301,6 +350,7 @@ function bindEvents() {
       const result = upgradeDeckProfile(appState.deckProfile, category, key);
       appState.deckProfile = result.profile;
       appState.deckMessage = deckUpgradeMessage(result, category, key);
+      if (result.changed) void syncDeckProfile();
       render();
     });
   });
@@ -331,6 +381,22 @@ function bindEvents() {
     });
   });
 
+  root.querySelectorAll('[data-avatar-option]').forEach((button) => {
+    button.addEventListener('click', () => {
+      updateRunnerIdentity({ avatar: button.dataset.avatarOption });
+    });
+  });
+
+  root.querySelector('[data-shadow-name-save]')?.addEventListener('click', () => {
+    saveShadowNameFromInput();
+  });
+
+  root.querySelector('[data-shadow-name-input]')?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    saveShadowNameFromInput();
+  });
+
   bindNodeMapEvents();
 
   root.querySelectorAll('[data-action]').forEach((button) => {
@@ -343,6 +409,15 @@ function bindEvents() {
       if (action === 'rebootDeck') rebootDeck();
       if (action === 'toggleMusic') void toggleMusic();
       if (action === 'toggleSfx') void toggleSfx();
+      if (action === 'signInGuest') void signInGuestCloud();
+      if (action === 'signInGoogle') void signInGoogleCloud();
+      if (action === 'linkGoogle') void linkGoogleCloud();
+      if (action === 'signOutCloud') void signOutCloud();
+      if (action === 'continueLocal') {
+        appState.isSettingsOpen = false;
+        void audioDirector.play('openOverlay');
+        render();
+      }
       if (action === 'toggleSettings') {
         appState.isSettingsOpen = !appState.isSettingsOpen;
         appState.isHelpOpen = false;
@@ -514,16 +589,305 @@ function getVisibleMapLogMessage() {
   return appState.mapLogMessage;
 }
 
+function syncNodeVisit(action, previousRun, nextRun) {
+  if (action.type === 'move') {
+    maybeStartNodeVisit(action, previousRun, nextRun);
+    return;
+  }
+
+  if (!appState.nodeVisit) return;
+  if (!['runProgram', 'scan', 'extract', 'jackOut'].includes(action.type)) return;
+
+  const node = getSystemNode(appState.nodeVisit.nodeId);
+  if (!node) {
+    clearNodeVisit(true);
+    return;
+  }
+
+  const resolution = getNodeVisitResolutionLabel(node, previousRun, nextRun);
+  if (resolution) {
+    finishNodeVisit(resolution, true);
+    return;
+  }
+
+  if (isRunFinished(nextRun)) {
+    failNodeVisit(true);
+    return;
+  }
+
+  if (didRunPressureIncrease(previousRun, nextRun)) {
+    failNodeVisit();
+  }
+}
+
+function maybeStartNodeVisit(action, previousRun, nextRun) {
+  if (!action.nodeId || action.nodeId !== nextRun.currentNodeId) return;
+  if (isRunFinished(nextRun)) return;
+  const previousState = previousRun.nodeStates[action.nodeId] ?? NODE_RUNTIME_STATE.UNKNOWN;
+  if ([NODE_RUNTIME_STATE.VISITED, NODE_RUNTIME_STATE.COMPROMISED].includes(previousState)) return;
+
+  const node = getSystemNode(action.nodeId);
+  if (!node) return;
+
+  stopNodeVisitTimer();
+  const visitId = `${appState.runSessionId}:${appState.nodeVisitSequence + 1}`;
+  appState.nodeVisitSequence += 1;
+  const recommendedProgram = getRecommendedProgram(node, nextRun);
+  const autoDismiss = !hasNodeVisitObjective(node, nextRun);
+  appState.nodeVisit = {
+    visitId,
+    runSessionId: appState.runSessionId,
+    nodeId: node.id,
+    phase: 'intro',
+    previousMapView: { ...appState.mapView },
+    startedAt: Date.now(),
+    recommendedProgram,
+    autoDismiss,
+    stamp: null,
+  };
+  setMapView(getFocusedNodeMapView(node));
+  debugLog('nodeVisit:start', {
+    visitId,
+    nodeId: node.id,
+    nodeKind: node.kind,
+    previousState,
+    recommendedProgram,
+    autoDismiss,
+    focusedMapView: appState.mapView,
+  });
+  scheduleNodeVisitFocus(autoDismiss, visitId);
+}
+
+function scheduleNodeVisitFocus(autoDismiss, visitId) {
+  stopNodeVisitTimer();
+  appState.nodeVisitTimer = globalThis.setTimeout(() => {
+    appState.nodeVisitTimer = null;
+    if (!isActiveNodeVisit(visitId) || appState.nodeVisit.phase !== 'intro') {
+      debugLog('nodeVisit:focusIgnored', { visitId, activeVisitId: appState.nodeVisit?.visitId ?? null });
+      return;
+    }
+    appState.nodeVisit = { ...appState.nodeVisit, phase: 'focus' };
+    debugLog('nodeVisit:focus', { visitId, autoDismiss });
+    if (autoDismiss) {
+      finishNodeVisit('CLEARED', true, visitId);
+      return;
+    }
+    render();
+  }, getMotionDuration(NODE_VISIT_FOCUS_MS));
+}
+
+function finishNodeVisit(stamp, restoreView, visitId = appState.nodeVisit?.visitId) {
+  if (!isActiveNodeVisit(visitId)) return;
+  stopNodeVisitTimer();
+  debugLog('nodeVisit:finish', { visitId, stamp, restoreView });
+  appState.nodeVisit = {
+    ...appState.nodeVisit,
+    phase: 'resolved',
+    stamp,
+  };
+  appState.nodeVisitTimer = globalThis.setTimeout(() => {
+    appState.nodeVisitTimer = null;
+    if (!isActiveNodeVisit(visitId)) {
+      debugLog('nodeVisit:clearIgnored', { visitId, activeVisitId: appState.nodeVisit?.visitId ?? null });
+      return;
+    }
+    clearNodeVisit(restoreView);
+    render();
+  }, getMotionDuration(NODE_VISIT_RESOLVE_MS));
+  render();
+}
+
+function failNodeVisit(clearAfter = false, visitId = appState.nodeVisit?.visitId) {
+  if (!isActiveNodeVisit(visitId)) return;
+  stopNodeVisitTimer();
+  debugLog('nodeVisit:fail', { visitId, clearAfter });
+  appState.nodeVisit = {
+    ...appState.nodeVisit,
+    phase: 'failed',
+    stamp: 'RETURN HOSTIL',
+  };
+  appState.nodeVisitTimer = globalThis.setTimeout(() => {
+    appState.nodeVisitTimer = null;
+    if (!isActiveNodeVisit(visitId) || appState.nodeVisit.phase !== 'failed') return;
+    if (clearAfter) {
+      clearNodeVisit(true);
+      render();
+      return;
+    }
+    appState.nodeVisit = { ...appState.nodeVisit, phase: 'focus', stamp: null };
+    render();
+  }, getMotionDuration(NODE_VISIT_RESOLVE_MS));
+}
+
+function clearNodeVisit(restoreView = true) {
+  stopNodeVisitTimer();
+  const previousMapView = appState.nodeVisit?.previousMapView;
+  debugLog('nodeVisit:clear', {
+    visitId: appState.nodeVisit?.visitId ?? null,
+    restoreView,
+    previousMapView,
+  });
+  appState.nodeVisit = null;
+  if (restoreView && previousMapView) setMapView(previousMapView);
+}
+
+function stopNodeVisitTimer() {
+  if (!appState.nodeVisitTimer) return;
+  globalThis.clearTimeout(appState.nodeVisitTimer);
+  appState.nodeVisitTimer = null;
+}
+
+function isActiveNodeVisit(visitId) {
+  return Boolean(
+    visitId
+    && appState.nodeVisit?.visitId === visitId
+    && appState.nodeVisit.runSessionId === appState.runSessionId,
+  );
+}
+
+function getSystemNode(nodeId) {
+  return appState.system?.nodes.find((node) => node.id === nodeId);
+}
+
+function getFocusedNodeMapView(node) {
+  const size = node.kind === 'core' ? 30 : 34;
+  return clampMapView({
+    x: node.x - size / 2,
+    y: node.y + 20 - size / 2,
+    width: size,
+    height: size,
+  });
+}
+
+function getRecommendedProgram(node, run) {
+  const event = getActiveNodeEvent(node, run);
+  if (node.ice && !run.neutralizedIce.includes(node.id)) return 'spike';
+  if (event?.program && event.program !== 'jackOut') return event.program;
+  if (['data', 'database', 'core'].includes(node.kind)) return 'extract';
+  if (node.kind === 'exit' || event?.program === 'jackOut') return 'jackOut';
+  return 'scan';
+}
+
+function hasNodeVisitObjective(node, run) {
+  if (node.ice && !run.neutralizedIce.includes(node.id)) return true;
+  if (getActiveNodeEvent(node, run)) return true;
+  if (['data', 'database', 'core'].includes(node.kind) && run.nodeStates[node.id] !== NODE_RUNTIME_STATE.COMPROMISED) return true;
+  return node.kind === 'exit';
+}
+
+function getActiveNodeEvent(node, run) {
+  if (!node?.event || (run.resolvedEvents ?? []).includes(node.id)) return null;
+  return nodeEvents[node.event] ?? null;
+}
+
+function getNodeVisitResolutionLabel(node, previousRun, nextRun) {
+  const wasCompromised = previousRun.nodeStates[node.id] === NODE_RUNTIME_STATE.COMPROMISED;
+  const isCompromised = nextRun.nodeStates[node.id] === NODE_RUNTIME_STATE.COMPROMISED;
+  if (!wasCompromised && isCompromised) return 'EXTRACTED';
+
+  const hadIce = node.ice && !previousRun.neutralizedIce.includes(node.id);
+  if (hadIce && nextRun.neutralizedIce.includes(node.id)) return 'SEALED';
+
+  const hadEvent = node.event && !(previousRun.resolvedEvents ?? []).includes(node.id);
+  if (hadEvent && (nextRun.resolvedEvents ?? []).includes(node.id)) return getEventResolutionStamp(node.event);
+
+  if (previousRun.status !== nextRun.status && nextRun.status === 'escaped') return 'EXFIL';
+  return null;
+}
+
+function getEventResolutionStamp(eventKind) {
+  return {
+    archive: 'EXTRACTED',
+    core: 'EXTRACTED',
+    gate: 'BYPASS',
+    camera: 'BLINDED',
+    trap: 'SEALED',
+    decoy: 'CLEARED',
+    exit: 'EXFIL',
+  }[eventKind] ?? 'CLEARED';
+}
+
+function didRunPressureIncrease(previousRun, nextRun) {
+  return nextRun.alert > previousRun.alert
+    || nextRun.trace > previousRun.trace
+    || nextRun.integrity < previousRun.integrity
+    || nextRun.disabledPrograms.length > previousRun.disabledPrograms.length;
+}
+
+function getMotionDuration(duration) {
+  const reducedMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  return reducedMotion ? 0 : duration;
+}
+
+function debugLog(event, details = {}) {
+  const entry = {
+    at: new Date().toISOString(),
+    event,
+    route: getAppRoute(),
+    runSessionId: appState.runSessionId,
+    run: summarizeRun(appState.run),
+    nodeVisit: summarizeNodeVisit(appState.nodeVisit),
+    ...details,
+  };
+
+  console.info(`[shadowHack] ${event}`, entry);
+  persistDebugLog(entry);
+}
+
+function persistDebugLog(entry) {
+  try {
+    const previous = JSON.parse(globalThis.sessionStorage?.getItem(DEBUG_LOG_STORAGE_KEY) ?? '[]');
+    const next = [...(Array.isArray(previous) ? previous : []), entry].slice(-DEBUG_LOG_LIMIT);
+    globalThis.sessionStorage?.setItem(DEBUG_LOG_STORAGE_KEY, JSON.stringify(next));
+    globalThis.__shadowHackDebugLog = next;
+  } catch (error) {
+    console.warn('[shadowHack] debug log persistence failed', error);
+  }
+}
+
+function summarizeRun(run) {
+  if (!run) return null;
+  return {
+    status: run.status,
+    currentNodeId: run.currentNodeId,
+    turn: run.turn,
+    alert: run.alert,
+    trace: run.trace,
+    integrity: run.integrity,
+    hasPayload: run.hasPayload,
+    lootTokens: run.lootTokens,
+    selectedProgram: run.selectedProgram,
+    disabledPrograms: [...(run.disabledPrograms ?? [])],
+    neutralizedIce: [...(run.neutralizedIce ?? [])],
+    resolvedEvents: [...(run.resolvedEvents ?? [])],
+  };
+}
+
+function summarizeNodeVisit(nodeVisit) {
+  if (!nodeVisit) return null;
+  return {
+    visitId: nodeVisit.visitId,
+    runSessionId: nodeVisit.runSessionId,
+    nodeId: nodeVisit.nodeId,
+    phase: nodeVisit.phase,
+    recommendedProgram: nodeVisit.recommendedProgram,
+    autoDismiss: nodeVisit.autoDismiss,
+    stamp: nodeVisit.stamp,
+  };
+}
+
 function bindNodeMapEvents() {
   const surface = root?.querySelector('[data-map-surface]');
   if (!surface) return;
 
   surface.addEventListener('wheel', (event) => {
+    if (appState.nodeVisit) return;
     event.preventDefault();
     zoomMapAtPoint(event.deltaY > 0 ? 1.16 : 0.86, event.clientX, event.clientY);
   }, { passive: false });
 
   surface.addEventListener('pointerdown', (event) => {
+    if (appState.nodeVisit) return;
     if (event.button !== 0) return;
     if (event.target.closest?.('[data-node-id]')) return;
 
@@ -853,6 +1217,7 @@ function syncRunResult() {
   const runCash = appState.run.deckCash ?? 0;
   appState.deckMessage = reward.reward > 0 ? `+${reward.reward} cred transferidos a la cuenta. Deck limpio.` : 'Deck limpio.';
   appState.recentProgress = listRecentProgress();
+  void syncProgressEntry(appState.currentProgress);
   appState.lastRecordedStatus = appState.run.status;
   appState.runResult = {
     status: appState.run.status,
@@ -907,6 +1272,7 @@ function syncRunResult() {
     });
   }
   appState.run = clearFinishedRunCargo(appState.run);
+  void syncDeckProfile();
 }
 
 function clearFinishedRunCargo(run) {
@@ -927,7 +1293,51 @@ function saveCompletionBookmark() {
     bookmarkDecision: result.changed || result.reason === 'exists' ? 'saved' : 'skipped',
     canBookmark: false,
   };
+  if (result.changed) void syncDeckProfile();
   void audioDirector.play(result.changed ? 'success' : 'failure');
+  render();
+}
+
+async function signInGuestCloud() {
+  await cloudSync.signInGuest();
+  renderActiveView();
+}
+
+async function signInGoogleCloud() {
+  await cloudSync.signInGoogle();
+  renderActiveView();
+}
+
+async function linkGoogleCloud() {
+  await cloudSync.linkGoogle();
+  renderActiveView();
+}
+
+async function signOutCloud() {
+  await cloudSync.signOut();
+  renderActiveView();
+}
+
+async function syncDeckProfile() {
+  await cloudSync.syncDeckProfile(appState.deckProfile);
+  renderActiveView();
+}
+
+async function syncProgressEntry(progressEntry) {
+  await cloudSync.syncHostProgress(progressEntry);
+  renderActiveView();
+}
+
+function saveShadowNameFromInput() {
+  const input = root?.querySelector('[data-shadow-name-input]');
+  updateRunnerIdentity({ shadowName: input?.value ?? '' });
+}
+
+function updateRunnerIdentity(patch) {
+  appState.deckProfile = updatePlayerProfile(appState.deckProfile, patch);
+  appState.deckMessage = 'Identidad de runner actualizada.';
+  void audioDirector.play('selectProgram');
+  void syncDeckProfile();
   render();
 }
 

@@ -21,6 +21,19 @@ const DEFAULT_HARDWARE = {
   bookmarks: 1,
 };
 
+const DEFAULT_PLAYER = {
+  shadowName: 'NEON GHOST',
+  avatar: 'ghost',
+};
+
+export const avatarCatalog = [
+  { key: 'ghost', label: 'Ghost', glyph: 'GH' },
+  { key: 'spark', label: 'Spark', glyph: 'SP' },
+  { key: 'cipher', label: 'Cipher', glyph: 'CI' },
+  { key: 'vector', label: 'Vector', glyph: 'VX' },
+  { key: 'null', label: 'Null', glyph: 'N0' },
+];
+
 export const deckStatCatalog = {
   pulse: { kind: 'pulse', label: 'Pulse', description: 'Potencia ofensiva para Spike y ruptura de puertas.' },
   veil: { kind: 'veil', label: 'Veil', description: 'Sigilo, traza máxima y margen de Ghost.' },
@@ -37,6 +50,7 @@ export function createDefaultDeckProfile() {
     programs: { ...DEFAULT_PROGRAMS },
     unlockedPrograms: Object.keys(DEFAULT_PROGRAMS),
     bookmarks: [],
+    player: { ...DEFAULT_PLAYER },
     lastReward: 0,
   };
 }
@@ -128,8 +142,20 @@ export function normalizeDeckProfile(profile) {
     programs: normalizeLevels(source.programs, DEFAULT_PROGRAMS),
     unlockedPrograms: Array.isArray(source.unlockedPrograms) ? source.unlockedPrograms : Object.keys(DEFAULT_PROGRAMS),
     bookmarks: normalizeBookmarks(source.bookmarks),
+    player: normalizePlayerProfile(source.player),
     lastReward: nonNegativeInt(source.lastReward),
   };
+}
+
+export function updatePlayerProfile(profile, patch) {
+  const normalized = normalizeDeckProfile(profile);
+  return saveDeckProfile({
+    ...normalized,
+    player: normalizePlayerProfile({
+      ...normalized.player,
+      ...patch,
+    }),
+  });
 }
 
 export function getStorageCapacity(profile) {
@@ -204,6 +230,19 @@ function normalizeBookmarks(bookmarks) {
       address: bookmark.address ? String(bookmark.address) : undefined,
       savedAt: bookmark.savedAt ? String(bookmark.savedAt) : new Date().toISOString(),
     }));
+}
+
+function normalizePlayerProfile(player) {
+  const source = player && typeof player === 'object' ? player : {};
+  return {
+    shadowName: normalizeShadowName(source.shadowName),
+    avatar: avatarCatalog.some((avatar) => avatar.key === source.avatar) ? source.avatar : DEFAULT_PLAYER.avatar,
+  };
+}
+
+function normalizeShadowName(value) {
+  const text = String(value ?? '').trim().replace(/\s+/g, ' ').slice(0, 24);
+  return text || DEFAULT_PLAYER.shadowName;
 }
 
 function getUpgradeCollection(profile, category) {
