@@ -212,7 +212,7 @@ const { projectSystemForRun } = await import('../src/game/systemView.js');
 const { renderNodeMap } = await import('../src/ui/renderNodeMap.js');
 const { renderDeckOverlay, renderDeckTrace } = await import('../src/ui/renderDeckPanel.js');
 const { renderHelpOverlay, renderSettingsOverlay } = await import('../src/ui/renderHelpOverlay.js');
-const { renderHud } = await import('../src/ui/renderHud.js');
+const { renderHud, renderProgramDock } = await import('../src/ui/renderHud.js');
 const { renderScannerOverlay } = await import('../src/ui/renderScannerOverlay.js');
 const { applyTheme, normalizeThemeKey, themeCatalog } = await import('../src/ui/themeStore.js');
 const { getFirebaseConfig, isFirebaseConfigured, isFirebaseMessagingConfigured } = await import('../src/firebase/firebaseConfig.js');
@@ -354,6 +354,8 @@ const killedIceRun = reduceRun(iceSystem, movedIntoIce, { type: 'runProgram', pr
 if (killedIceRun.status !== 'exploring') throw new Error('Successful spike should return to exploring after neutralizing ICE');
 if (!killedIceRun.neutralizedIce.includes('n-1')) throw new Error('Successful spike should mark ICE as neutralized');
 renderNodeMap(projectSystemForRun(iceSystem, killedIceRun), killedIceRun);
+const finishedMapHtml = renderNodeMap(projectSystemForRun(jackOutSystem, jackOutRun), jackOutRun, undefined, null, { score: 55, reward: 12, lootTokens: 0, operator: 'usr@sh' });
+if (!finishedMapHtml.includes('run_complete.sh') || !finishedMapHtml.includes('node-map--result')) throw new Error('Finished runs should render completion terminal inside the node window');
 const mapMessageHtml = renderNodeMap(projectSystemForRun(iceSystem, killedIceRun), killedIceRun, undefined, { key: 'check', text: 'Ultima traza visible' });
 if (!mapMessageHtml.includes('node-map__message') || !mapMessageHtml.includes('Ultima traza visible')) throw new Error('Node map should surface the latest log message');
 if (!renderDeckTrace(upgradedDeckResult.profile, createInitialRunState(iceSystem, upgradedDeckResult.profile), 'Scan mejorado.').includes('deck-memory')) throw new Error('Deck trace should show segmented memory');
@@ -364,6 +366,8 @@ if (!deckOverlayHtml.includes('/assets/stats/stat-pulse.svg')) throw new Error('
 const hudHtml = renderHud(iceSystem, createInitialRunState(iceSystem));
 if (!hudHtml.includes('data-action="toggleSettings"') || !hudHtml.includes('settings-icon')) throw new Error('HUD should expose settings cog next to jack-out');
 if (hudHtml.includes('data-action="toggleMusic"') || hudHtml.includes('data-action="toggleSfx"')) throw new Error('Audio controls should live inside settings, not the main HUD');
+if (!renderHud(iceSystem, { ...jackOutRun, selectedProgram: 'scan', disabledPrograms: [] }, true).includes('disabled')) throw new Error('Finished runs should disable jack-out controls');
+if (!renderProgramDock({ ...jackOutRun, selectedProgram: 'scan', disabledPrograms: [] }, true).includes('program-dock--inactive')) throw new Error('Finished runs should fade and disable program controls');
 const settingsHtml = renderSettingsOverlay(true, { music: true, sfx: false, musicVolume: 0.42, sfxVolume: 0.18 }, 'workbench-light');
 if (!settingsHtml.includes('settings-audio') || !settingsHtml.includes('data-audio-volume="music"') || !settingsHtml.includes('value="42"')) throw new Error('Settings overlay should render real music volume controls');
 if (!settingsHtml.includes('data-action="toggleMusic"') || !settingsHtml.includes('data-action="openHelp"')) throw new Error('Settings overlay should contain audio toggles and a help button');
@@ -489,12 +493,12 @@ const ghostIdleRun = reduceRun(iceSystem, createInitialRunState(iceSystem), { ty
 if (ghostIdleRun.turn !== 1 || ghostIdleRun.integrity !== 10) throw new Error('Ghost should not be spammable at zero pressure');
 
 const lowDanger = getDangerTheme(createInitialRunState(iceSystem));
-const warningDanger = getDangerTheme({ ...createInitialRunState(iceSystem), alert: 4 });
+const warningDanger = getDangerTheme({ ...createInitialRunState(iceSystem), alert: 5 });
 const redOrangeDanger = getDangerTheme({ ...createInitialRunState(iceSystem), alert: 7 });
-const highDanger = getDangerTheme({ ...createInitialRunState(iceSystem), alert: 9, trace: 7, integrity: 1 });
+const highDanger = getDangerTheme({ ...createInitialRunState(iceSystem), alert: 10, trace: 8, integrity: 1 });
 if (Number(lowDanger.level) >= Number(highDanger.level)) throw new Error('Danger theme should increase as run pressure rises');
-if (!lowDanger.color.includes('hsl(214') || !warningDanger.color.includes('hsl(32') || !redOrangeDanger.color.includes('hsl(25') || !highDanger.color.includes('hsl(0')) {
-  throw new Error('Danger theme should use marked blue, orange, orange-red, and red pressure bands');
+if (!lowDanger.color.includes('hsl(214') || !warningDanger.color.includes('hsl(32') || !redOrangeDanger.color.includes('hsl(19') || !highDanger.color.includes('hsl(0')) {
+  throw new Error('Danger theme should ease through marked blue, orange, orange-red, and red pressure bands');
 }
 
 const audioDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'AudioContext');

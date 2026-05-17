@@ -3,19 +3,18 @@ import { getHostBackground } from '../assets/assetRegistry.js';
 import { generateSystem } from '../game/mapGenerator.js';
 import { reduceRun } from '../game/runEngine.js';
 import { scoreRun } from '../game/runScoring.js';
-import { createInitialRunState } from '../game/runState.js';
+import { createInitialRunState, isRunFinished } from '../game/runState.js';
 import { createRng } from '../game/rng.js';
 import { projectSystemForRun } from '../game/systemView.js';
 import { getGeolocationPermissionState, requestCurrentPosition } from '../location/locationService.js';
 import { registerServiceWorker } from '../pwa/registerServiceWorker.js';
 import { getDangerTheme } from '../ui/dangerTheme.js';
 import { renderDeckOverlay, renderDeckTrace } from '../ui/renderDeckPanel.js';
-import { renderCompletionScreen } from '../ui/renderCompletionScreen.js';
 import { renderHelpOverlay, renderSettingsOverlay } from '../ui/renderHelpOverlay.js';
 import { renderHud, renderProgramDock } from '../ui/renderHud.js';
 import { renderNodeMap } from '../ui/renderNodeMap.js';
 import { renderProgressPanel } from '../ui/renderProgress.js';
-import { renderRunLog } from '../ui/renderRunLog.js';
+import { renderPostRunScannerPanel, renderRunLog } from '../ui/renderRunLog.js';
 import { renderScannerOverlay } from '../ui/renderScannerOverlay.js';
 import { applyTheme, loadThemePreference, saveThemePreference } from '../ui/themeStore.js';
 import { classifyCompany } from '../world/companyArchetypes.js';
@@ -53,6 +52,7 @@ const appState = {
   mapLogMessage: null,
   lastMapLogLength: 0,
   completion: null,
+  runResult: null,
   lastRecordedStatus: null,
   isSettingsOpen: false,
   isHelpOpen: false,
@@ -80,6 +80,7 @@ async function buildSystem(place) {
 async function startRun(place) {
   appState.selectedPlace = place;
   appState.completion = null;
+  appState.runResult = null;
   appState.system = await buildSystem(place);
   appState.deckProfile = loadDeckProfile();
   appState.deckMessage = '';
@@ -119,40 +120,25 @@ function dispatch(action) {
 function render() {
   if (!root) return;
   applyTheme(appState.theme);
-  if (appState.completion) {
-    root.innerHTML = `${renderCompletionScreen(appState.completion, appState.deckProfile)}
-      ${renderScannerOverlay({
-        isOpen: appState.isScannerOpen,
-        places: appState.places,
-        selectedPlace: appState.selectedPlace,
-        locationMessage: appState.locationMessage,
-        describeTarget,
-        bookmarks: appState.deckProfile.bookmarks,
-        bookmarkCapacity: getBookmarkCapacity(appState.deckProfile),
-      })}`;
-    bindEvents();
-    return;
-  }
-
   if (!appState.system || !appState.run) {
     root.innerHTML = '<main class="app-shell app-shell--loading">Sincronizando deck...</main>';
     return;
   }
 
   const runtimeSystem = projectSystemForRun(appState.system, appState.run);
+  const finished = isRunFinished(appState.run);
   const backgroundUrl = getHostBackground(appState.system.archetype.archetype);
   const dangerTheme = getDangerTheme(appState.run);
   const signalFxClass = getSignalFxClass(dangerTheme.level, appState.run.status, isDisconnectGlitchActive());
   root.innerHTML = `<main class="app-shell ${signalFxClass}" style="--host-bg: url('${backgroundUrl}'); --danger-level: ${dangerTheme.level}; --danger-color: ${dangerTheme.color}; --danger-border: ${dangerTheme.border}; --danger-glow: ${dangerTheme.glow}">
     <div class="scanline"></div>
     <div class="crt-vignette"></div>
-    ${renderHud(runtimeSystem, appState.run)}
-    ${renderNodeMap(runtimeSystem, appState.run, appState.mapView, getVisibleMapLogMessage())}
-    ${renderProgramDock(appState.run)}
-    ${renderRunLog(appState.run)}
+    ${renderHud(runtimeSystem, appState.run, finished)}
+    ${renderNodeMap(runtimeSystem, appState.run, appState.mapView, getVisibleMapLogMessage(), appState.runResult)}
+    ${renderProgramDock(appState.run, finished)}
+    ${finished ? renderPostRunScannerPanel(appState.runResult, appState.completion, appState.deckProfile) : renderRunLog(appState.run)}
     ${renderDeckTrace(appState.deckProfile, appState.run, appState.deckMessage)}
     ${renderProgressPanel(appState.currentProgress, appState.recentProgress)}
-    <button class="scanner-toggle" data-action="toggleScanner" type="button">Objetivos / scanner</button>
     ${renderDeckOverlay(appState.isDeckOpen, appState.deckProfile, appState.deckMessage)}
     ${renderSettingsOverlay(appState.isSettingsOpen, audioDirector.getState(), appState.theme)}
     ${renderHelpOverlay(appState.isHelpOpen, appState.helpTab)}
@@ -721,6 +707,27 @@ function syncRunResult() {
   appState.deckMessage = reward.reward > 0 ? `+${reward.reward} cred recuperados de la run.` : '';
   appState.recentProgress = listRecentProgress();
   appState.lastRecordedStatus = appState.run.status;
+  appState.runResult = {
+    status: appState.run.status,
+    hostAlias: appState.system.alias,
+    companyName: appState.system.company.name,
+    tier: appState.system.valuation?.tier ?? 'C',
+    score,
+    reward: reward.reward,
+    lootTokens: appState.run.lootTokens ?? 0,
+    alert: appState.run.alert,
+    maxAlert: appState.run.maxAlert,
+    trace: appState.run.trace,
+    maxTrace: appState.run.maxTrace,
+    integrity: appState.run.integrity,
+    maxIntegrity: appState.run.maxIntegrity,
+    turn: appState.run.turn,
+    nodeCount: appState.system.nodes.length,
+    securedNodes: Object.values(appState.run.nodeStates).filter((state) => state !== 'unknown').length,
+    operator: 'usr@sh',
+    credits: appState.deckProfile.credits,
+    totalEarned: appState.deckProfile.totalEarned,
+  };
   if (appState.run.status === 'escaped' && appState.run.hasPayload) {
     const bookmarkCapacity = getBookmarkCapacity(appState.deckProfile);
     appState.completion = {
@@ -734,13 +741,12 @@ function syncRunResult() {
       canBookmark: appState.deckProfile.bookmarks.length < bookmarkCapacity,
       bookmarkDecision: null,
     };
-    appState.system = null;
-    appState.run = null;
-    appState.isDeckOpen = false;
-    appState.isSettingsOpen = false;
-    appState.isHelpOpen = false;
-    appState.isScannerOpen = false;
+  } else {
+    appState.completion = null;
   }
+  appState.isDeckOpen = false;
+  appState.isSettingsOpen = false;
+  appState.isHelpOpen = false;
 }
 
 function saveCompletionBookmark() {

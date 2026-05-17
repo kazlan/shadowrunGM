@@ -13,7 +13,11 @@ const nodeGlyph = {
   exit: 'OUT',
 };
 
-export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, height: 100 }, mapMessage = null) {
+export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, height: 100 }, mapMessage = null, runResult = null) {
+  if (run.status === 'escaped' || run.status === 'dumped') {
+    return renderRunResultWindow(system, run, runResult);
+  }
+
   const edges = system.edges
     .map((edge) => {
       const from = system.nodes.find((node) => node.id === edge.from);
@@ -74,6 +78,44 @@ export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, h
         ${nodes}
       </g>
     </svg>
+  </section>`;
+}
+
+function renderRunResultWindow(system, run, runResult = null) {
+  const success = run.status === 'escaped' && run.hasPayload;
+  const status = success ? 'success' : 'critical';
+  const operator = runResult?.operator ?? 'usr@sh';
+  const securedNodes = runResult?.securedNodes ?? Object.values(run.nodeStates).filter((state) => state !== 'unknown').length;
+  const nodeCount = runResult?.nodeCount ?? system.nodes.length;
+  const score = runResult?.score ?? 0;
+  const reward = runResult?.reward ?? 0;
+  const lootTokens = runResult?.lootTokens ?? run.lootTokens ?? 0;
+  const command = success
+    ? `[${operator}]> run_complete.sh --status success --user validated`
+    : `[${operator}]> run_complete.sh --status critical --data_purge_in_progress`;
+  const access = success ? 'GRANTED' : 'DENIED';
+  const accessCode = success ? `RCN-${system.valuation?.tier ?? 'C'}-${score}-KEY` : 'RCN-SYS-LOCKED';
+  const systemState = success ? 'COMPROMISED - SECURED' : 'COMPROMISED - LOCKED';
+  const payloadName = `RCN_CORE_${system.seedId ?? 'HOST'}_KEY_${Math.max(64, lootTokens * 64 || 128)}BIT.enc`;
+  const resultClass = success ? 'node-map--success' : 'node-map--failure';
+
+  return `<section class="node-map node-map--result ${resultClass}" aria-label="Resultado de la run">
+    <div class="result-terminal">
+      <p class="result-command">${escapeHtml(command)}</p>
+      <strong class="result-brand fx-glitch" data-text="SHADOW HACK">SHADOW HACK</strong>
+      <span class="result-subtitle">CYBERDECK INTERFACE SYSTEM</span>
+      <div class="result-message">
+        <p>${success ? 'Congratulations, Operator. The data node has been secured and encrypted.' : 'WARNING, OPERATOR. The node is NOT secured.'}</p>
+        <p>Core Database Access: <b>${access}</b> (${escapeHtml(accessCode)})</p>
+        <p>System State: <b>${systemState}</b></p>
+      </div>
+      <p class="result-stats">[i] ALERT: ${run.alert}/${run.maxAlert} | TRACE: ${run.trace}/${run.maxTrace} | SHELL: ${run.integrity}/${run.maxIntegrity} | ${securedNodes}/${nodeCount} [${success ? 'SECURED' : 'NULL'}]</p>
+      <ul class="result-log">
+        <li>Extraction Log: ${escapeHtml(payloadName)}${success ? '' : ' (Error: Zero Bytes)'}</li>
+        <li>Security State: ${success ? `Secured, ${reward} cred recovered, score ${score}.` : `CRITICAL FALLBACK INITIATED, score ${score}.`}</li>
+        <li>${success ? `${escapeHtml(system.company.name)} waiting for new task.` : 'DATA PURGE IN PROGRESS...'}</li>
+      </ul>
+    </div>
   </section>`;
 }
 

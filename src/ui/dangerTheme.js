@@ -1,9 +1,11 @@
-const DANGER_PALETTES = {
-  normal: { hue: 214, saturation: 88, lightness: 58 },
-  orange: { hue: 32, saturation: 96, lightness: 58 },
-  redOrange: { hue: 18, saturation: 100, lightness: 58 },
-  red: { hue: 0, saturation: 100, lightness: 62 },
-};
+const DANGER_STOPS = [
+  { score: 0, hue: 214, saturation: 88, lightness: 58 },
+  { score: 3.8, hue: 214, saturation: 88, lightness: 58 },
+  { score: 4.8, hue: 32, saturation: 96, lightness: 58 },
+  { score: 6, hue: 32, saturation: 96, lightness: 58 },
+  { score: 8, hue: 6, saturation: 100, lightness: 60 },
+  { score: 10, hue: 0, saturation: 100, lightness: 62 },
+];
 
 export function getDangerTheme(run) {
   const alertRatio = ratio(run.alert, run.maxAlert);
@@ -28,17 +30,19 @@ export function getDangerTheme(run) {
 
 function getDangerPalette(level) {
   const dangerScore = level * 10;
-  if (dangerScore < 4) return DANGER_PALETTES.normal;
-  if (dangerScore < 6) return DANGER_PALETTES.orange;
-  if (dangerScore < 8) {
-    const heat = (dangerScore - 6) / 2;
+  for (let index = 0; index < DANGER_STOPS.length - 1; index += 1) {
+    const current = DANGER_STOPS[index];
+    const next = DANGER_STOPS[index + 1];
+    if (dangerScore > next.score) continue;
+    const span = next.score - current.score;
+    const mix = span <= 0 ? 0 : (dangerScore - current.score) / span;
     return {
-      hue: Math.round(DANGER_PALETTES.orange.hue - (DANGER_PALETTES.orange.hue - DANGER_PALETTES.redOrange.hue) * heat),
-      saturation: DANGER_PALETTES.redOrange.saturation,
-      lightness: DANGER_PALETTES.redOrange.lightness,
+      hue: Math.round(lerpHue(current.hue, next.hue, mix)),
+      saturation: Math.round(lerp(current.saturation, next.saturation, mix)),
+      lightness: Math.round(lerp(current.lightness, next.lightness, mix)),
     };
   }
-  return DANGER_PALETTES.red;
+  return DANGER_STOPS[DANGER_STOPS.length - 1];
 }
 
 function ratio(value, max) {
@@ -48,4 +52,13 @@ function ratio(value, max) {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+function lerp(start, end, mix) {
+  return start + (end - start) * clamp(mix, 0, 1);
+}
+
+function lerpHue(start, end, mix) {
+  const delta = ((end - start + 540) % 360) - 180;
+  return (start + delta * clamp(mix, 0, 1) + 360) % 360;
 }

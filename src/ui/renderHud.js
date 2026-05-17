@@ -2,10 +2,10 @@ import { assetPaths } from '../assets/assetRegistry.js';
 import { escapeHtml } from './html.js';
 import { programs } from '../game/programCatalog.js';
 
-export function renderHud(system, run) {
+export function renderHud(system, run, finished = false) {
   return `<header class="hud-top">
       <div class="hud-actions">
-        <button class="jack-out" data-action="jackOut" type="button">Jack out</button>
+        <button class="jack-out" data-action="jackOut" type="button" ${finished ? 'disabled' : ''}>Jack out</button>
         <button class="settings-toggle" data-action="toggleSettings" type="button" aria-label="Abrir ajustes">
           ${renderCogIcon()}
         </button>
@@ -25,12 +25,12 @@ function renderCogIcon() {
   </svg>`;
 }
 
-export function renderProgramDock(run) {
+export function renderProgramDock(run, finished = false) {
   const programButtons = programs
     .map((program) => {
       const active = run.selectedProgram === program.kind;
-      const disabled = run.disabledPrograms.includes(program.kind);
-      const stateLabel = disabled ? 'Bloqueado' : program.description;
+      const disabled = finished || run.disabledPrograms.includes(program.kind);
+      const stateLabel = finished ? 'Run cerrada' : disabled ? 'Bloqueado' : program.description;
       return `<button class="${active ? 'is-active' : ''}" data-program="${program.kind}" type="button" aria-label="${escapeHtml(`Ejecutar ${program.label}: ${stateLabel}`)}" title="${escapeHtml(stateLabel)}" ${disabled ? 'disabled' : ''}>
         <img src="${assetPaths.programs[program.kind]}" alt="" loading="lazy" />
         <strong>${escapeHtml(program.label)}</strong>
@@ -38,7 +38,7 @@ export function renderProgramDock(run) {
     })
     .join('');
 
-  return `<footer class="program-dock" aria-label="Programas ejecutables">${programButtons}</footer>`;
+  return `<footer class="program-dock ${finished ? 'program-dock--inactive' : ''}" aria-label="Programas ejecutables">${programButtons}</footer>`;
 }
 
 function renderMeter(label, value, max, kind) {
