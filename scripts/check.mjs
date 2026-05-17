@@ -471,6 +471,14 @@ const trapRun = reduceRun(eventSystem, { ...eventInitialRun, currentNodeId: 'n-4
 if (!trapRun.resolvedEvents.includes('n-4')) throw new Error('Shield should resolve trap events');
 const lootRun = reduceRun(eventSystem, { ...eventInitialRun, currentNodeId: 'n-5', nodeStates: { ...eventInitialRun.nodeStates, 'n-5': 'visited' } }, { type: 'runProgram', program: 'extract' });
 if (lootRun.lootTokens !== 3 || !lootRun.hasPayload) throw new Error('Core extraction should load loot tokens into deck memory');
+const relootRun = reduceRun(eventSystem, lootRun, { type: 'runProgram', program: 'extract' });
+if (relootRun.lootTokens !== lootRun.lootTokens || relootRun.turn !== lootRun.turn) throw new Error('Extracted paydata nodes should not be lootable twice in one run');
+const lootedPathRun = reduceRun(eventSystem, { ...eventInitialRun, currentNodeId: 'n-5', nodeStates: { ...eventInitialRun.nodeStates, 'n-4': 'visited', 'n-5': 'visited' } }, { type: 'runProgram', program: 'extract' });
+const backtrackRun = reduceRun(eventSystem, lootedPathRun, { type: 'move', nodeId: 'n-4' });
+const returnedLootRun = reduceRun(eventSystem, backtrackRun, { type: 'move', nodeId: 'n-5' });
+if (returnedLootRun.nodeStates['n-5'] !== 'compromised') throw new Error('Backtracking into extracted nodes should preserve their compromised state');
+const relootAfterReturnRun = reduceRun(eventSystem, returnedLootRun, { type: 'runProgram', program: 'extract' });
+if (relootAfterReturnRun.lootTokens !== returnedLootRun.lootTokens) throw new Error('Backtracked paydata nodes should not be lootable twice in one run');
 const fullMemoryRun = reduceRun(eventSystem, { ...eventInitialRun, currentNodeId: 'n-5', lootTokens: eventInitialRun.maxLootTokens, nodeStates: { ...eventInitialRun.nodeStates, 'n-5': 'visited' } }, { type: 'runProgram', program: 'extract' });
 if (fullMemoryRun.lootTokens !== eventInitialRun.maxLootTokens || fullMemoryRun.hasPayload) throw new Error('Full memory should block new payload extraction');
 
@@ -481,9 +489,13 @@ const ghostIdleRun = reduceRun(iceSystem, createInitialRunState(iceSystem), { ty
 if (ghostIdleRun.turn !== 1 || ghostIdleRun.integrity !== 10) throw new Error('Ghost should not be spammable at zero pressure');
 
 const lowDanger = getDangerTheme(createInitialRunState(iceSystem));
-const highDanger = getDangerTheme({ ...createInitialRunState(iceSystem), alert: 10, trace: 8, integrity: 1 });
+const warningDanger = getDangerTheme({ ...createInitialRunState(iceSystem), alert: 4 });
+const redOrangeDanger = getDangerTheme({ ...createInitialRunState(iceSystem), alert: 7 });
+const highDanger = getDangerTheme({ ...createInitialRunState(iceSystem), alert: 9, trace: 7, integrity: 1 });
 if (Number(lowDanger.level) >= Number(highDanger.level)) throw new Error('Danger theme should increase as run pressure rises');
-if (!lowDanger.color.includes('hsl(214') || !highDanger.color.includes('hsl(0')) throw new Error('Danger theme should scale from blue to bright red');
+if (!lowDanger.color.includes('hsl(214') || !warningDanger.color.includes('hsl(32') || !redOrangeDanger.color.includes('hsl(25') || !highDanger.color.includes('hsl(0')) {
+  throw new Error('Danger theme should use marked blue, orange, orange-red, and red pressure bands');
+}
 
 const audioDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'AudioContext');
 try {

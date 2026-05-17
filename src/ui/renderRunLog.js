@@ -5,7 +5,7 @@ export function renderRunLog(run) {
   return `<section class="run-log ${statusClass}" aria-label="Log de intrusión" aria-live="polite">
     <div>
       <p class="eyebrow">Estado</p>
-      <strong>${escapeHtml(statusLabel(run.status))}</strong>
+      <strong class="fx-glitch" data-text="${escapeHtml(statusLabel(run.status))}">${escapeHtml(statusLabel(run.status))}</strong>
     </div>
     <ol>${lines}</ol>
   </section>`;

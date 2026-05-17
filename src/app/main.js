@@ -35,6 +35,7 @@ const MIN_MAP_SIZE = 32;
 const MAX_MAP_SIZE = 100;
 const MAP_DRAG_THRESHOLD_PX = 12;
 const MAP_LOG_MESSAGE_MS = 5200;
+const DISCONNECT_GLITCH_MS = 3200;
 const EXPANDED_SCAN_RADIUS = 1500;
 const MIN_SCANNER_TARGETS = 4;
 const VALENCIA_TEST_POSITION = { lat: 39.4699, lon: -0.3763 };
@@ -64,6 +65,8 @@ const appState = {
   mapPinch: null,
   mapGestureMoved: false,
   ignoreNextNodeClick: false,
+  disconnectGlitchUntil: 0,
+  disconnectGlitchTimer: null,
 };
 
 async function buildSystem(place) {
@@ -93,14 +96,19 @@ async function startRun(place) {
   appState.mapPinch = null;
   appState.mapGestureMoved = false;
   appState.ignoreNextNodeClick = false;
+  stopDisconnectGlitch();
   syncAudioState();
   render();
 }
 
 function dispatch(action) {
   if (!appState.system || !appState.run) return;
+  const previousStatus = appState.run.status;
   appState.deckMessage = '';
   appState.run = reduceRun(appState.system, appState.run, action, appState.deckProfile);
+  if (previousStatus !== 'dumped' && appState.run.status === 'dumped') {
+    triggerDisconnectGlitch();
+  }
   updateMapLogMessage();
   syncAudioState();
   void audioDirector.play(audioEventForAction(action));
@@ -134,8 +142,10 @@ function render() {
   const runtimeSystem = projectSystemForRun(appState.system, appState.run);
   const backgroundUrl = getHostBackground(appState.system.archetype.archetype);
   const dangerTheme = getDangerTheme(appState.run);
-  root.innerHTML = `<main class="app-shell" style="--host-bg: url('${backgroundUrl}'); --danger-level: ${dangerTheme.level}; --danger-color: ${dangerTheme.color}; --danger-border: ${dangerTheme.border}; --danger-glow: ${dangerTheme.glow}">
+  const signalFxClass = getSignalFxClass(dangerTheme.level, appState.run.status, isDisconnectGlitchActive());
+  root.innerHTML = `<main class="app-shell ${signalFxClass}" style="--host-bg: url('${backgroundUrl}'); --danger-level: ${dangerTheme.level}; --danger-color: ${dangerTheme.color}; --danger-border: ${dangerTheme.border}; --danger-glow: ${dangerTheme.glow}">
     <div class="scanline"></div>
+    <div class="crt-vignette"></div>
     ${renderHud(runtimeSystem, appState.run)}
     ${renderNodeMap(runtimeSystem, appState.run, appState.mapView, getVisibleMapLogMessage())}
     ${renderProgramDock(appState.run)}
@@ -158,6 +168,38 @@ function render() {
   </main>`;
 
   bindEvents();
+}
+
+function getSignalFxClass(level, status, disconnectGlitchActive = false) {
+  const dangerLevel = Number(level);
+  const classes = [];
+  if (status === 'dumped' || dangerLevel >= 0.78) classes.push('app-shell--critical');
+  if (status === 'encounter' || dangerLevel >= 0.48) classes.push('app-shell--unstable');
+  if (disconnectGlitchActive) classes.push('app-shell--disconnect-glitch');
+  return classes.join(' ');
+}
+
+function triggerDisconnectGlitch() {
+  appState.disconnectGlitchUntil = Date.now() + DISCONNECT_GLITCH_MS;
+  if (appState.disconnectGlitchTimer) {
+    globalThis.clearTimeout(appState.disconnectGlitchTimer);
+  }
+  appState.disconnectGlitchTimer = globalThis.setTimeout(() => {
+    appState.disconnectGlitchTimer = null;
+    appState.disconnectGlitchUntil = 0;
+    render();
+  }, DISCONNECT_GLITCH_MS);
+}
+
+function stopDisconnectGlitch() {
+  appState.disconnectGlitchUntil = 0;
+  if (!appState.disconnectGlitchTimer) return;
+  globalThis.clearTimeout(appState.disconnectGlitchTimer);
+  appState.disconnectGlitchTimer = null;
+}
+
+function isDisconnectGlitchActive() {
+  return Date.now() < appState.disconnectGlitchUntil;
 }
 
 function bindEvents() {

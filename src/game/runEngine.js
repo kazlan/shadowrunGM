@@ -104,7 +104,7 @@ function move(system, run, nodeId) {
   const node = system.nodes.find((candidate) => candidate.id === nodeId);
   const nextNodeStates = {
     ...run.nodeStates,
-    [nodeId]: NODE_RUNTIME_STATE.VISITED,
+    [nodeId]: state === NODE_RUNTIME_STATE.COMPROMISED ? NODE_RUNTIME_STATE.COMPROMISED : NODE_RUNTIME_STATE.VISITED,
   };
   const iceActive = node?.ice && !run.neutralizedIce.includes(nodeId);
   const status = iceActive ? RUN_STATUS.ENCOUNTER : RUN_STATUS.EXPLORING;
@@ -257,6 +257,10 @@ function extract(system, run, deckProfile = null) {
 
   if (!node || (!['archive', 'core'].includes(event?.kind) && !['database', 'core', 'data'].includes(node.kind))) {
     return addLog(run, 'No hay payload útil en este nodo.');
+  }
+
+  if (getNodeState(run, node.id) === NODE_RUNTIME_STATE.COMPROMISED) {
+    return addLog(run, `${nodeLabel(node)} ya fue vaciado en esta run.`);
   }
 
   const lootSize = getLootSize(node);

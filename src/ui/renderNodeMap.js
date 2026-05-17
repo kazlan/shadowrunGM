@@ -50,7 +50,7 @@ export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, h
   return `<section class="node-map" aria-label="Mapa de nodos del host">
     <div class="node-map__heading">
       <p class="eyebrow">Turno ${run.turn} · ${escapeHtml(system.valuation?.tier ?? 'C')} ${system.valuation?.score ?? 0}/100</p>
-      <strong>${escapeHtml(system.alias)}</strong>
+      <strong class="fx-glitch" data-text="${escapeHtml(system.alias)}">${escapeHtml(system.alias)}</strong>
       <small>${escapeHtml(system.company.name)} · Seg ${system.effectiveSecurity ?? system.archetype.security}</small>
     </div>
     <div class="node-map__controls" aria-label="Controles del mapa">
@@ -80,7 +80,7 @@ export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, h
 function renderMapMessage(mapMessage) {
   if (!mapMessage?.text) return '';
   return `<div class="node-map__message" aria-live="polite" data-log-key="${escapeHtml(mapMessage.key ?? 'log')}">
-    <span>${escapeHtml(mapMessage.text)}</span>
+    <span class="fx-glitch" data-text="${escapeHtml(mapMessage.text)}">${escapeHtml(mapMessage.text)}</span>
   </div>`;
 }
 
