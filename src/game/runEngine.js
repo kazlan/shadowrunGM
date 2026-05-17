@@ -2,6 +2,7 @@ import { getConnectedNodeIds, getNodeState, isRunFinished, NODE_RUNTIME_STATE, R
 import { getNodeEvent } from './nodeEvents.js';
 
 const MAX_LOG_LINES = 7;
+const LOOT_CREDIT_VALUE = 25;
 
 export function reduceRun(system, run, action, deckProfile = null) {
   if (isRunFinished(run)) {
@@ -283,6 +284,7 @@ function extract(system, run, deckProfile = null) {
         hasPayload: true,
         status: RUN_STATUS.OBJECTIVE_COMPLETE,
         lootTokens: (run.lootTokens ?? 0) + storedLoot,
+        deckCash: (run.deckCash ?? 0) + storedLoot * LOOT_CREDIT_VALUE,
         resolvedEvents: node.event ? unique([...(run.resolvedEvents ?? []), node.id]) : run.resolvedEvents,
         nodeStates: nextNodeStates,
         alert: clamp(run.alert + Math.max(0, (node.kind === 'core' ? 2 : 1) - finesse), 0, run.maxAlert),

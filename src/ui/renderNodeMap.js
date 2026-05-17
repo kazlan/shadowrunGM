@@ -13,8 +13,8 @@ const nodeGlyph = {
   exit: 'OUT',
 };
 
-export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, height: 100 }, mapMessage = null, runResult = null) {
-  if (run.status === 'escaped' || run.status === 'dumped') {
+export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, height: 100 }, mapMessage = null, runResult = null, showResult = true) {
+  if (showResult && (run.status === 'escaped' || run.status === 'dumped')) {
     return renderRunResultWindow(system, run, runResult);
   }
 
@@ -112,7 +112,7 @@ function renderRunResultWindow(system, run, runResult = null) {
       <p class="result-stats">[i] ALERT: ${run.alert}/${run.maxAlert} | TRACE: ${run.trace}/${run.maxTrace} | SHELL: ${run.integrity}/${run.maxIntegrity} | ${securedNodes}/${nodeCount} [${success ? 'SECURED' : 'NULL'}]</p>
       <ul class="result-log">
         <li>Extraction Log: ${escapeHtml(payloadName)}${success ? '' : ' (Error: Zero Bytes)'}</li>
-        <li>Security State: ${success ? `Secured, ${reward} cred recovered, score ${score}.` : `CRITICAL FALLBACK INITIATED, score ${score}.`}</li>
+        <li>Security State: ${success ? `Secured, ${reward} cred transferred to account, score ${score}.` : `CRITICAL FALLBACK INITIATED, score ${score}.`}</li>
         <li>${success ? `${escapeHtml(system.company.name)} waiting for new task.` : 'DATA PURGE IN PROGRESS...'}</li>
       </ul>
     </div>

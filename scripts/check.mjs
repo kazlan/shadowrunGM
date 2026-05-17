@@ -51,7 +51,7 @@ const requiredFiles = [
   'src/world/companySeed.js',
   'src/world/companyValuation.js',
   'src/world/overpassProvider.js',
-  'arte/prompts-v1.md',
+  'propuestas/prompts-v1.md',
   'docs/plan-v1.md',
   'docs/assets.md',
   'docs/company-valuation.md',
@@ -76,6 +76,7 @@ if (!overpassSource.includes('nwr["name"]["tourism"]') || !overpassSource.includ
 if (!mainSource.includes('VALENCIA_TEST_POSITION') || !mainSource.includes('MIN_SCANNER_TARGETS') || !mainSource.includes('fillWithSandboxTargets')) throw new Error('Local scanner should use Valencia in local testing and fill short OSM result sets with sandbox targets');
 const themeSource = await readFile('src/styles/theme.css', 'utf8');
 if (!themeSource.includes('--scrollbar-thumb') || !themeSource.includes('::-webkit-scrollbar-thumb') || !themeSource.includes('scrollbar-color')) throw new Error('Theme CSS should style scrollbars consistently');
+if (!themeSource.includes('--button-crt-line') || !themeSource.includes('datastreamSlide') || !themeSource.includes('button:focus-visible')) throw new Error('Theme CSS should keep Cybercore-inspired micro styles available');
 
 const { hashCompany } = await import('../src/world/companySeed.js');
 const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
@@ -213,6 +214,7 @@ const { renderNodeMap } = await import('../src/ui/renderNodeMap.js');
 const { renderDeckOverlay, renderDeckTrace } = await import('../src/ui/renderDeckPanel.js');
 const { renderHelpOverlay, renderSettingsOverlay } = await import('../src/ui/renderHelpOverlay.js');
 const { renderHud, renderProgramDock } = await import('../src/ui/renderHud.js');
+const { renderPostRunScannerPanel } = await import('../src/ui/renderRunLog.js');
 const { renderScannerOverlay } = await import('../src/ui/renderScannerOverlay.js');
 const { applyTheme, normalizeThemeKey, themeCatalog } = await import('../src/ui/themeStore.js');
 const { getFirebaseConfig, isFirebaseConfigured, isFirebaseMessagingConfigured } = await import('../src/firebase/firebaseConfig.js');
@@ -284,8 +286,18 @@ const bookmarkResult = addHostBookmark(defaultDeck, jackOutSystem);
 if (!bookmarkResult.changed || bookmarkResult.profile.bookmarks.length !== 1) throw new Error('Successful hosts should be bookmarkable');
 const rewardResult = awardRunCredits(defaultDeck, jackOutSystem, jackOutRun, scoreRun(jackOutSystem, jackOutRun));
 if (rewardResult.reward <= 0 || rewardResult.profile.credits <= 0) throw new Error('Completed runs should award deck upgrade credits');
-if (!renderCompletionScreen({ hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3, canBookmark: true, bookmarkCapacity: 3, bookmarkDecision: null }, defaultDeck).includes('Guardar host')) {
+const completionChoiceHtml = renderCompletionScreen({ hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3, canBookmark: true, bookmarkCapacity: 3, bookmarkDecision: null }, defaultDeck);
+if (!completionChoiceHtml.includes('Guardar host') || !completionChoiceHtml.includes('Objetivos / scanner') || completionChoiceHtml.includes('No guardar') || completionChoiceHtml.includes('skipBookmark')) {
   throw new Error('Completion screen should prompt for bookmark saving');
+}
+const postRunResult = { status: 'escaped', hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3 };
+const postRunChoiceHtml = renderPostRunScannerPanel(postRunResult, { hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3, canBookmark: true, bookmarkCapacity: 3, bookmarkDecision: null }, defaultDeck, true);
+if (!postRunChoiceHtml.includes('Guardar host') || !postRunChoiceHtml.includes('Abrir scanner') || postRunChoiceHtml.includes('No guardar') || postRunChoiceHtml.includes('skipBookmark')) {
+  throw new Error('Post-run scanner panel should only offer save host and scanner');
+}
+const savedPostRunHtml = renderPostRunScannerPanel(postRunResult, { hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3, canBookmark: false, bookmarkCapacity: 3, bookmarkDecision: 'saved' }, defaultDeck, true);
+if (!savedPostRunHtml.includes('Host guardado') || savedPostRunHtml.includes('Guardar host') || !savedPostRunHtml.includes('Abrir scanner')) {
+  throw new Error('Saved hosts should show confirmation and leave only scanner available');
 }
 
 function assertStructuredHost(system) {
@@ -359,8 +371,12 @@ if (!finishedMapHtml.includes('run_complete.sh') || !finishedMapHtml.includes('n
 const mapMessageHtml = renderNodeMap(projectSystemForRun(iceSystem, killedIceRun), killedIceRun, undefined, { key: 'check', text: 'Ultima traza visible' });
 if (!mapMessageHtml.includes('node-map__message') || !mapMessageHtml.includes('Ultima traza visible')) throw new Error('Node map should surface the latest log message');
 if (!renderDeckTrace(upgradedDeckResult.profile, createInitialRunState(iceSystem, upgradedDeckResult.profile), 'Scan mejorado.').includes('deck-memory')) throw new Error('Deck trace should show segmented memory');
+const finishedDeckTraceHtml = renderDeckTrace(upgradedDeckResult.profile, { ...createInitialRunState(iceSystem, upgradedDeckResult.profile), status: 'escaped', lootTokens: 3, deckCash: 99 }, 'Run limpia.');
+if (!finishedDeckTraceHtml.includes('RUN 0') || !finishedDeckTraceHtml.includes('CTA') || !finishedDeckTraceHtml.includes('0/5')) throw new Error('Finished runs should empty deck cash and memory in the deck trace');
+const animatedDeckTraceHtml = renderDeckTrace(upgradedDeckResult.profile, createInitialRunState(iceSystem, upgradedDeckResult.profile), 'Transfer.', { phase: 'transfer', maxLoot: 5, loot: 2, deckCash: 40, accountCredits: 120 });
+if (!animatedDeckTraceHtml.includes('deck-trace--transfer') || !animatedDeckTraceHtml.includes('RUN 40') || !animatedDeckTraceHtml.includes('CTA 120') || !animatedDeckTraceHtml.includes('2/5')) throw new Error('Deck trace should render animated transfer counters');
 const deckOverlayHtml = renderDeckOverlay(true, upgradedDeckResult.profile, 'Scan mejorado.');
-if (!deckOverlayHtml.includes('Software cargado')) throw new Error('Deck overlay should render loaded software');
+if (!deckOverlayHtml.includes('Software cargado') || !deckOverlayHtml.includes('cred en cuenta')) throw new Error('Deck overlay should render loaded software and player account credits');
 if (!deckOverlayHtml.includes('deck-software-grid')) throw new Error('Deck software should render as a card grid');
 if (!deckOverlayHtml.includes('/assets/stats/stat-pulse.svg')) throw new Error('Deck stats should use custom SVG icons');
 const hudHtml = renderHud(iceSystem, createInitialRunState(iceSystem));
@@ -474,7 +490,7 @@ if (gateRun.nodeStates['n-4'] !== 'scanned') throw new Error('Resolved gates sho
 const trapRun = reduceRun(eventSystem, { ...eventInitialRun, currentNodeId: 'n-4', nodeStates: { ...eventInitialRun.nodeStates, 'n-4': 'visited' } }, { type: 'runProgram', program: 'shield' });
 if (!trapRun.resolvedEvents.includes('n-4')) throw new Error('Shield should resolve trap events');
 const lootRun = reduceRun(eventSystem, { ...eventInitialRun, currentNodeId: 'n-5', nodeStates: { ...eventInitialRun.nodeStates, 'n-5': 'visited' } }, { type: 'runProgram', program: 'extract' });
-if (lootRun.lootTokens !== 3 || !lootRun.hasPayload) throw new Error('Core extraction should load loot tokens into deck memory');
+if (lootRun.lootTokens !== 3 || lootRun.deckCash <= 0 || !lootRun.hasPayload) throw new Error('Core extraction should load loot tokens and run cash into deck memory');
 const relootRun = reduceRun(eventSystem, lootRun, { type: 'runProgram', program: 'extract' });
 if (relootRun.lootTokens !== lootRun.lootTokens || relootRun.turn !== lootRun.turn) throw new Error('Extracted paydata nodes should not be lootable twice in one run');
 const lootedPathRun = reduceRun(eventSystem, { ...eventInitialRun, currentNodeId: 'n-5', nodeStates: { ...eventInitialRun.nodeStates, 'n-4': 'visited', 'n-5': 'visited' } }, { type: 'runProgram', program: 'extract' });

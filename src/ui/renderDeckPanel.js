@@ -10,10 +10,16 @@ const deckParts = [
   { label: 'Buffer', value: 'Chufla', description: 'Memoria de loot inicial. Mejorala pronto o dejaras datos atras.' },
 ];
 
-export function renderDeckTrace(deckProfile, run = null, upgradeMessage = '') {
+export function renderDeckTrace(deckProfile, run = null, upgradeMessage = '', view = null) {
   const deckLevel = getDeckLevel(deckProfile);
-  const maxLoot = run?.maxLootTokens ?? getStorageCapacity(deckProfile);
-  const loot = Math.min(maxLoot, run?.lootTokens ?? 0);
+  const finished = run?.status === 'escaped' || run?.status === 'dumped';
+  const maxLoot = view?.maxLoot ?? run?.maxLootTokens ?? getStorageCapacity(deckProfile);
+  const rawLoot = view?.loot ?? (finished ? 0 : run?.lootTokens ?? 0);
+  const loot = Math.min(maxLoot, Math.max(0, Math.round(rawLoot)));
+  const rawDeckCash = view?.deckCash ?? (finished ? 0 : run?.deckCash ?? 0);
+  const deckCash = Math.max(0, Math.round(rawDeckCash));
+  const accountCredits = Math.max(0, Math.round(view?.accountCredits ?? deckProfile.credits));
+  const phaseClass = view?.phase ? ` deck-trace--${String(view.phase).replace(/[^a-z0-9-]/gi, '')}` : '';
   const stats = [
     ['P', deckProfile.deck.pulse],
     ['V', deckProfile.deck.veil],
@@ -23,10 +29,10 @@ export function renderDeckTrace(deckProfile, run = null, upgradeMessage = '') {
     .map(([label, value]) => `<span>${label}${value}</span>`)
     .join('');
 
-  return `<section class="deck-trace" aria-label="Resumen del deck">
+  return `<section class="deck-trace${phaseClass}" aria-label="Resumen del deck">
     <button data-action="toggleDeck" type="button">
       <strong>Deck L${deckLevel}</strong>
-      <span>${deckProfile.credits} cred</span>
+      <span class="deck-counters"><b>RUN ${deckCash}</b><b>CTA ${accountCredits}</b></span>
       <i>${stats}</i>
     </button>
     <div class="deck-memory" style="--memory-slots:${maxLoot}" aria-label="Memoria del deck ${loot} de ${maxLoot}">
@@ -69,8 +75,8 @@ export function renderDeckOverlay(isOpen, deckProfile, upgradeMessage = '') {
       </div>
       <div class="overlay-panel__content deck-workbench__content">
         <div class="deck-workbench__status">
-          <strong>${deckProfile.credits} cred disponibles</strong>
-          <span>${deckProfile.totalEarned} cred recuperados · +${deckProfile.lastReward ?? 0} ultima run</span>
+          <strong>${deckProfile.credits} cred en cuenta</strong>
+          <span>${deckProfile.totalEarned} cred ingresados · +${deckProfile.lastReward ?? 0} ultima run</span>
           ${upgradeMessage ? `<p>${escapeHtml(upgradeMessage)}</p>` : ''}
         </div>
         <div>

@@ -47,6 +47,7 @@ export function createInitialRunState(system, deckProfile = null) {
     maxIntegrity: 10 + shell - 1,
     hasPayload: false,
     lootTokens: 0,
+    deckCash: 0,
     maxLootTokens: getDeckStorageCapacity(deckProfile),
     selectedProgram: 'scan',
     turn: 1,

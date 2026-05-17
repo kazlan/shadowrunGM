@@ -34,7 +34,8 @@ const MIN_MAP_SIZE = 32;
 const MAX_MAP_SIZE = 100;
 const MAP_DRAG_THRESHOLD_PX = 12;
 const MAP_LOG_MESSAGE_MS = 5200;
-const DISCONNECT_GLITCH_MS = 3200;
+const DISCONNECT_GLITCH_MS = 2000;
+const DECK_COUNTER_ANIMATION_MS = 1000;
 const EXPANDED_SCAN_RADIUS = 1500;
 const MIN_SCANNER_TARGETS = 4;
 const VALENCIA_TEST_POSITION = { lat: 39.4699, lon: -0.3763 };
@@ -53,6 +54,7 @@ const appState = {
   lastMapLogLength: 0,
   completion: null,
   runResult: null,
+  postRunRebooted: false,
   lastRecordedStatus: null,
   isSettingsOpen: false,
   isHelpOpen: false,
@@ -67,6 +69,8 @@ const appState = {
   ignoreNextNodeClick: false,
   disconnectGlitchUntil: 0,
   disconnectGlitchTimer: null,
+  deckAnimation: null,
+  deckAnimationFrame: null,
 };
 
 async function buildSystem(place) {
@@ -78,9 +82,11 @@ async function buildSystem(place) {
 }
 
 async function startRun(place) {
+  stopDeckAnimation();
   appState.selectedPlace = place;
   appState.completion = null;
   appState.runResult = null;
+  appState.postRunRebooted = false;
   appState.system = await buildSystem(place);
   appState.deckProfile = loadDeckProfile();
   appState.deckMessage = '';
@@ -104,9 +110,11 @@ async function startRun(place) {
 
 function dispatch(action) {
   if (!appState.system || !appState.run) return;
+  const previousRun = appState.run;
   const previousStatus = appState.run.status;
   appState.deckMessage = '';
   appState.run = reduceRun(appState.system, appState.run, action, appState.deckProfile);
+  startExtractAnimation(action, previousRun, appState.run);
   if (previousStatus !== 'dumped' && appState.run.status === 'dumped') {
     triggerDisconnectGlitch();
   }
@@ -127,17 +135,22 @@ function render() {
 
   const runtimeSystem = projectSystemForRun(appState.system, appState.run);
   const finished = isRunFinished(appState.run);
+  const shockActive = appState.run.status === 'dumped' && isDisconnectGlitchActive();
+  const resultVisible = finished && !shockActive && !appState.postRunRebooted;
+  const postRunPanelVisible = finished && !shockActive;
   const backgroundUrl = getHostBackground(appState.system.archetype.archetype);
-  const dangerTheme = getDangerTheme(appState.run);
-  const signalFxClass = getSignalFxClass(dangerTheme.level, appState.run.status, isDisconnectGlitchActive());
+  const themeRun = appState.postRunRebooted ? { ...appState.run, status: 'exploring', alert: 0, trace: 0, integrity: appState.run.maxIntegrity } : appState.run;
+  const dangerTheme = getDangerTheme(themeRun);
+  const signalFxClass = getSignalFxClass(dangerTheme.level, themeRun.status, shockActive);
   root.innerHTML = `<main class="app-shell ${signalFxClass}" style="--host-bg: url('${backgroundUrl}'); --danger-level: ${dangerTheme.level}; --danger-color: ${dangerTheme.color}; --danger-border: ${dangerTheme.border}; --danger-glow: ${dangerTheme.glow}">
+    ${shockActive ? renderDisconnectFilter() : ''}
     <div class="scanline"></div>
     <div class="crt-vignette"></div>
     ${renderHud(runtimeSystem, appState.run, finished)}
-    ${renderNodeMap(runtimeSystem, appState.run, appState.mapView, getVisibleMapLogMessage(), appState.runResult)}
+    ${renderNodeMap(runtimeSystem, appState.run, appState.mapView, getVisibleMapLogMessage(), appState.runResult, resultVisible)}
     ${renderProgramDock(appState.run, finished)}
-    ${finished ? renderPostRunScannerPanel(appState.runResult, appState.completion, appState.deckProfile) : renderRunLog(appState.run)}
-    ${renderDeckTrace(appState.deckProfile, appState.run, appState.deckMessage)}
+    ${postRunPanelVisible ? renderPostRunScannerPanel(appState.runResult, appState.completion, appState.deckProfile, appState.postRunRebooted) : renderRunLog(appState.run)}
+    ${renderDeckTrace(appState.deckProfile, appState.run, appState.deckMessage, getDeckTraceView())}
     ${renderProgressPanel(appState.currentProgress, appState.recentProgress)}
     ${renderDeckOverlay(appState.isDeckOpen, appState.deckProfile, appState.deckMessage)}
     ${renderSettingsOverlay(appState.isSettingsOpen, audioDirector.getState(), appState.theme)}
@@ -163,6 +176,19 @@ function getSignalFxClass(level, status, disconnectGlitchActive = false) {
   if (status === 'encounter' || dangerLevel >= 0.48) classes.push('app-shell--unstable');
   if (disconnectGlitchActive) classes.push('app-shell--disconnect-glitch');
   return classes.join(' ');
+}
+
+function renderDisconnectFilter() {
+  return `<svg class="disconnect-filter" aria-hidden="true" focusable="false">
+    <filter id="disconnectDisplacement">
+      <feTurbulence type="fractalNoise" baseFrequency="0.02 0.08" numOctaves="2" seed="7" result="noise">
+        <animate attributeName="baseFrequency" values="0.02 0.08;0.13 0.02;0.06 0.16;0.18 0.04;0.02 0.08" dur=".42s" repeatCount="indefinite" />
+      </feTurbulence>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="24" xChannelSelector="R" yChannelSelector="G">
+        <animate attributeName="scale" values="0;34;12;42;6;28;0" dur=".34s" repeatCount="indefinite" />
+      </feDisplacementMap>
+    </filter>
+  </svg>`;
 }
 
 function triggerDisconnectGlitch() {
@@ -216,6 +242,7 @@ function bindEvents() {
 
   root.querySelectorAll('[data-node-id]').forEach((node) => {
     node.addEventListener('click', () => {
+      if (isRunFinished(appState.run)) return;
       if (appState.ignoreNextNodeClick) {
         appState.ignoreNextNodeClick = false;
         return;
@@ -278,6 +305,7 @@ function bindEvents() {
       if (action === 'scanLocal') void scanLocalTargets();
       if (action === 'saveBookmark') saveCompletionBookmark();
       if (action === 'skipBookmark') skipCompletionBookmark();
+      if (action === 'rebootDeck') rebootDeck();
       if (action === 'toggleMusic') void toggleMusic();
       if (action === 'toggleSfx') void toggleSfx();
       if (action === 'toggleSettings') {
@@ -307,7 +335,9 @@ function bindEvents() {
         render();
       }
       if (action === 'toggleScanner') {
-        appState.isScannerOpen = !appState.isScannerOpen;
+        const openingScanner = !appState.isScannerOpen;
+        appState.isScannerOpen = openingScanner;
+        if (openingScanner) skipCompletionBookmark(false);
         appState.isSettingsOpen = false;
         appState.isHelpOpen = false;
         appState.isDeckOpen = false;
@@ -693,6 +723,85 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+function startExtractAnimation(action, previousRun, nextRun) {
+  const isExtract = action.type === 'extract' || (action.type === 'runProgram' && action.program === 'extract');
+  if (!isExtract) return;
+
+  const fromLoot = previousRun?.lootTokens ?? 0;
+  const toLoot = nextRun?.lootTokens ?? 0;
+  const fromDeckCash = previousRun?.deckCash ?? 0;
+  const toDeckCash = nextRun?.deckCash ?? 0;
+  if (toLoot <= fromLoot && toDeckCash <= fromDeckCash) return;
+
+  startDeckAnimation({
+    phase: 'extract',
+    fromLoot,
+    toLoot,
+    fromDeckCash,
+    toDeckCash,
+    fromAccountCredits: appState.deckProfile.credits,
+    toAccountCredits: appState.deckProfile.credits,
+    maxLoot: nextRun?.maxLootTokens ?? previousRun?.maxLootTokens,
+  });
+}
+
+function startDeckAnimation(animation) {
+  stopDeckAnimation();
+
+  appState.deckAnimation = {
+    ...animation,
+    startedAt: performance.now(),
+    duration: DECK_COUNTER_ANIMATION_MS,
+  };
+  scheduleDeckAnimationTick();
+}
+
+function stopDeckAnimation() {
+  if (appState.deckAnimationFrame) {
+    cancelAnimationFrame(appState.deckAnimationFrame);
+    appState.deckAnimationFrame = null;
+  }
+  appState.deckAnimation = null;
+}
+
+function scheduleDeckAnimationTick() {
+  if (!appState.deckAnimation || appState.deckAnimationFrame) return;
+  appState.deckAnimationFrame = requestAnimationFrame(() => {
+    appState.deckAnimationFrame = null;
+    if (!appState.deckAnimation) return;
+    if (performance.now() - appState.deckAnimation.startedAt >= appState.deckAnimation.duration) {
+      appState.deckAnimation = null;
+      render();
+      return;
+    }
+    render();
+    scheduleDeckAnimationTick();
+  });
+}
+
+function getDeckTraceView() {
+  if (!appState.deckAnimation) return null;
+  const animation = appState.deckAnimation;
+  const progress = clamp((performance.now() - animation.startedAt) / animation.duration, 0, 1);
+  const eased = easeOutCubic(progress);
+
+  return {
+    phase: animation.phase,
+    maxLoot: animation.maxLoot,
+    loot: interpolate(animation.fromLoot, animation.toLoot, eased),
+    deckCash: interpolate(animation.fromDeckCash, animation.toDeckCash, eased),
+    accountCredits: interpolate(animation.fromAccountCredits, animation.toAccountCredits, eased),
+  };
+}
+
+function interpolate(from, to, progress) {
+  return (Number(from) || 0) + ((Number(to) || 0) - (Number(from) || 0)) * progress;
+}
+
+function easeOutCubic(value) {
+  return 1 - Math.pow(1 - value, 3);
+}
+
 function syncRunResult() {
   if (!appState.system || !appState.run) return;
   if (!['escaped', 'dumped'].includes(appState.run.status)) return;
@@ -702,9 +811,12 @@ function syncRunResult() {
 
   const score = scoreRun(appState.system, appState.run);
   appState.currentProgress = recordRunResult(appState.system, appState.run, score);
+  const previousAccountCredits = appState.deckProfile.credits;
   const reward = awardRunCredits(appState.deckProfile, appState.system, appState.run, score);
   appState.deckProfile = reward.profile;
-  appState.deckMessage = reward.reward > 0 ? `+${reward.reward} cred recuperados de la run.` : '';
+  const lootTokens = appState.run.lootTokens ?? 0;
+  const runCash = appState.run.deckCash ?? 0;
+  appState.deckMessage = reward.reward > 0 ? `+${reward.reward} cred transferidos a la cuenta. Deck limpio.` : 'Deck limpio.';
   appState.recentProgress = listRecentProgress();
   appState.lastRecordedStatus = appState.run.status;
   appState.runResult = {
@@ -714,7 +826,7 @@ function syncRunResult() {
     tier: appState.system.valuation?.tier ?? 'C',
     score,
     reward: reward.reward,
-    lootTokens: appState.run.lootTokens ?? 0,
+    lootTokens,
     alert: appState.run.alert,
     maxAlert: appState.run.maxAlert,
     trace: appState.run.trace,
@@ -736,7 +848,7 @@ function syncRunResult() {
       system: appState.system,
       reward: reward.reward,
       score,
-      lootTokens: appState.run.lootTokens ?? 0,
+      lootTokens,
       bookmarkCapacity,
       canBookmark: appState.deckProfile.bookmarks.length < bookmarkCapacity,
       bookmarkDecision: null,
@@ -747,6 +859,28 @@ function syncRunResult() {
   appState.isDeckOpen = false;
   appState.isSettingsOpen = false;
   appState.isHelpOpen = false;
+  if (appState.run.status === 'escaped' && reward.reward > 0) {
+    startDeckAnimation({
+      phase: 'transfer',
+      fromLoot: lootTokens,
+      toLoot: 0,
+      fromDeckCash: Math.max(runCash, reward.reward),
+      toDeckCash: 0,
+      fromAccountCredits: previousAccountCredits,
+      toAccountCredits: appState.deckProfile.credits,
+      maxLoot: appState.run.maxLootTokens,
+    });
+  }
+  appState.run = clearFinishedRunCargo(appState.run);
+}
+
+function clearFinishedRunCargo(run) {
+  return {
+    ...run,
+    hasPayload: false,
+    lootTokens: 0,
+    deckCash: 0,
+  };
 }
 
 function saveCompletionBookmark() {
@@ -762,9 +896,17 @@ function saveCompletionBookmark() {
   render();
 }
 
-function skipCompletionBookmark() {
+function skipCompletionBookmark(shouldRender = true) {
   if (!appState.completion) return;
   appState.completion = { ...appState.completion, bookmarkDecision: 'skipped' };
+  if (shouldRender) render();
+}
+
+function rebootDeck() {
+  appState.postRunRebooted = true;
+  appState.isScannerOpen = false;
+  stopDisconnectGlitch();
+  void audioDirector.play('scanner');
   render();
 }
 

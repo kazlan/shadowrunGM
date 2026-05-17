@@ -35,6 +35,10 @@
     var(--bg);
   --scanline-color: rgba(51, 255, 204, .26);
   --panel-line: rgba(51, 255, 204, .18);
+  --frame-corner: 12px;
+  --frame-line: color-mix(in srgb, var(--cyan) 66%, transparent);
+  --datastream-color: color-mix(in srgb, var(--cyan) 42%, transparent);
+  --button-crt-line: color-mix(in srgb, var(--cyan) 14%, transparent);
 }
 
 
@@ -48,10 +52,17 @@ button {
     border-color .16s ease,
     background .16s ease,
     box-shadow .16s ease,
-    filter .16s ease;
+    filter .16s ease,
+    text-shadow .16s ease;
 }
 
 button:disabled { cursor: not-allowed; }
+
+button:focus-visible {
+  outline: 2px solid var(--yellow);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--yellow) 22%, transparent), 0 0 18px color-mix(in srgb, var(--cyan) 18%, transparent);
+}
 
 * {
   scrollbar-width: thin;
@@ -82,6 +93,204 @@ button:disabled { cursor: not-allowed; }
 
 *::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+:where(
+  .jack-out,
+  .scanner-toggle,
+  .scan-local,
+  .program-dock button,
+  .node-map__controls button,
+  .settings-toggle,
+  .audio-toggle,
+  .help-tabs button,
+  .help-close,
+  .overlay-close,
+  .settings-actions button,
+  .theme-option,
+  .scanner-targets button,
+  .deck-trace button,
+  .deck-upgrade button,
+  .deck-stat-card button,
+  .deck-software-card button,
+  .post-run-panel__save,
+  .post-run-panel__actions button,
+  .post-run-panel .reboot-deck,
+  .completion-actions button,
+  .completion-card > .scanner-toggle
+) {
+  clip-path: none;
+}
+
+:where(
+  .jack-out,
+  .scanner-toggle,
+  .scan-local,
+  .program-dock button,
+  .node-map__controls button,
+  .settings-toggle,
+  .audio-toggle,
+  .help-tabs button,
+  .help-close,
+  .overlay-close,
+  .settings-actions button,
+  .theme-option,
+  .scanner-targets button,
+  .deck-trace button,
+  .deck-upgrade button,
+  .deck-stat-card button,
+  .deck-software-card button,
+  .post-run-panel__save,
+  .post-run-panel__actions button,
+  .post-run-panel .reboot-deck,
+  .completion-actions button,
+  .completion-card > .scanner-toggle
+):is(:hover, :focus-visible):not(:disabled) {
+  border-color: color-mix(in srgb, var(--yellow) 62%, var(--cyan));
+  background-image:
+    repeating-linear-gradient(180deg, transparent 0 5px, var(--button-crt-line) 5px 6px),
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--cyan) 10%, transparent), transparent);
+  filter: saturate(1.12);
+  box-shadow: inset 0 0 16px color-mix(in srgb, var(--cyan) 10%, transparent), 0 0 18px color-mix(in srgb, var(--cyan) 18%, transparent);
+  text-shadow: 0 0 8px color-mix(in srgb, currentColor 46%, transparent);
+}
+
+:where(
+  .target-card,
+  .node-map,
+  .progress-panel,
+  .run-log,
+  .post-run-panel,
+  .overlay-panel,
+  .help-panel,
+  .help-card,
+  .help-callout,
+  .scanner-targets button,
+  .deck-memory,
+  .deck-part,
+  .deck-upgrade,
+  .deck-stat-card,
+  .deck-software-card,
+  .completion-card,
+  .result-message
+) {
+  position: relative;
+}
+
+:where(
+  .target-card,
+  .progress-panel,
+  .run-log,
+  .post-run-panel,
+  .overlay-panel,
+  .help-panel,
+  .help-card,
+  .help-callout,
+  .scanner-targets button,
+  .deck-memory,
+  .deck-part,
+  .deck-upgrade,
+  .deck-stat-card,
+  .deck-software-card,
+  .completion-card,
+  .result-message
+)::before,
+:where(
+  .target-card,
+  .progress-panel,
+  .run-log,
+  .post-run-panel,
+  .overlay-panel,
+  .help-panel,
+  .help-card,
+  .help-callout,
+  .scanner-targets button,
+  .deck-memory,
+  .deck-part,
+  .deck-upgrade,
+  .deck-stat-card,
+  .deck-software-card,
+  .completion-card,
+  .result-message
+)::after {
+  content: "";
+  position: absolute;
+  width: var(--frame-corner);
+  height: var(--frame-corner);
+  pointer-events: none;
+}
+
+:where(
+  .target-card,
+  .progress-panel,
+  .run-log,
+  .post-run-panel,
+  .overlay-panel,
+  .help-panel,
+  .help-card,
+  .help-callout,
+  .scanner-targets button,
+  .deck-memory,
+  .deck-part,
+  .deck-upgrade,
+  .deck-stat-card,
+  .deck-software-card,
+  .completion-card,
+  .result-message
+)::before {
+  top: -1px;
+  left: -1px;
+  border-top: 2px solid var(--frame-line);
+  border-left: 2px solid var(--frame-line);
+}
+
+:where(
+  .target-card,
+  .progress-panel,
+  .run-log,
+  .post-run-panel,
+  .overlay-panel,
+  .help-panel,
+  .help-card,
+  .help-callout,
+  .scanner-targets button,
+  .deck-memory,
+  .deck-part,
+  .deck-upgrade,
+  .deck-stat-card,
+  .deck-software-card,
+  .completion-card,
+  .result-message
+)::after {
+  right: -1px;
+  bottom: -1px;
+  border-right: 2px solid var(--frame-line);
+  border-bottom: 2px solid var(--frame-line);
+}
+
+:where(.run-log, .post-run-panel, .deck-memory, .result-message) {
+  isolation: isolate;
+  overflow: hidden;
+}
+
+:where(.run-log, .post-run-panel, .deck-memory, .result-message) > * {
+  position: relative;
+  z-index: 1;
+}
+
+:where(.run-log, .post-run-panel, .deck-memory, .result-message)::after {
+  top: 0;
+  right: auto;
+  bottom: auto;
+  left: 0;
+  z-index: 0;
+  width: 42%;
+  height: 100%;
+  border: 0;
+  background: linear-gradient(90deg, transparent, var(--datastream-color), transparent);
+  opacity: .22;
+  transform: translateX(-180%) skewX(-18deg);
+  animation: datastreamSlide 5.4s ease-in-out infinite;
 }
 
 :root[data-theme="amiga"] {
@@ -275,6 +484,15 @@ button:disabled { cursor: not-allowed; }
 }
 
 .app-shell--loading { display: grid; place-items: center; color: var(--cyan); letter-spacing: .2em; text-transform: uppercase; }
+.disconnect-filter {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+.app-shell--disconnect-glitch > :not(.disconnect-filter):not(.scanline):not(.crt-vignette) {
+  filter: url("#disconnectDisplacement");
+}
 .scanline {
   position: absolute;
   inset: 0;
@@ -442,6 +660,13 @@ button:disabled { cursor: not-allowed; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.result-command::after {
+  content: "_";
+  display: inline-block;
+  margin-left: 3px;
+  color: var(--yellow);
+  animation: terminalCursor 1s steps(2, end) infinite;
+}
 .result-brand {
   display: block;
   color: var(--danger-color);
@@ -534,6 +759,7 @@ button:disabled { cursor: not-allowed; }
 }
 .app-shell--disconnect-glitch .scanline { opacity: .72; }
 .app-shell--disconnect-glitch .crt-vignette { animation: criticalMask .42s steps(2, end) infinite; }
+.app-shell--disconnect-glitch .node-map::before { opacity: .62; animation-duration: .72s; }
 .edge { stroke: rgba(51, 255, 204, .72); stroke-width: .45; }
 .edge--hidden { stroke: rgba(131, 166, 181, .18); stroke-dasharray: 1 1.4; }
 .node circle { fill: var(--node-fill); stroke: var(--cyan); stroke-width: .7; }
@@ -1016,7 +1242,9 @@ button:disabled { cursor: not-allowed; }
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
 }
+.post-run-panel__save,
 .post-run-panel__actions button,
+.post-run-panel .reboot-deck,
 .post-run-panel .scanner-toggle {
   min-height: 32px;
   padding: 6px 8px;
@@ -1027,6 +1255,12 @@ button:disabled { cursor: not-allowed; }
   font-weight: 900;
   letter-spacing: .06em;
   text-transform: uppercase;
+}
+.post-run-panel .reboot-deck {
+  min-height: 42px;
+  color: var(--danger-color);
+  border-color: var(--danger-border);
+  box-shadow: inset 0 0 16px var(--danger-glow), 0 0 18px var(--danger-glow);
 }
 
 .scanner-status { margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.35; }
@@ -1121,6 +1355,30 @@ button:disabled { cursor: not-allowed; }
 
 .deck-trace strong { color: var(--cyan); font-size: .76rem; }
 .deck-trace span { color: var(--muted); font-size: .66rem; }
+.deck-counters {
+  display: grid;
+  gap: 2px;
+  min-width: 62px;
+  text-align: right;
+}
+.deck-counters b {
+  display: block;
+  color: var(--muted);
+  font-size: .56rem;
+  font-weight: 900;
+  letter-spacing: .04em;
+  line-height: 1;
+}
+.deck-counters b:last-child { color: var(--yellow); }
+.deck-trace--extract .deck-memory,
+.deck-trace--transfer .deck-memory {
+  border-color: color-mix(in srgb, var(--yellow) 58%, var(--cyan));
+  box-shadow: 0 0 16px color-mix(in srgb, var(--yellow) 18%, transparent);
+}
+.deck-trace--extract .deck-counters b:first-child,
+.deck-trace--transfer .deck-counters b {
+  text-shadow: 0 0 10px color-mix(in srgb, var(--yellow) 54%, transparent);
+}
 .deck-trace i {
   display: flex;
   gap: 4px;
@@ -1372,13 +1630,26 @@ button:disabled { cursor: not-allowed; }
   92% { opacity: .72; transform: translate3d(-1px, 1px, 0); }
 }
 
+@keyframes datastreamSlide {
+  0%, 28% { opacity: 0; transform: translateX(-180%) skewX(-18deg); }
+  42%, 66% { opacity: .22; }
+  82%, 100% { opacity: 0; transform: translateX(260%) skewX(-18deg); }
+}
+
+@keyframes terminalCursor {
+  0%, 44% { opacity: 1; }
+  45%, 100% { opacity: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .app-shell--critical,
   .scanline,
   .crt-vignette,
   .node-map::before,
   .app-shell--disconnect-glitch .fx-glitch::before,
-  .app-shell--disconnect-glitch .fx-glitch::after {
+  .app-shell--disconnect-glitch .fx-glitch::after,
+  :where(.run-log, .post-run-panel, .deck-memory, .result-message)::after,
+  .result-command::after {
     animation: none;
   }
 }
@@ -1416,6 +1687,8 @@ button:disabled { cursor: not-allowed; }
   .deck-trace button { min-height: 32px; padding: 6px 7px; }
   .deck-trace strong { font-size: .68rem; }
   .deck-trace span { font-size: .58rem; }
+  .deck-counters { min-width: 54px; }
+  .deck-counters b { font-size: .48rem; }
   .deck-trace i span { min-width: 21px; padding: 1px 3px; }
   .deck-workbench__content { gap: 6px; }
   .deck-workbench__status { padding: 6px 8px; }
