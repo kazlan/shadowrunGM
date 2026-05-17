@@ -12,6 +12,7 @@ import { getDangerTheme } from '../ui/dangerTheme.js';
 import { renderDeckOverlay, renderDeckTrace } from '../ui/renderDeckPanel.js';
 import { renderHelpOverlay, renderSettingsOverlay } from '../ui/renderHelpOverlay.js';
 import { renderHud, renderProgramDock } from '../ui/renderHud.js';
+import { renderLandingPage } from '../ui/renderLandingPage.js';
 import { renderNodeMap } from '../ui/renderNodeMap.js';
 import { renderProgressPanel } from '../ui/renderProgress.js';
 import { renderPostRunScannerPanel, renderRunLog } from '../ui/renderRunLog.js';
@@ -39,6 +40,7 @@ const DECK_COUNTER_ANIMATION_MS = 1000;
 const EXPANDED_SCAN_RADIUS = 1500;
 const MIN_SCANNER_TARGETS = 4;
 const VALENCIA_TEST_POSITION = { lat: 39.4699, lon: -0.3763 };
+const PLAY_ROUTE = '/play';
 const appState = {
   places: demoPlaces,
   selectedPlace: demoPlaces[0],
@@ -176,6 +178,39 @@ function getSignalFxClass(level, status, disconnectGlitchActive = false) {
   if (status === 'encounter' || dangerLevel >= 0.48) classes.push('app-shell--unstable');
   if (disconnectGlitchActive) classes.push('app-shell--disconnect-glitch');
   return classes.join(' ');
+}
+
+async function boot() {
+  if (getAppRoute() !== 'play') {
+    renderLanding();
+    return;
+  }
+
+  await startRun(appState.selectedPlace);
+}
+
+function renderLanding() {
+  if (!root) return;
+  applyTheme(appState.theme);
+  root.innerHTML = renderLandingPage();
+}
+
+function getAppRoute() {
+  const pathname = normalizePathname(globalThis.location?.pathname ?? '/');
+  if (pathname === PLAY_ROUTE) return 'play';
+  if (pathname !== '/') replaceUnknownPathWithLanding();
+  return 'landing';
+}
+
+function normalizePathname(pathname) {
+  if (!pathname || pathname === '/') return '/';
+  return pathname.replace(/\/+$/, '') || '/';
+}
+
+function replaceUnknownPathWithLanding() {
+  if (!globalThis.history?.replaceState || !globalThis.location) return;
+  const hash = globalThis.location.hash ?? '';
+  globalThis.history.replaceState(null, '', `/${hash}`);
 }
 
 function renderDisconnectFilter() {
@@ -429,7 +464,7 @@ function scannerPermissionMessage(permissionState) {
   return 'Solicitando ubicación para buscar objetivos cercanos...';
 }
 
-void startRun(appState.selectedPlace);
+void boot();
 registerServiceWorker();
 
 function audioEventForAction(action) {

@@ -1,5 +1,6 @@
-const CACHE_NAME = 'shadowhack-shell-v3';
-const APP_SHELL = ['/', '/manifest.webmanifest', '/icons/icon.svg'];
+const CACHE_NAME = 'shadowhack-shell-v4';
+const APP_SHELL = ['/', '/play', '/manifest.webmanifest', '/icons/icon.svg'];
+const OFFLINE_FALLBACK = '/play';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
@@ -27,7 +28,7 @@ self.addEventListener('fetch', (event) => {
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
         return response;
       })
-      .catch(() => caches.match(event.request).then((cached) => cached ?? caches.match('/'))),
+      .catch(() => caches.match(event.request).then((cached) => cached ?? caches.match(OFFLINE_FALLBACK) ?? caches.match('/'))),
   );
 });
 
@@ -53,7 +54,7 @@ self.addEventListener('notificationclick', (event) => {
       .then((clients) => {
         const visibleClient = clients.find((client) => 'focus' in client);
         if (visibleClient) return visibleClient.focus();
-        if (self.clients.openWindow) return self.clients.openWindow('/');
+        if (self.clients.openWindow) return self.clients.openWindow('/play');
         return undefined;
       }),
   );
