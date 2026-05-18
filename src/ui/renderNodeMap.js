@@ -319,54 +319,41 @@ function renderRunResultWindow(system, run, runResult = null) {
   const resultStatus = runResult?.status ?? run.status;
   const lootTokens = runResult?.lootTokens ?? run.lootTokens ?? 0;
   const success = resultStatus === 'escaped' && (run.hasPayload || lootTokens > 0);
+  const status = success ? 'success' : 'critical';
+  const operator = runResult?.operator ?? 'usr@sh';
   const securedNodes = runResult?.securedNodes ?? Object.values(run.nodeStates).filter((state) => state !== 'unknown').length;
   const nodeCount = runResult?.nodeCount ?? system.nodes.length;
   const score = runResult?.score ?? 0;
   const reward = runResult?.reward ?? 0;
-  const playerName = runResult?.playerName ?? runResult?.operator ?? 'NEON GHOST';
-  const credits = runResult?.credits ?? 0;
-  const totalEarned = runResult?.totalEarned ?? reward;
-  const hostsDominated = runResult?.hostsDominated ?? (success ? 1 : 0);
-  const completedRuns = runResult?.completedRuns ?? (success ? 1 : 0);
-  const totalRuns = runResult?.totalRuns ?? 1;
-  const bestScore = Math.max(score, runResult?.bestScore ?? 0);
-  const status = success ? 'EXTRACCIÓN CONFIRMADA' : 'CONEXIÓN CORTADA';
   const command = success
-    ? `> cerrar_run --host ${system.alias} --payload asegurado --mapa off`
-    : `> cerrar_run --host ${system.alias} --dump-shock --mapa off`;
-  const payloadName = `PAYLOAD_${system.seedId ?? 'HOST'}_${Math.max(64, lootTokens * 64 || 128)}BIT`;
+    ? `[${operator}]> run_complete.sh --status success --user validated`
+    : `[${operator}]> run_complete.sh --status critical --data_purge_in_progress`;
+  const access = success ? 'GRANTED' : 'DENIED';
+  const accessCode = success ? `RCN-${system.valuation?.tier ?? 'C'}-${score}-KEY` : 'RCN-SYS-LOCKED';
+  const systemState = success ? 'COMPROMISED - SECURED' : 'COMPROMISED - LOCKED';
+  const payloadName = `RCN_CORE_${system.seedId ?? 'HOST'}_KEY_${Math.max(64, lootTokens * 64 || 128)}BIT.enc`;
   const resultClass = success ? 'node-map--success' : 'node-map--failure';
 
-  return `<section class="node-map node-map--result ${resultClass}" aria-label="Resumen final de la run">
+  return `<section class="node-map node-map--result ${resultClass}" aria-label="Resultado de la run">
     <div class="result-terminal">
       <p class="result-command">${escapeHtml(command)}</p>
       <strong class="result-brand fx-glitch" data-text="SHADOW HACK">SHADOW HACK</strong>
-      <span class="result-subtitle">${escapeHtml(status)} · VENTANA DE MAPA CERRADA</span>
+      <span class="result-subtitle">CYBERDECK INTERFACE SYSTEM</span>
       <div class="result-message">
-        <p>${success ? 'Operador validado. El host queda dominado y los datos han sido cifrados en frío.' : 'Alerta negra. El host ha expulsado tu señal y la extracción queda contaminada.'}</p>
-        <p>Runner: <b>${escapeHtml(playerName)}</b> · Host: <b>${escapeHtml(system.alias)}</b></p>
-        <p>Botín: <b>${lootTokens} token(s)</b> · Transferencia: <b>${reward} cred</b> · Score: <b>${score}</b></p>
+        <p>${success ? 'Congratulations, Operator. The data node has been secured and encrypted.' : 'WARNING, OPERATOR. The node is NOT secured.'}</p>
+        <p>Core Database Access: <b>${access}</b> (${escapeHtml(accessCode)})</p>
+        <p>System State: <b>${systemState}</b></p>
       </div>
-      <dl class="result-player-stats" aria-label="Estadísticas del jugador">
-        ${renderResultStat('Hosts dominados', hostsDominated)}
-        ${renderResultStat('Runs limpias', completedRuns)}
-        ${renderResultStat('Runs totales', totalRuns)}
-        ${renderResultStat('Dinero amasado', `${totalEarned} cred`)}
-        ${renderResultStat('Cuenta actual', `${credits} cred`)}
-        ${renderResultStat('Mejor score', bestScore)}
-      </dl>
-      <p class="result-stats">[mapa:off] ALERTA ${run.alert}/${run.maxAlert} | TRAZA ${run.trace}/${run.maxTrace} | SHELL ${run.integrity}/${run.maxIntegrity} | NODOS ${securedNodes}/${nodeCount}</p>
+      <p class="result-stats">[i] ALERT: ${run.alert}/${run.maxAlert} | TRACE: ${run.trace}/${run.maxTrace} | SHELL: ${run.integrity}/${run.maxIntegrity} | ${securedNodes}/${nodeCount} [${success ? 'SECURED' : 'NULL'}]</p>
       <ul class="result-log">
-        <li>Paquete: ${escapeHtml(payloadName)}${success ? ' sellado' : ' descartado por corrupción'}</li>
-        <li>${success ? `${escapeHtml(system.company.name)} queda registrado como objetivo dominado.` : 'Protocolo de purga ejecutado. No se reabre el mapa anterior.'}</li>
+        <li>Extraction Log: ${escapeHtml(payloadName)}${success ? '' : ' (Error: Zero Bytes)'}</li>
+        <li>Security State: ${success ? `Secured, ${reward} cred transferred to account, score ${score}.` : `CRITICAL FALLBACK INITIATED, score ${score}.`}</li>
+        <li>${success ? `${escapeHtml(system.company.name)} waiting for new task.` : 'DATA PURGE IN PROGRESS...'}</li>
       </ul>
     </div>
   </section>`;
 }
 
-function renderResultStat(label, value) {
-  return `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(String(value))}</dd></div>`;
-}
 
 function renderMapLogButton(run) {
   const count = run?.log?.length ?? 0;

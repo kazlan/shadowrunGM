@@ -25,7 +25,7 @@ import { valueCompany } from '../world/companyValuation.js';
 import { createOverpassProvider } from '../world/overpassProvider.js';
 import { createDemoNearbyProvider, demoPlaces, searchNearbyPlaces } from '../world/placeProvider.js';
 import { addHostBookmark, awardRunCredits, getBookmarkCapacity, loadDeckProfile, updatePlayerProfile, upgradeDeckProfile } from '../world/deckStore.js';
-import { getHostProgress, getPlayerProgressStats, listRecentProgress, recordRunResult } from '../world/progressStore.js';
+import { getHostProgress, listRecentProgress, recordRunResult } from '../world/progressStore.js';
 
 const root = document.querySelector('#root');
 const audioDirector = createAudioDirector();
@@ -189,7 +189,7 @@ function render() {
   const runtimeSystem = projectSystemForRun(appState.system, appState.run);
   const finished = isRunFinished(appState.run);
   const shockActive = appState.run.status === 'dumped' && isDisconnectGlitchActive();
-  const resultVisible = finished && !shockActive;
+  const resultVisible = finished && !shockActive && !appState.postRunRebooted;
   const postRunPanelVisible = finished && !shockActive;
   const backgroundUrl = getHostBackground(appState.system.archetype.archetype);
   const themeRun = appState.postRunRebooted ? { ...appState.run, status: 'exploring', alert: 0, trace: 0, integrity: appState.run.maxIntegrity } : appState.run;
@@ -1318,7 +1318,6 @@ function syncRunResult() {
   appState.recentProgress = listRecentProgress();
   void syncProgressEntry(appState.currentProgress);
   appState.lastRecordedStatus = appState.run.status;
-  const playerStats = getPlayerProgressStats();
   appState.runResult = {
     status: appState.run.status,
     hostAlias: appState.system.alias,
@@ -1336,14 +1335,9 @@ function syncRunResult() {
     turn: appState.run.turn,
     nodeCount: appState.system.nodes.length,
     securedNodes: Object.values(appState.run.nodeStates).filter((state) => state !== 'unknown').length,
-    operator: appState.deckProfile.player?.shadowName ?? 'usr@sh',
-    playerName: appState.deckProfile.player?.shadowName ?? 'NEON GHOST',
+    operator: 'usr@sh',
     credits: appState.deckProfile.credits,
     totalEarned: appState.deckProfile.totalEarned,
-    hostsDominated: playerStats.hostsDominated,
-    totalRuns: playerStats.totalRuns,
-    completedRuns: playerStats.completedRuns,
-    bestScore: playerStats.bestScore,
   };
   if (appState.run.status === 'escaped' && appState.run.hasPayload) {
     const bookmarkCapacity = getBookmarkCapacity(appState.deckProfile);
