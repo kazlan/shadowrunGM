@@ -16,7 +16,6 @@ import { renderHelpOverlay, renderSettingsOverlay } from '../ui/renderHelpOverla
 import { renderHud, renderProgramDock } from '../ui/renderHud.js';
 import { renderLandingPage } from '../ui/renderLandingPage.js';
 import { renderNodeMap } from '../ui/renderNodeMap.js';
-import { renderProgressPanel } from '../ui/renderProgress.js';
 import { renderPostRunScannerPanel, renderRunLogDialog } from '../ui/renderRunLog.js';
 import { renderScannerOverlay } from '../ui/renderScannerOverlay.js';
 import { applyTheme, loadThemePreference, saveThemePreference } from '../ui/themeStore.js';
@@ -200,7 +199,6 @@ function render() {
     ${renderProgramDock(appState.run, finished, appState.nodeVisit?.recommendedProgram, appState.deckProfile)}
     ${postRunPanelVisible ? renderPostRunScannerPanel(appState.runResult, appState.completion, appState.deckProfile, appState.postRunRebooted) : ''}
     ${renderDeckTrace(appState.deckProfile, appState.run, appState.deckMessage, getDeckTraceView())}
-    ${renderProgressPanel(appState.currentProgress, appState.recentProgress)}
     ${renderDeckOverlay(appState.isDeckOpen, appState.deckProfile, appState.deckMessage)}
     ${renderRunLogDialog(appState.isRunLogOpen, appState.run)}
     ${renderSettingsOverlay(appState.isSettingsOpen, audioDirector.getState(), appState.theme, appState.cloud, appState.deckProfile)}
