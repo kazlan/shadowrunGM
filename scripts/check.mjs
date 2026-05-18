@@ -7,6 +7,7 @@ const requiredFiles = [
   'public/service-worker.js',
   'src/app/main.js',
   'src/audio/proceduralAudio.js',
+  'src/audio/adaptiveMusicDirector.js',
   'src/firebase/firebaseConfig.js',
   'src/firebase/firebaseClient.js',
   'src/firebase/authClient.js',
@@ -57,8 +58,22 @@ const requiredFiles = [
   'docs/firebase.md',
 ];
 
+const requiredBinaryFiles = [
+  'public/assets/music/base_loop.mp3',
+  'public/assets/music/pulse_loop.mp3',
+  'public/assets/music/threat_loop.mp3',
+  'public/assets/music/ice_loop.mp3',
+  'public/assets/music/extract_loop.mp3',
+  'public/assets/music/success_stinger.mp3',
+  'public/assets/music/failure_stinger.mp3',
+];
+
 for (const file of requiredFiles) {
   await readFile(file, 'utf8');
+}
+for (const file of requiredBinaryFiles) {
+  const bytes = await readFile(file);
+  if (bytes.length < 1000) throw new Error(`Audio asset is unexpectedly small: ${file}`);
 }
 
 const manifest = JSON.parse(await readFile('public/manifest.webmanifest', 'utf8'));
@@ -681,10 +696,14 @@ try {
   const hostProfile = { variant: initialProfile.hostVariant, tempoOffset: 0 };
   const lowScore = createNativeMusicDescriptor(initialProfile, hostProfile);
   const mediumScore = createNativeMusicDescriptor(mediumAlertProfile, hostProfile);
-  if (!lowScore.startsWith('native-web-audio://')) throw new Error('Music should use native WebAudio descriptor instead of Strudel');
-  if (!mediumScore.includes('stage=1')) throw new Error('Native music descriptor should react to pressure stage');
+  if (!lowScore.startsWith('adaptive-buffer-web-audio://')) throw new Error('Music should use adaptive WebAudio buffers instead of Strudel or oscillator-only loops');
+  if (!mediumScore.includes('stage=1')) throw new Error('Adaptive music descriptor should react to pressure stage');
   if (!(await director.toggleMusic())) throw new Error('Music should enable with mock AudioContext');
   if (!director.isMusicEnabled() || director.isSfxEnabled()) throw new Error('Music and SFX toggles should be independent');
+  const musicDebug = director.getMusicDebugState();
+  if (musicDebug.engine !== 'adaptive-buffer-web-audio' || !musicDebug.loaded || !('base' in musicDebug.layers) || !('threat' in musicDebug.layers)) {
+    throw new Error('Music should start an adaptive layered buffer engine');
+  }
   if (director.setMusicVolume(0.42) !== 0.42 || director.getState().musicVolume !== 0.42) throw new Error('Music volume should be adjustable');
   if (director.setSfxVolume(0.18) !== 0.18 || director.getState().sfxVolume !== 0.18) throw new Error('SFX volume should be adjustable');
   if (director.setMusicVolume(2) !== 1 || director.setSfxVolume(-1) !== 0) throw new Error('Audio volume should be clamped');
@@ -695,12 +714,15 @@ try {
   const highProfile = director.updateRunState({ ...createInitialRunState(iceSystem), alert: 10, trace: 8, integrity: 1 }, iceSystem);
   if (highProfile.level !== 'high') throw new Error('High danger should move audio profile to high pressure');
   const highScore = createNativeMusicDescriptor(highProfile, hostProfile);
-  if (!highScore.includes('stage=3')) throw new Error('High danger should move native music descriptor to stage 3');
+  if (!highScore.includes('stage=3')) throw new Error('High danger should move adaptive music descriptor to stage 3');
+  const iceAudioProfile = director.updateRunState(movedIntoIce, iceSystem);
+  if (!iceAudioProfile.iceActive) throw new Error('Adaptive music profile should detect active ICE on the current node');
   await director.play('scan');
   await director.play('spike');
   await director.play('ghost');
   await director.play('shield');
   await director.play('extract');
+  if (director.getMusicDebugState().layers.extract <= 0.0001) throw new Error('Extract action should raise the adaptive extraction layer');
   if (!director.isEnabled()) throw new Error('Audio director should remain enabled after jack-out sounds');
   if (await director.toggleSfx()) throw new Error('SFX should disable cleanly');
   if (await director.toggleMusic()) throw new Error('Music should disable cleanly');

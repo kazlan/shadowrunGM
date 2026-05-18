@@ -1,7 +1,9 @@
+import { createAdaptiveMusicDirector } from './adaptiveMusicDirector.js';
+
 const AudioContextCtor = globalThis.AudioContext ?? globalThis.webkitAudioContext;
 
 const SFX_VOLUME = 0.34;
-const MUSIC_VOLUME = 0.16;
+const MUSIC_VOLUME = 0.11;
 const MIN_AUDIO_VALUE = 0.0001;
 
 export function createAudioDirector() {
@@ -13,7 +15,7 @@ export function createAudioDirector() {
   let sfxEnabled = false;
   let musicVolume = MUSIC_VOLUME;
   let sfxVolume = SFX_VOLUME;
-  let musicTimer = null;
+  let adaptiveMusic = null;
   let runProfile = createRunProfile();
   let hostProfile = createHostProfile('default');
 
@@ -47,9 +49,14 @@ export function createAudioDirector() {
     },
 
     updateRunState(run, system) {
-      runProfile = createRunProfile(run);
+      runProfile = createRunProfile(run, system);
       hostProfile = createHostProfile(system?.seedId ?? system?.alias ?? 'default');
+      adaptiveMusic?.update(runProfile, hostProfile);
       return { ...runProfile, hostVariant: hostProfile.variant };
+    },
+
+    getMusicDebugState() {
+      return adaptiveMusic?.getDebugState() ?? { engine: 'adaptive-buffer-web-audio', enabled: false, loaded: false, layers: {} };
     },
 
     async toggle() {
@@ -64,17 +71,17 @@ export function createAudioDirector() {
         musicEnabled = !musicEnabled;
         if (musicEnabled) {
           await resumeContext();
-          startMusicLoop(true);
+          await adaptiveMusic.start();
           if (sfxEnabled) playMusicOn();
         } else {
           if (sfxEnabled) playMusicOff();
-          stopMusicLoop();
+          adaptiveMusic?.stop();
         }
         return musicEnabled;
       } catch (error) {
         console.warn('Audio unavailable', error);
         musicEnabled = false;
-        stopMusicLoop();
+        adaptiveMusic?.stop();
         return false;
       }
     },
@@ -97,6 +104,7 @@ export function createAudioDirector() {
     },
 
     async play(eventName) {
+      adaptiveMusic?.handleEvent(eventName);
       if (!sfxEnabled) return;
 
       try {
@@ -142,48 +150,17 @@ export function createAudioDirector() {
     musicBus = context.createGain();
     musicBus.gain.value = musicVolume;
     musicBus.connect(master);
+
+    adaptiveMusic = createAdaptiveMusicDirector({
+      getContext: () => context,
+      destination: musicBus,
+      getRunProfile: () => runProfile,
+      getHostProfile: () => hostProfile,
+    });
   }
 
   async function resumeContext() {
     if (context?.state === 'suspended') await context.resume();
-  }
-
-  function startMusicLoop(immediate = false) {
-    stopMusicLoop();
-    const tick = () => {
-      if (!musicEnabled || !context || !musicBus) return;
-      playMusicPhrase();
-      const interval = 1350 - runProfile.stage * 180 + (hostProfile.tempoOffset ?? 0) * 5000;
-      musicTimer = globalThis.setTimeout(tick, Math.max(720, interval));
-    };
-    musicTimer = globalThis.setTimeout(tick, immediate ? 0 : 600);
-  }
-
-  function stopMusicLoop() {
-    if (musicTimer) {
-      globalThis.clearTimeout(musicTimer);
-      musicTimer = null;
-    }
-  }
-
-  function playMusicPhrase() {
-    const variant = hostProfile.variant % 5;
-    const root = [110, 123.47, 146.83, 164.81, 196][variant];
-    const pressure = runProfile.stage;
-    const chord = pressure >= 2 ? [1, 1.5, 2.25] : [1, 1.25, 1.5];
-    chord.forEach((ratioValue, index) => {
-      globalThis.setTimeout(() => playTone({
-        frequency: root * ratioValue,
-        endFrequency: root * ratioValue * (1 + pressure * 0.01),
-        duration: 0.42,
-        type: index === 0 ? 'triangle' : 'sine',
-        volume: 0.035 + pressure * 0.01,
-        destination: musicBus,
-      }), index * 32);
-    });
-    if (pressure >= 1) {
-      globalThis.setTimeout(() => playTone({ frequency: root * 4, endFrequency: root * 3, duration: 0.12, type: 'square', volume: 0.022, destination: musicBus }), 210);
-    }
   }
 
   function playTone({ frequency, endFrequency = frequency, duration = 0.16, type = 'sine', volume = 0.24, destination = sfxBus }) {
@@ -313,7 +290,7 @@ export function createAudioDirector() {
 
 export function createNativeMusicDescriptor(profile, host) {
   const music = createMusicProfile(profile, host);
-  return `native-web-audio://${music.chordPattern}?cps=${music.cps}&stage=${profile?.stage ?? 0}`;
+  return `adaptive-buffer-web-audio://${music.chordPattern}?cps=${music.cps}&stage=${profile?.stage ?? 0}`;
 }
 
 function createMusicProfile(profile = createRunProfile(), host = createHostProfile('default')) {
@@ -390,18 +367,23 @@ function createMusicProfile(profile = createRunProfile(), host = createHostProfi
   };
 }
 
-function createRunProfile(run = {}) {
+function createRunProfile(run = {}, system = null) {
   const alert = ratio(run.alert, run.maxAlert);
   const trace = ratio(run.trace, run.maxTrace);
   const damage = 1 - ratio(run.integrity ?? run.maxIntegrity, run.maxIntegrity);
   const pressure = clamp(Math.max(alert * 1.08, trace * 0.86, damage * 0.76), 0, 1);
   const stage = pressure >= 0.72 ? 3 : pressure >= 0.48 ? 2 : pressure >= 0.24 ? 1 : 0;
+  const currentNode = system?.nodes?.find((node) => node.id === run.currentNodeId);
+  const iceActive = Boolean(currentNode?.ice && !(run.neutralizedIce ?? []).includes(currentNode.id));
   return {
     alert,
     trace,
     damage,
     pressure,
     stage,
+    iceActive,
+    hasPayload: Boolean(run.hasPayload),
+    status: run.status ?? 'exploring',
     level: stage >= 3 ? 'high' : stage >= 1 ? 'medium' : 'low',
   };
 }
