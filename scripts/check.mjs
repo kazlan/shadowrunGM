@@ -477,13 +477,20 @@ const movedIntoIce = reduceRun(iceSystem, createInitialRunState(iceSystem), { ty
 const killedIceRun = reduceRun(iceSystem, movedIntoIce, { type: 'runProgram', program: 'spike' });
 if (killedIceRun.status !== 'exploring') throw new Error('Successful spike should return to exploring after neutralizing ICE');
 if (!killedIceRun.neutralizedIce.includes('n-1')) throw new Error('Successful spike should mark ICE as neutralized');
+if (!movedIntoIce.log.at(-1).includes('ALERTA')) throw new Error('Run log entries should annotate alert pressure deltas when they change');
+const unsafeJackOutRun = reduceRun(iceSystem, movedIntoIce, { type: 'jackOut' });
+if (!unsafeJackOutRun.log.at(-1).includes('TRAZA') || !unsafeJackOutRun.log.at(-1).includes('SHELL')) throw new Error('Run log entries should annotate trace and shell pressure deltas when they change');
+let longLogRun = createInitialRunState(iceSystem);
+for (let index = 0; index < 10; index += 1) longLogRun = reduceRun(iceSystem, longLogRun, { type: 'selectProgram', program: index % 2 === 0 ? 'scan' : 'ghost' });
+if (longLogRun.log.length <= 7) throw new Error('Run log should retain more than the old seven-line tail for post-run review');
 renderNodeMap(projectSystemForRun(iceSystem, killedIceRun), killedIceRun);
 const finishedMapHtml = renderNodeMap(projectSystemForRun(jackOutSystem, jackOutRun), jackOutRun, undefined, null, { score: 55, reward: 12, lootTokens: 0, operator: 'usr@sh' });
-if (!finishedMapHtml.includes('cerrar_run') || !finishedMapHtml.includes('node-map--result') || !finishedMapHtml.includes('VENTANA DE MAPA CERRADA')) throw new Error('Finished runs should render a closed-map completion terminal inside the node window');
+if (!finishedMapHtml.includes('cerrar_run') || !finishedMapHtml.includes('node-map--result') || !finishedMapHtml.includes('VENTANA DE MAPA CERRADA') || !finishedMapHtml.includes('node-map__log-button')) throw new Error('Finished runs should render a closed-map completion terminal with log access inside the node window');
 const cleanedSuccessMapHtml = renderNodeMap(projectSystemForRun(jackOutSystem, { ...jackOutRun, hasPayload: false, lootTokens: 0 }), { ...jackOutRun, hasPayload: false, lootTokens: 0 }, undefined, null, { status: 'escaped', score: 55, reward: 12, lootTokens: 2, operator: 'usr@sh' });
 if (!cleanedSuccessMapHtml.includes('EXTRACCIÓN CONFIRMADA') || cleanedSuccessMapHtml.includes('CONEXIÓN CORTADA')) throw new Error('Successful cleaned runs should still render the success terminal from the run result snapshot');
 const mapMessageHtml = renderNodeMap(projectSystemForRun(iceSystem, killedIceRun), killedIceRun, undefined, { key: 'check', text: 'Ultima traza visible' });
 if (!mapMessageHtml.includes('node-map__message') || !mapMessageHtml.includes('node-map__log-button') || !mapMessageHtml.includes('Ultima traza visible')) throw new Error('Node map should surface the latest log message and log button');
+if (!themeSource.includes('.node-map__message span') || !themeSource.includes('left: 100%') || !themeSource.includes('translate(calc(-100% - 100vw), -50%)')) throw new Error('Latest-log ticket should travel from right to left beside the log button');
 const nodeVisitHtml = renderNodeMap(projectSystemForRun(iceSystem, movedIntoIce), movedIntoIce, undefined, null, null, true, {
   nodeId: 'n-1',
   fromNodeId: 'n-0',
@@ -501,6 +508,8 @@ const animatedDeckTraceHtml = renderDeckTrace(upgradedDeckResult.profile, create
 if (!animatedDeckTraceHtml.includes('deck-trace--transfer') || !animatedDeckTraceHtml.includes('RUN 40') || !animatedDeckTraceHtml.includes('CTA 120')) throw new Error('Deck trace should render animated transfer counters');
 const runLogDialogHtml = renderRunLogDialog(true, killedIceRun);
 if (!runLogDialogHtml.includes('run-log-dialog') || !runLogDialogHtml.includes('run-log-dialog__list') || !runLogDialogHtml.includes('Cerrar historial')) throw new Error('Run log should render as a modal dialog with a scrollable history list');
+const postRunPanelHtml = renderPostRunScannerPanel({ ...jackOutRun, hostAlias: 'ICE CHECK', score: 10, reward: 1, lootTokens: 0 }, null, upgradedDeckResult.profile);
+if (!postRunPanelHtml.includes('data-action="toggleRunLog"') || !postRunPanelHtml.includes('Ver log')) throw new Error('Post-run panel should keep the previous run log accessible before the next host starts');
 const deckOverlayHtml = renderDeckOverlay(true, upgradedDeckResult.profile, 'Scan mejorado.');
 if (!deckOverlayHtml.includes('Software cargado') || !deckOverlayHtml.includes('cred en cuenta')) throw new Error('Deck overlay should render loaded software and player account credits');
 if (!deckOverlayHtml.includes('deck-software-grid')) throw new Error('Deck software should render as a card grid');

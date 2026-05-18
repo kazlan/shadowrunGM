@@ -65,7 +65,7 @@ const appState = {
   theme: applyTheme(loadThemePreference()),
   mapLogMessage: null,
   mapReveal: null,
-  lastMapLogLength: 0,
+  lastMapLogKey: null,
   completion: null,
   runResult: null,
   postRunRebooted: false,
@@ -127,7 +127,7 @@ async function startRun(place) {
   appState.isDeckOpen = false;
   appState.isRunLogOpen = false;
   appState.run = createInitialRunState(appState.system, appState.deckProfile);
-  appState.lastMapLogLength = 0;
+  appState.lastMapLogKey = null;
   appState.mapReveal = null;
   updateMapLogMessage(true);
   appState.currentProgress = getHostProgress(appState.system.seedId);
@@ -588,16 +588,18 @@ function scrollRunLogToLatest() {
 
 function updateMapLogMessage(force = false) {
   const length = appState.run?.log?.length ?? 0;
-  if (!force && length <= appState.lastMapLogLength) return;
-  appState.lastMapLogLength = length;
   const text = appState.run?.log?.[length - 1];
   if (!text) {
+    appState.lastMapLogKey = null;
     appState.mapLogMessage = null;
     return;
   }
 
+  const key = `${appState.runSessionId}:${appState.run?.turn ?? 0}:${appState.run?.status ?? 'run'}:${text}`;
+  if (!force && key === appState.lastMapLogKey) return;
+  appState.lastMapLogKey = key;
   appState.mapLogMessage = {
-    key: `${length}-${appState.run.turn ?? 0}`,
+    key,
     text,
     expiresAt: Date.now() + MAP_LOG_MESSAGE_MS,
   };

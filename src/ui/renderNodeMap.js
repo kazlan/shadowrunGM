@@ -338,6 +338,7 @@ function renderRunResultWindow(system, run, runResult = null) {
   const resultClass = success ? 'node-map--success' : 'node-map--failure';
 
   return `<section class="node-map node-map--result ${resultClass}" aria-label="Resumen final de la run">
+    ${renderMapLogButton(run)}
     <div class="result-terminal">
       <p class="result-command">${escapeHtml(command)}</p>
       <strong class="result-brand fx-glitch" data-text="SHADOW HACK">SHADOW HACK</strong>

@@ -36,7 +36,10 @@ export function renderPostRunScannerPanel(runResult, completion, deckProfile, re
     </div>
     <div class="post-run-panel__body">
       <p>${escapeHtml(summary)}</p>
-      ${rebooted ? renderScannerReady(completion, deckProfile) : '<button class="reboot-deck" data-action="rebootDeck" type="button">Reboot deck</button>'}
+      <div class="post-run-panel__actions">
+        <button class="post-run-panel__log" data-action="toggleRunLog" type="button">Ver log</button>
+        ${rebooted ? renderScannerReady(completion, deckProfile) : '<button class="reboot-deck" data-action="rebootDeck" type="button">Reboot deck</button>'}
+      </div>
     </div>
   </section>`;
 }

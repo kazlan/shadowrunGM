@@ -1,30 +1,40 @@
 import { getConnectedNodeIds, getNodeState, isRunFinished, NODE_RUNTIME_STATE, RUN_STATUS } from './runState.js';
 import { getNodeEvent } from './nodeEvents.js';
 
-const MAX_LOG_LINES = 7;
+const MAX_LOG_LINES = 80;
 const LOOT_CREDIT_VALUE = 25;
 
 export function reduceRun(system, run, action, deckProfile = null) {
   if (isRunFinished(run)) {
-    return addLog(run, 'La run ya ha terminado. Reinicia para volver a entrar.');
+    return annotateRunChanges(run, addLog(run, 'La run ya ha terminado. Reinicia para volver a entrar.'));
   }
 
+  let nextRun;
   switch (action.type) {
     case 'selectProgram':
-      return selectProgram(run, action.program);
+      nextRun = selectProgram(run, action.program);
+      break;
     case 'scan':
-      return scan(system, run, deckProfile);
+      nextRun = scan(system, run, deckProfile);
+      break;
     case 'move':
-      return move(system, run, action.nodeId);
+      nextRun = move(system, run, action.nodeId);
+      break;
     case 'runProgram':
-      return runProgram(system, run, action.program, deckProfile);
+      nextRun = runProgram(system, run, action.program, deckProfile);
+      break;
     case 'extract':
-      return extract(system, run, deckProfile);
+      nextRun = extract(system, run, deckProfile);
+      break;
     case 'jackOut':
-      return jackOut(system, run);
+      nextRun = jackOut(system, run);
+      break;
     default:
-      return addLog(run, 'Acción desconocida ignorada.');
+      nextRun = addLog(run, 'Acción desconocida ignorada.');
+      break;
   }
+
+  return annotateRunChanges(run, nextRun);
 }
 
 function selectProgram(run, program) {
@@ -439,6 +449,34 @@ function enforceFailure(run) {
   }
 
   return run;
+}
+
+
+function annotateRunChanges(previousRun, nextRun) {
+  const pressure = formatPressureDelta(previousRun, nextRun);
+  if (!pressure || nextRun.log.length === 0) return nextRun;
+
+  const log = [...nextRun.log];
+  const lastIndex = log.length - 1;
+  if (log[lastIndex].includes('[Δ ')) return nextRun;
+  log[lastIndex] = `${log[lastIndex]} [Δ ${pressure}]`;
+  return { ...nextRun, log };
+}
+
+function formatPressureDelta(previousRun, nextRun) {
+  const deltas = [
+    formatMeterDelta('ALERTA', previousRun.alert, nextRun.alert),
+    formatMeterDelta('TRAZA', previousRun.trace, nextRun.trace),
+    formatMeterDelta('SHELL', previousRun.integrity, nextRun.integrity),
+  ].filter(Boolean);
+  return deltas.join(' · ');
+}
+
+function formatMeterDelta(label, previousValue, nextValue) {
+  if (previousValue === nextValue) return '';
+  const delta = nextValue - previousValue;
+  const sign = delta > 0 ? '+' : '';
+  return `${label} ${previousValue}→${nextValue} (${sign}${delta})`;
 }
 
 function addLog(run, message) {

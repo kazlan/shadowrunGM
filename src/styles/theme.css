@@ -736,16 +736,19 @@ button:focus-visible {
 .node-map__message {
   position: absolute;
   right: 8px;
-  bottom: 11px;
+  bottom: 10px;
   left: 72px;
   z-index: 7;
-  display: flex;
-  justify-content: flex-end;
+  height: 38px;
+  overflow: hidden;
   pointer-events: none;
-  animation: mapLogTicket 5.2s ease-out forwards;
 }
 .node-map__message span {
-  max-width: min(100%, 330px);
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  width: max-content;
+  max-width: min(72vw, 430px);
   padding: 8px 10px;
   overflow: hidden;
   color: var(--text-strong);
@@ -759,6 +762,7 @@ button:focus-visible {
   text-overflow: ellipsis;
   text-shadow: 0 1px 8px var(--shadow-strong);
   white-space: nowrap;
+  animation: mapLogTicket 5.2s linear forwards;
 }
 .node-map--visiting .node-map__heading,
 .node-map--visiting .node-map__meters {
@@ -2368,6 +2372,7 @@ button:focus-visible {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
 }
+.post-run-panel__actions .post-run-panel__note { grid-column: 1 / -1; }
 .post-run-panel__save,
 .post-run-panel__actions button,
 .post-run-panel .reboot-deck,
@@ -3066,10 +3071,10 @@ button:focus-visible {
 }
 
 @keyframes mapLogTicket {
-  0% { opacity: 0; transform: translateX(42px); }
-  8% { opacity: 1; transform: translateX(0); }
-  72% { opacity: 1; transform: translateX(0); }
-  100% { opacity: 0; transform: translateX(-48px); }
+  0% { opacity: 0; transform: translate(0, -50%); }
+  7% { opacity: 1; transform: translate(-8vw, -50%); }
+  86% { opacity: 1; transform: translate(calc(-100% - 78vw), -50%); }
+  100% { opacity: 0; transform: translate(calc(-100% - 100vw), -50%); }
 }
 
 @keyframes scanlineDrift {
@@ -3233,8 +3238,8 @@ button:focus-visible {
   .node-map-meter span { font-size: .42rem; }
   .node-map-meter strong { min-width: 24px; font-size: .46rem; }
   .node-map__log-button { left: 6px; bottom: 6px; width: 50px; height: 34px; padding: 0 7px; }
-  .node-map__message { right: 6px; bottom: 6px; left: 62px; }
-  .node-map__message span { padding: 6px 8px; font-size: .74rem; }
+  .node-map__message { right: 6px; bottom: 6px; left: 62px; height: 34px; }
+  .node-map__message span { max-width: min(74vw, 330px); padding: 6px 8px; font-size: .74rem; }
   .scan-local { min-height: 34px; font-size: .68rem; }
   .deck-trace button { min-height: 32px; padding: 6px 7px; }
   .deck-trace strong { font-size: .68rem; }
