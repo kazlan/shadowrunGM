@@ -37,20 +37,22 @@ Las defensas quedan separadas en tres capas:
 
 ## Reglas de composición de host
 
-Los hosts se generan por plantillas de topología, no como una línea de nodos aleatorios. Cada plantilla debe producir una infiltración con entrada, tránsito, control, datos, núcleo y salida:
+Los hosts se generan por plantillas de topología, no como una línea de nodos aleatorios. La silueta base es radial/en estrella para que cada host se lea como una periferia de acceso/escape, una zona media de control, cámaras de datos protegidas y una CPU interna. Cada plantilla debe producir una infiltración con entrada, tránsito, control, datos, núcleo y salida:
 
-- **Small**: 7-9 nodos, un datastore, una puerta y una salida.
-- **Standard**: 10-13 nodos, dos datastores, dos capas defensivas y salida lateral.
-- **Secure**: 14-17 nodos, hub interno, rama de datos, rama de control y núcleo aislado.
+- **Small**: 9-11 nodos, un datastore protegido, una puerta de entrada, hub interno, CPU y salida periférica.
+- **Standard**: 12-15 nodos, dos ramas de datos posibles, rutas cruzadas ligeras, dos capas defensivas y salida lateral.
+- **Secure**: 16-19 nodos, hub interno reforzado, cámara de datos redundante, rama de control, enlaces cruzados peligrosos y núcleo aislado.
 
 Reglas obligatorias:
 
 - El nodo de entrada no contiene paydata real.
 - Los archivos reales aparecen a tres saltos o más desde la entrada.
 - El núcleo aparece a cuatro saltos o más desde la entrada.
+- La CPU y los archivos reales no deben quedar pegados a salidas; las salidas son periferia, no atajos a recompensas.
 - Los hosts A/AA/AAA exigen al menos dos decisiones tácticas antes del primer payload real.
 - Si aparece dato cerca de entrada, debe funcionar como señuelo, pista o nodo bloqueado, no como recompensa inmediata.
 - Cada host debe ofrecer una ruta corta peligrosa y una ruta más legible, con al menos una salida alcanzable.
+- La seed puede rotar, invertir, alargar ramas y añadir anillos parciales, pero no romper la gramática: periferia para acceso/escape, zona media para control, ramas protegidas para datos y centro interno para CPU.
 
 La inspiración v2/v3 se limita a la idea general de hosts por capas, datastores, control, núcleo, defensas y seguridad escalonada. `shadowHack` usa nombres, relojes y procedimientos propios.
 
