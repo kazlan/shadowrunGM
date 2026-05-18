@@ -45,7 +45,6 @@ const requiredFiles = [
   'src/game/systemView.js',
   'src/game/runState.js',
   'src/game/runEngine.js',
-  'src/ui/renderProgress.js',
   'src/world/progressStore.js',
   'src/world/deckStore.js',
   'src/game/runScoring.js',
@@ -219,7 +218,7 @@ const { renderNodeMap } = await import('../src/ui/renderNodeMap.js');
 const { renderDeckOverlay, renderDeckTrace } = await import('../src/ui/renderDeckPanel.js');
 const { renderHelpOverlay, renderSettingsOverlay } = await import('../src/ui/renderHelpOverlay.js');
 const { renderHud, renderProgramDock } = await import('../src/ui/renderHud.js');
-const { renderPostRunScannerPanel } = await import('../src/ui/renderRunLog.js');
+const { renderPostRunScannerPanel, renderRunLogDialog } = await import('../src/ui/renderRunLog.js');
 const { renderScannerOverlay } = await import('../src/ui/renderScannerOverlay.js');
 const { applyTheme, normalizeThemeKey, themeCatalog } = await import('../src/ui/themeStore.js');
 const { firebaseFirestoreDatabaseId, getFirebaseConfig, isFirebaseConfigured, isFirebaseMessagingConfigured } = await import('../src/firebase/firebaseConfig.js');
@@ -227,7 +226,6 @@ const { getFirebaseStatus } = await import('../src/firebase/firebaseClient.js');
 const { cloudPaths } = await import('../src/firebase/cloudPersistence.js');
 const { mergeDeckProfiles } = await import('../src/firebase/cloudSync.js');
 const { createOverpassProvider } = await import('../src/world/overpassProvider.js');
-const { renderProgressPanel } = await import('../src/ui/renderProgress.js');
 const { renderCompletionScreen } = await import('../src/ui/renderCompletionScreen.js');
 const { addHostBookmark, avatarCatalog, awardRunCredits, createDefaultDeckProfile, getBookmarkCapacity, getStorageCapacity, updatePlayerProfile, upgradeDeckProfile } = await import('../src/world/deckStore.js');
 
@@ -388,7 +386,7 @@ if (!finishedMapHtml.includes('run_complete.sh') || !finishedMapHtml.includes('n
 const cleanedSuccessMapHtml = renderNodeMap(projectSystemForRun(jackOutSystem, { ...jackOutRun, hasPayload: false, lootTokens: 0 }), { ...jackOutRun, hasPayload: false, lootTokens: 0 }, undefined, null, { status: 'escaped', score: 55, reward: 12, lootTokens: 2, operator: 'usr@sh' });
 if (!cleanedSuccessMapHtml.includes('--status success') || cleanedSuccessMapHtml.includes('CRITICAL FALLBACK')) throw new Error('Successful cleaned runs should still render the success terminal from the run result snapshot');
 const mapMessageHtml = renderNodeMap(projectSystemForRun(iceSystem, killedIceRun), killedIceRun, undefined, { key: 'check', text: 'Ultima traza visible' });
-if (!mapMessageHtml.includes('node-map__message') || !mapMessageHtml.includes('Ultima traza visible')) throw new Error('Node map should surface the latest log message');
+if (!mapMessageHtml.includes('node-map__message') || !mapMessageHtml.includes('node-map__log-button') || !mapMessageHtml.includes('Ultima traza visible')) throw new Error('Node map should surface the latest log message and log button');
 const nodeVisitHtml = renderNodeMap(projectSystemForRun(iceSystem, movedIntoIce), movedIntoIce, undefined, null, null, true, {
   nodeId: 'n-1',
   fromNodeId: 'n-0',
@@ -397,11 +395,14 @@ const nodeVisitHtml = renderNodeMap(projectSystemForRun(iceSystem, movedIntoIce)
   autoDismiss: false,
 });
 if (!nodeVisitHtml.includes('node-focus-hud') || !nodeVisitHtml.includes('route--focus') || !nodeVisitHtml.includes('Centinela') || !nodeVisitHtml.includes('REC: Spike') || nodeVisitHtml.includes('TIPO')) throw new Error('Node visits should render a non-modal tactical focus HUD with ICE and a concise recommendation hint');
-if (!renderDeckTrace(upgradedDeckResult.profile, createInitialRunState(iceSystem, upgradedDeckResult.profile), 'Scan mejorado.').includes('deck-memory')) throw new Error('Deck trace should show segmented memory');
+const deckTraceHtml = renderDeckTrace(upgradedDeckResult.profile, createInitialRunState(iceSystem, upgradedDeckResult.profile), 'Scan mejorado.');
+if (deckTraceHtml.includes('deck-memory')) throw new Error('Deck trace should not render the removed local memory box');
 const finishedDeckTraceHtml = renderDeckTrace(upgradedDeckResult.profile, { ...createInitialRunState(iceSystem, upgradedDeckResult.profile), status: 'escaped', lootTokens: 3, deckCash: 99 }, 'Run limpia.');
-if (!finishedDeckTraceHtml.includes('RUN 0') || !finishedDeckTraceHtml.includes('CTA') || !finishedDeckTraceHtml.includes('0/5')) throw new Error('Finished runs should empty deck cash and memory in the deck trace');
+if (!finishedDeckTraceHtml.includes('RUN 0') || !finishedDeckTraceHtml.includes('CTA')) throw new Error('Finished runs should empty deck cash in the deck trace');
 const animatedDeckTraceHtml = renderDeckTrace(upgradedDeckResult.profile, createInitialRunState(iceSystem, upgradedDeckResult.profile), 'Transfer.', { phase: 'transfer', maxLoot: 5, loot: 2, deckCash: 40, accountCredits: 120 });
-if (!animatedDeckTraceHtml.includes('deck-trace--transfer') || !animatedDeckTraceHtml.includes('RUN 40') || !animatedDeckTraceHtml.includes('CTA 120') || !animatedDeckTraceHtml.includes('2/5')) throw new Error('Deck trace should render animated transfer counters');
+if (!animatedDeckTraceHtml.includes('deck-trace--transfer') || !animatedDeckTraceHtml.includes('RUN 40') || !animatedDeckTraceHtml.includes('CTA 120')) throw new Error('Deck trace should render animated transfer counters');
+const runLogDialogHtml = renderRunLogDialog(true, killedIceRun);
+if (!runLogDialogHtml.includes('run-log-dialog') || !runLogDialogHtml.includes('run-log-dialog__list') || !runLogDialogHtml.includes('Cerrar historial')) throw new Error('Run log should render as a modal dialog with a scrollable history list');
 const deckOverlayHtml = renderDeckOverlay(true, upgradedDeckResult.profile, 'Scan mejorado.');
 if (!deckOverlayHtml.includes('Software cargado') || !deckOverlayHtml.includes('cred en cuenta')) throw new Error('Deck overlay should render loaded software and player account credits');
 if (!deckOverlayHtml.includes('deck-software-grid')) throw new Error('Deck software should render as a card grid');
@@ -477,7 +478,6 @@ try {
   if (fetchDescriptor) Object.defineProperty(globalThis, 'fetch', fetchDescriptor);
   else delete globalThis.fetch;
 }
-renderProgressPanel({ valueTier: 'B', companyValue: 60, completedRuns: 2, bestScore: 140 }, []);
 
 const eventSystem = {
   seedId: 'event-check',

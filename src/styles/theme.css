@@ -101,6 +101,7 @@ button:focus-visible {
   .scan-local,
   .program-dock button,
   .node-map__controls button,
+  .node-map__log-button,
   .settings-toggle,
   .audio-toggle,
   .help-tabs button,
@@ -128,6 +129,7 @@ button:focus-visible {
   .scan-local,
   .program-dock button,
   .node-map__controls button,
+  .node-map__log-button,
   .settings-toggle,
   .audio-toggle,
   .help-tabs button,
@@ -158,7 +160,6 @@ button:focus-visible {
 :where(
   .target-card,
   .node-map,
-  .progress-panel,
   .run-log,
   .post-run-panel,
   .overlay-panel,
@@ -166,7 +167,6 @@ button:focus-visible {
   .help-card,
   .help-callout,
   .scanner-targets button,
-  .deck-memory,
   .deck-part,
   .deck-upgrade,
   .deck-stat-card,
@@ -179,7 +179,6 @@ button:focus-visible {
 
 :where(
   .target-card,
-  .progress-panel,
   .run-log,
   .post-run-panel,
   .overlay-panel,
@@ -187,7 +186,6 @@ button:focus-visible {
   .help-card,
   .help-callout,
   .scanner-targets button,
-  .deck-memory,
   .deck-part,
   .deck-upgrade,
   .deck-stat-card,
@@ -197,7 +195,6 @@ button:focus-visible {
 )::before,
 :where(
   .target-card,
-  .progress-panel,
   .run-log,
   .post-run-panel,
   .overlay-panel,
@@ -205,7 +202,6 @@ button:focus-visible {
   .help-card,
   .help-callout,
   .scanner-targets button,
-  .deck-memory,
   .deck-part,
   .deck-upgrade,
   .deck-stat-card,
@@ -222,7 +218,6 @@ button:focus-visible {
 
 :where(
   .target-card,
-  .progress-panel,
   .run-log,
   .post-run-panel,
   .overlay-panel,
@@ -230,7 +225,6 @@ button:focus-visible {
   .help-card,
   .help-callout,
   .scanner-targets button,
-  .deck-memory,
   .deck-part,
   .deck-upgrade,
   .deck-stat-card,
@@ -246,7 +240,6 @@ button:focus-visible {
 
 :where(
   .target-card,
-  .progress-panel,
   .run-log,
   .post-run-panel,
   .overlay-panel,
@@ -254,7 +247,6 @@ button:focus-visible {
   .help-card,
   .help-callout,
   .scanner-targets button,
-  .deck-memory,
   .deck-part,
   .deck-upgrade,
   .deck-stat-card,
@@ -268,17 +260,17 @@ button:focus-visible {
   border-bottom: 2px solid var(--frame-line);
 }
 
-:where(.run-log, .post-run-panel, .deck-memory, .result-message) {
+:where(.run-log, .post-run-panel, .result-message) {
   isolation: isolate;
   overflow: hidden;
 }
 
-:where(.run-log, .post-run-panel, .deck-memory, .result-message) > * {
+:where(.run-log, .post-run-panel, .result-message) > * {
   position: relative;
   z-index: 1;
 }
 
-:where(.run-log, .post-run-panel, .deck-memory, .result-message)::after {
+:where(.run-log, .post-run-panel, .result-message)::after {
   top: 0;
   right: auto;
   bottom: auto;
@@ -608,8 +600,8 @@ button:focus-visible {
 .node-map {
   position: relative;
   z-index: 1;
-  flex: 1 1 210px;
-  min-height: 130px;
+  flex: 1 1 300px;
+  min-height: 220px;
   margin: 0;
   overflow: hidden;
   border: 1px solid var(--danger-border);
@@ -699,19 +691,41 @@ button:focus-visible {
   font-weight: 900;
   box-shadow: 0 0 12px rgba(51, 255, 204, .14);
 }
+.node-map__log-button {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 8;
+  width: 54px;
+  height: 38px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  color: var(--cyan);
+  border: 1px solid rgba(51, 255, 204, .42);
+  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+  box-shadow: 0 0 14px rgba(51, 255, 204, .18), inset 0 0 18px rgba(51, 255, 204, .06);
+  font-weight: 900;
+  letter-spacing: .08em;
+  pointer-events: auto;
+}
+.node-map__log-button span { font-size: .62rem; }
+.node-map__log-button b { color: var(--yellow); font-size: .7rem; }
 .node-map__message {
   position: absolute;
   right: 8px;
-  bottom: 8px;
-  left: 8px;
+  bottom: 11px;
+  left: 72px;
   z-index: 7;
   display: flex;
-  justify-content: center;
+  justify-content: flex-end;
   pointer-events: none;
-  animation: mapLogFade 5.2s ease-out forwards;
+  animation: mapLogTicket 5.2s ease-out forwards;
 }
 .node-map__message span {
-  max-width: 100%;
+  max-width: min(100%, 330px);
   padding: 8px 10px;
   overflow: hidden;
   color: var(--text-strong);
@@ -721,7 +735,7 @@ button:focus-visible {
   font-size: clamp(.82rem, 3.6vw, 1rem);
   font-weight: 900;
   line-height: 1.25;
-  text-align: center;
+  text-align: left;
   text-overflow: ellipsis;
   text-shadow: 0 1px 8px var(--shadow-strong);
   white-space: nowrap;
@@ -1723,7 +1737,8 @@ button:focus-visible {
 
 .help-overlay,
 .scanner-overlay,
-.deck-overlay {
+.deck-overlay,
+.run-log-dialog {
   position: fixed;
   inset: 0;
   z-index: 10;
@@ -2255,32 +2270,37 @@ button:focus-visible {
   letter-spacing: .08em;
 }
 
-.run-log {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: 86px 1fr;
-  gap: 10px;
-  max-height: 124px;
-  min-height: 96px;
-  margin: 0;
-  padding: 8px;
-  overflow: hidden;
-  border: 1px solid var(--danger-border);
-  background: var(--surface-strong);
-  box-shadow: 0 0 16px var(--danger-glow);
+.run-log-dialog__panel {
+  max-height: min(78dvh, 620px);
 }
-
-.run-log strong { color: var(--danger-color); }
-.run-log.is-success { border-color: rgba(51, 255, 102, .68); }
-.run-log.is-danger { border-color: rgba(255, 61, 110, .72); }
-.run-log.is-danger strong { color: var(--red); }
-.run-log ol { margin: 0; padding-left: 18px; color: var(--log-text); font-size: .68rem; line-height: 1.35; }
-.run-log ol {
+.run-log-dialog__panel h2 { color: var(--danger-color); }
+.run-log-dialog.is-success .run-log-dialog__panel { border-color: rgba(51, 255, 102, .68); }
+.run-log-dialog.is-danger .run-log-dialog__panel { border-color: rgba(255, 61, 110, .72); }
+.run-log-dialog.is-danger .run-log-dialog__panel h2 { color: var(--red); }
+.run-log-dialog__list {
+  flex: 1 1 auto;
   min-height: 0;
+  margin: 0;
+  padding: 8px 8px 8px 0;
   overflow-y: auto;
+  color: var(--log-text);
+  font-size: .78rem;
+  line-height: 1.35;
+  list-style: none;
   scrollbar-width: thin;
   scrollbar-color: var(--danger-color) rgba(131, 166, 181, .16);
+}
+.run-log-dialog__list li {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(131, 166, 181, .14);
+}
+.run-log-dialog__list li span {
+  color: var(--yellow);
+  font-weight: 900;
+  text-align: right;
 }
 .post-run-panel {
   position: relative;
@@ -2397,19 +2417,6 @@ button:focus-visible {
   opacity: .32;
 }
 
-.progress-panel {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-  gap: 10px;
-  margin: 0;
-  padding: 8px;
-  border: 1px solid var(--danger-border);
-  background: var(--surface);
-  box-shadow: 0 0 14px var(--danger-glow);
-}
-
 .deck-trace {
   position: relative;
   z-index: 1;
@@ -2449,11 +2456,6 @@ button:focus-visible {
   line-height: 1;
 }
 .deck-counters b:last-child { color: var(--yellow); }
-.deck-trace--extract .deck-memory,
-.deck-trace--transfer .deck-memory {
-  border-color: color-mix(in srgb, var(--yellow) 58%, var(--cyan));
-  box-shadow: 0 0 16px color-mix(in srgb, var(--yellow) 18%, transparent);
-}
 .deck-trace--extract .deck-counters b:first-child,
 .deck-trace--transfer .deck-counters b {
   text-shadow: 0 0 10px color-mix(in srgb, var(--yellow) 54%, transparent);
@@ -2472,41 +2474,6 @@ button:focus-visible {
   text-align: center;
 }
 .deck-trace p { margin: 0; color: var(--yellow); font-size: .58rem; text-align: right; }
-.deck-memory {
-  min-height: 22px;
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) 34px;
-  gap: 6px;
-  align-items: center;
-  padding: 4px 6px;
-  border: 1px solid rgba(51, 255, 204, .16);
-  background: var(--surface-strong);
-}
-.deck-memory span,
-.deck-memory em {
-  color: var(--muted);
-  font-size: .54rem;
-  font-style: normal;
-  letter-spacing: .1em;
-}
-.deck-memory em { text-align: right; letter-spacing: 0; }
-.deck-memory b {
-  display: grid;
-  grid-template-columns: repeat(var(--memory-slots, 5), minmax(0, 1fr));
-  gap: 3px;
-}
-.deck-memory b i {
-  display: block;
-  height: 9px;
-  border: 1px solid rgba(131, 166, 181, .3);
-  background: rgba(131, 166, 181, .08);
-}
-.deck-memory b i.is-filled {
-  border-color: rgba(248, 214, 109, .64);
-  background: linear-gradient(180deg, rgba(248, 214, 109, .9), rgba(255, 61, 242, .64));
-  box-shadow: 0 0 8px rgba(248, 214, 109, .24);
-}
-
 .deck-workbench {
   max-height: calc(100dvh - 28px);
 }
@@ -2628,13 +2595,6 @@ button:focus-visible {
 }
 .deck-stat-card button:disabled,
 .deck-software-card button:disabled { opacity: .42; }
-
-.progress-panel p { margin: 4px 0 0; color: var(--text); font-size: .68rem; }
-.progress-panel ol { margin: 0; padding-left: 18px; color: var(--muted); font-size: .62rem; line-height: 1.35; }
-.progress-panel li + li { margin-top: 3px; }
-.progress-panel strong,
-.progress-panel span { display: block; }
-.progress-panel strong { color: var(--yellow); }
 
 .brand-line { display: flex; min-width: 0; align-items: center; gap: 8px; }
 .brand-mark { width: 32px; height: 32px; filter: drop-shadow(0 0 10px rgba(51, 255, 204, .45)); }
@@ -3030,6 +2990,13 @@ button:focus-visible {
   100% { opacity: 0; transform: translateY(4px); }
 }
 
+@keyframes mapLogTicket {
+  0% { opacity: 0; transform: translateX(42px); }
+  8% { opacity: 1; transform: translateX(0); }
+  72% { opacity: 1; transform: translateX(0); }
+  100% { opacity: 0; transform: translateX(-48px); }
+}
+
 @keyframes scanlineDrift {
   from { background-position: 0 0, 0 0; }
   to { background-position: 28px 0, 0 48px; }
@@ -3154,7 +3121,7 @@ button:focus-visible {
   .node--current .node__frame--aura,
   .app-shell--disconnect-glitch .fx-glitch::before,
   .app-shell--disconnect-glitch .fx-glitch::after,
-  :where(.run-log, .post-run-panel, .deck-memory, .result-message)::after,
+  :where(.run-log, .post-run-panel, .result-message)::after,
   .result-command::after {
     animation: none;
   }
@@ -3189,14 +3156,13 @@ button:focus-visible {
   .program-card__body strong { font-size: .58rem; }
   .program-card__body small { display: none; }
   .program-card__rec { top: 4px; right: 4px; font-size: .38rem; }
-  .node-map { flex-basis: 145px; min-height: 100px; }
+  .node-map { flex-basis: 230px; min-height: 180px; }
   .node-map__controls { top: 6px; right: 6px; }
   .node-map__controls button { width: 28px; height: 28px; }
-  .node-map__message { right: 6px; bottom: 6px; left: 6px; }
+  .node-map__log-button { left: 6px; bottom: 6px; width: 50px; height: 34px; padding: 0 7px; }
+  .node-map__message { right: 6px; bottom: 6px; left: 62px; }
   .node-map__message span { padding: 6px 8px; font-size: .74rem; }
   .scan-local { min-height: 34px; font-size: .68rem; }
-  .run-log { grid-template-columns: 74px 1fr; min-height: 82px; max-height: 96px; padding: 7px; }
-  .run-log ol { font-size: .6rem; line-height: 1.25; }
   .deck-trace button { min-height: 32px; padding: 6px 7px; }
   .deck-trace strong { font-size: .68rem; }
   .deck-trace span { font-size: .58rem; }
@@ -3221,8 +3187,6 @@ button:focus-visible {
   .deck-part span { font-size: .5rem; }
   .deck-stat-card button,
   .deck-software-card button { min-height: 23px; font-size: .5rem; }
-  .progress-panel { grid-template-columns: 1fr; gap: 4px; padding: 7px; }
-  .progress-panel ol { display: none; }
   .scanner-toggle { min-height: 34px; font-size: .68rem; }
   .scanner-targets button { min-height: 48px; grid-template-columns: 27px minmax(0, 1fr) auto; gap: 7px; padding: 7px 8px; }
   .scanner-source-icon { width: 24px; height: 24px; }
@@ -3231,13 +3195,11 @@ button:focus-visible {
 
 @media (max-height: 640px) {
   .host-heading small { display: none; }
-  .progress-panel { display: none; }
   .deck-trace i span { min-width: 19px; }
   .deck-parts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .deck-software-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .deck-workbench__status span { display: none; }
-  .node-map { flex-basis: 118px; min-height: 88px; }
-  .run-log { min-height: 68px; max-height: 76px; }
+  .node-map { flex-basis: 170px; min-height: 140px; }
   .help-panel,
   .overlay-panel { max-height: 92dvh; }
   .help-panel__header,

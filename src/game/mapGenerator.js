@@ -5,10 +5,11 @@ const iceByRisk = ['watcher', 'piercer', 'tracer', 'locker', 'crasher'];
 const PAYDATA_MIN_DISTANCE = 3;
 const CORE_MIN_DISTANCE = 4;
 const templateRanges = {
-  small: [7, 9],
-  standard: [10, 13],
-  secure: [14, 17],
+  small: [9, 11],
+  standard: [12, 15],
+  secure: [16, 19],
 };
+const DATA_CORE_MIN_EXIT_DISTANCE = 3;
 const minimumIceByTemplate = {
   small: 1,
   standard: 2,
@@ -56,141 +57,159 @@ function pickTemplateNodeCount(template, valuation, rng) {
 }
 
 function buildTopology(template, targetCount, archetype, rng) {
-  const builders = {
-    small: buildSmallTopology,
-    standard: buildStandardTopology,
-    secure: buildSecureTopology,
+  return buildStarTopology(template, targetCount, archetype, rng);
+}
+
+function buildStarTopology(template, targetCount, archetype, rng) {
+  const nodes = [];
+  const edges = [];
+  const usedAngles = [];
+  const rotation = rng.nextInt(0, 359);
+  const clockwise = rng.nextFloat() < 0.5 ? 1 : -1;
+  const spread = template === 'secure' ? 42 : template === 'standard' ? 52 : 64;
+  const dataBranchCount = template === 'secure' ? 2 : template === 'standard' || archetype.dataBias >= 4 ? 2 : 1;
+
+  const addNode = (zone, kind, radius, angle, radiusJitter = 0) => {
+    const point = polarPoint(radius + rng.nextInt(-radiusJitter, radiusJitter), angle + rng.nextInt(-5, 5));
+    const index = nodes.length;
+    nodes.push(node(zone, kind, point.x, point.y));
+    usedAngles.push(angle);
+    return index;
   };
-  return builders[template](targetCount, archetype, rng);
-}
+  const connect = (from, to) => edges.push(edge(from, to));
+  const angleAt = (offset) => normalizeAngle(rotation + clockwise * offset);
 
-function buildSmallTopology(targetCount, archetype, rng) {
-  const nodes = [
-    node('entry', 'entry', 12, 50),
-    node('foyer', rng.pick(['camera', 'data']), 30, 38),
-    node('control', 'firewall', 48, 44),
-    node('data', 'database', 66, 38),
-    node('bypass', rng.pick(['camera', 'firewall']), 48, 66),
-    node('core', 'core', 84, 44),
-    node('exit', 'exit', 78, 68),
-  ];
-  const edges = [
-    edge(0, 1),
-    edge(1, 2),
-    edge(2, 3),
-    edge(3, 5),
-    edge(3, 6),
-    edge(1, 4),
-    edge(4, 3),
-  ];
+  const entryAngle = angleAt(180 + rng.nextInt(-20, 20));
+  const exitAngle = angleAt(rng.nextInt(-28, 28));
+  const coreAngle = angleAt(80 + rng.nextInt(-18, 18));
+  const dataAngles = [angleAt(-spread + rng.nextInt(-12, 12)), angleAt(spread + rng.nextInt(-12, 12))];
+  const decoyAngle = angleAt(130 + rng.nextInt(-18, 18));
+  const monitorAngle = angleAt(-130 + rng.nextInt(-18, 18));
 
-  if (targetCount >= 8) {
-    nodes.push(node('sideData', archetype.dataBias >= 3 ? 'database' : 'data', 63, 18));
-    edges.push(edge(2, 7), edge(7, 5));
-  }
-  if (targetCount >= 9) {
-    nodes.push(node('decoy', 'data', 31, 72));
-    edges.push(edge(1, 8), edge(8, 4));
-  }
+  const entry = addNode('entry', 'entry', 43, entryAngle, 2);
+  const entryControl = addNode('entryControl', rng.pick(['camera', 'firewall']), 30, entryAngle, 3);
+  const hub = addNode('hub', 'firewall', 13, angleAt(160), 2);
+  const coreGate = addNode('coreGate', 'firewall', 8, coreAngle, 1);
+  const core = addNode('core', 'core', 0, coreAngle, 0);
+  const exitGate = addNode('exitGate', rng.pick(['camera', 'firewall']), 29, exitAngle, 3);
+  const exitNode = addNode('exit', 'exit', 43, exitAngle, 2);
+  const primaryDataGate = addNode('dataGateA', rng.pick(['firewall', 'camera']), 26, dataAngles[0], 3);
+  const primaryData = addNode('dataA', 'database', 39, dataAngles[0], 2);
 
-  return finalizeNodeIds(nodes, edges);
-}
+  connect(entry, entryControl);
+  connect(entryControl, hub);
+  connect(hub, coreGate);
+  connect(coreGate, core);
+  connect(hub, exitGate);
+  connect(exitGate, exitNode);
+  connect(hub, primaryDataGate);
+  connect(primaryDataGate, primaryData);
 
-function buildStandardTopology(targetCount, archetype, rng) {
-  const nodes = [
-    node('entry', 'entry', 10, 50),
-    node('foyer', 'camera', 24, 32),
-    node('decoy', 'data', 24, 68),
-    node('controlA', 'firewall', 40, 32),
-    node('watch', rng.pick(['camera', 'firewall']), 40, 68),
-    node('dataA', 'database', 58, 28),
-    node('controlB', 'firewall', 58, 70),
-    node('dataB', archetype.dataBias >= 4 ? 'database' : 'data', 74, 66),
-    node('core', 'core', 88, 46),
-    node('exit', 'exit', 88, 76),
-  ];
-  const edges = [
-    edge(0, 1),
-    edge(1, 3),
-    edge(3, 5),
-    edge(5, 8),
-    edge(5, 9),
-    edge(0, 2),
-    edge(2, 4),
-    edge(4, 6),
-    edge(6, 7),
-    edge(7, 8),
-    edge(7, 9),
-    edge(3, 6),
-  ];
-
-  if (targetCount >= 11) {
-    nodes.push(node('monitor', 'camera', 58, 50));
-    edges.push(edge(3, 10), edge(10, 6));
-  }
-  if (targetCount >= 12) {
-    nodes.push(node('sideData', 'database', 72, 24));
-    edges.push(edge(5, 11), edge(11, 8));
-  }
-  if (targetCount >= 13) {
-    nodes.push(node('outerExit', 'exit', 44, 86));
-    edges.push(edge(4, 12), edge(12, 9));
+  if (targetCount >= 10) {
+    const decoyGate = addNode('decoyGate', rng.pick(['camera', 'data']), 28, decoyAngle, 3);
+    connect(entryControl, decoyGate);
+    if (targetCount >= 11) {
+      const decoy = addNode('decoy', 'data', 39, decoyAngle, 2);
+      connect(decoyGate, decoy);
+    }
   }
 
-  return finalizeNodeIds(nodes, edges);
-}
+  if (targetCount >= 12 && dataBranchCount > 1) {
+    const secondaryDataGate = addNode('dataGateB', rng.pick(['firewall', 'camera']), 25, dataAngles[1], 3);
+    const secondaryDataKind = archetype.dataBias >= 4 ? 'database' : rng.pick(['database', 'data']);
+    const secondaryData = addNode('dataB', secondaryDataKind, 38, dataAngles[1], 2);
+    connect(hub, secondaryDataGate);
+    connect(secondaryDataGate, secondaryData);
+    if (rng.nextFloat() < 0.7) connect(primaryDataGate, secondaryDataGate);
+  }
 
-function buildSecureTopology(targetCount, archetype, rng) {
-  const nodes = [
-    node('entry', 'entry', 8, 50),
-    node('foyerA', 'camera', 20, 28),
-    node('foyerB', 'data', 20, 72),
-    node('controlA', 'firewall', 36, 26),
-    node('watch', rng.pick(['camera', 'firewall']), 36, 74),
-    node('controlB', 'firewall', 52, 72),
-    node('hub', 'firewall', 52, 44),
-    node('dataA', 'database', 68, 28),
-    node('controlC', 'firewall', 68, 58),
-    node('dataB', archetype.dataBias >= 4 ? 'database' : 'data', 78, 74),
-    node('coreGate', 'firewall', 84, 44),
-    node('core', 'core', 94, 44),
-    node('exit', 'exit', 88, 84),
-    node('monitor', 'camera', 52, 12),
-  ];
-  const edges = [
-    edge(0, 1),
-    edge(0, 2),
-    edge(1, 3),
-    edge(2, 4),
-    edge(3, 6),
-    edge(4, 5),
-    edge(5, 6),
-    edge(6, 7),
-    edge(6, 8),
-    edge(8, 9),
-    edge(7, 10),
-    edge(9, 10),
-    edge(10, 11),
-    edge(7, 12),
-    edge(9, 12),
-    edge(3, 13),
-    edge(13, 8),
-  ];
+  if (targetCount >= 14) {
+    const monitor = addNode('monitor', 'camera', 32, monitorAngle, 3);
+    connect(entryControl, monitor);
+    connect(monitor, hub);
+  }
 
   if (targetCount >= 15) {
-    nodes.push(node('vaultMirror', 'database', 84, 20));
-    edges.push(edge(7, 14), edge(14, 10));
-  }
-  if (targetCount >= 16) {
-    nodes.push(node('snare', 'firewall', 64, 88));
-    edges.push(edge(5, 15), edge(15, 9), edge(15, 12));
-  }
-  if (targetCount >= 17) {
-    nodes.push(node('noise', 'data', 36, 92));
-    edges.push(edge(2, 16), edge(16, 5));
+    const relayAngle = leastCrowdedAngle(usedAngles, rng);
+    const relay = addNode('relay', rng.pick(['firewall', 'camera']), 22, relayAngle, 3);
+    connect(hub, relay);
+    connect(relay, coreGate);
   }
 
+  if (targetCount >= 16) {
+    const snareAngle = angleAt(35 + rng.nextInt(-15, 15));
+    const snare = addNode('snare', 'firewall', 33, snareAngle, 3);
+    connect(exitGate, snare);
+    connect(snare, hub);
+  }
+
+  if (targetCount >= 17) {
+    const vaultAngle = angleAt(-92 + rng.nextInt(-16, 16));
+    const vaultGate = addNode('vaultGate', 'firewall', 24, vaultAngle, 3);
+    const vault = addNode('vaultMirror', 'database', 36, vaultAngle, 2);
+    connect(hub, vaultGate);
+    connect(vaultGate, vault);
+    connect(vaultGate, coreGate);
+  }
+
+  if (targetCount >= 19) {
+    const outerExitAngle = angleAt(115 + rng.nextInt(-18, 18));
+    const outerExit = addNode('outerExit', 'exit', 43, outerExitAngle, 2);
+    connect(entryControl, outerExit);
+  }
+
+  addStarCrossLinks(edges, nodes, template, rng);
+
   return finalizeNodeIds(nodes, edges);
+}
+
+function addStarCrossLinks(edges, nodes, template, rng) {
+  const linkBudget = { small: 1, standard: 2, secure: 3 }[template] ?? 1;
+  const candidates = [
+    ['dataGateA', 'exitGate'],
+    ['dataGateB', 'monitor'],
+    ['decoyGate', 'dataGateA'],
+    ['monitor', 'coreGate'],
+    ['snare', 'dataGateB'],
+    ['relay', 'vaultGate'],
+  ];
+
+  let added = 0;
+  for (const [leftZone, rightZone] of rng.shuffle(candidates)) {
+    if (added >= linkBudget) break;
+    const left = nodes.findIndex((candidate) => candidate.zone === leftZone);
+    const right = nodes.findIndex((candidate) => candidate.zone === rightZone);
+    if (left === -1 || right === -1) continue;
+    if (rng.nextFloat() > 0.62) continue;
+    edges.push(edge(left, right));
+    added += 1;
+  }
+}
+
+function polarPoint(radius, angleDegrees) {
+  const radians = (angleDegrees * Math.PI) / 180;
+  return {
+    x: 50 + Math.cos(radians) * radius,
+    y: 50 + Math.sin(radians) * radius,
+  };
+}
+
+function normalizeAngle(angle) {
+  return ((angle % 360) + 360) % 360;
+}
+
+function leastCrowdedAngle(angles, rng) {
+  const candidates = [0, 45, 90, 135, 180, 225, 270, 315].map((angle) => angle + rng.nextInt(-12, 12));
+  return candidates.sort((left, right) => nearestAngleDistance(right, angles) - nearestAngleDistance(left, angles))[0];
+}
+
+function nearestAngleDistance(angle, angles) {
+  return Math.min(...angles.map((candidate) => angleDistance(angle, candidate)));
+}
+
+function angleDistance(left, right) {
+  const diff = Math.abs(normalizeAngle(left) - normalizeAngle(right));
+  return Math.min(diff, 360 - diff);
 }
 
 function node(zone, kind, x, y) {
@@ -234,8 +253,8 @@ function sanitizeEarlyDataKind(kind, distance) {
 }
 
 function riskBonus(zone) {
-  if (['core', 'coreGate'].includes(zone)) return 1;
-  if (zone.startsWith('control')) return 1;
+  if (['core', 'coreGate', 'hub'].includes(zone)) return 1;
+  if (zone.startsWith('control') || zone.endsWith('Gate') || zone.endsWith('Control')) return 1;
   return 0;
 }
 
@@ -280,14 +299,18 @@ function assignIce(nodes, template, effectiveSecurity, rng) {
 function iceChance(nodeData, effectiveSecurity) {
   const zoneChance = {
     core: 0.42,
+    entryControl: 0.22,
+    exitGate: 0.18,
     coreGate: 0.38,
-    controlA: 0.26,
-    controlB: 0.26,
-    controlC: 0.28,
-    hub: 0.24,
-    dataA: 0.16,
-    dataB: 0.16,
-    sideData: 0.14,
+    hub: 0.3,
+    dataGateA: 0.26,
+    dataGateB: 0.26,
+    vaultGate: 0.28,
+    relay: 0.24,
+    snare: 0.3,
+    dataA: 0.18,
+    dataB: 0.18,
+    vaultMirror: 0.2,
   }[nodeData.zone] ?? 0.08;
   return clamp(0.06 + effectiveSecurity * 0.055 + zoneChance, 0, 0.82);
 }
@@ -324,12 +347,27 @@ function validateHostTopology(nodes, edges, entryNodeId, coreNodeId) {
   if (distances[coreNodeId] === undefined || distances[coreNodeId] < CORE_MIN_DISTANCE) {
     throw new Error('Generated host core is too close or unreachable');
   }
-  if (!nodes.some((nodeData) => nodeData.kind === 'exit' && distances[nodeData.id] !== undefined)) {
+  const exits = nodes.filter((nodeData) => nodeData.kind === 'exit' && distances[nodeData.id] !== undefined);
+  if (exits.length === 0) {
     throw new Error('Generated host needs a reachable exit');
+  }
+  for (const exitNode of exits) {
+    const exitDistances = calculateDistances(edges, exitNode.id);
+    if (exitDistances[coreNodeId] < DATA_CORE_MIN_EXIT_DISTANCE) {
+      throw new Error('Generated host core is too close to an exit');
+    }
   }
   for (const nodeData of nodes) {
     if (nodeData.event === nodeEvents.archive.kind && distances[nodeData.id] < PAYDATA_MIN_DISTANCE) {
       throw new Error('Generated host placed paydata too close to entry');
+    }
+    if (nodeData.event === nodeEvents.archive.kind) {
+      for (const exitNode of exits) {
+        const exitDistances = calculateDistances(edges, exitNode.id);
+        if (exitDistances[nodeData.id] < DATA_CORE_MIN_EXIT_DISTANCE) {
+          throw new Error('Generated host placed paydata too close to exit');
+        }
+      }
     }
   }
 }

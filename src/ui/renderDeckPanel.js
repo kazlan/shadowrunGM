@@ -13,9 +13,6 @@ const deckParts = [
 export function renderDeckTrace(deckProfile, run = null, upgradeMessage = '', view = null) {
   const deckLevel = getDeckLevel(deckProfile);
   const finished = run?.status === 'escaped' || run?.status === 'dumped';
-  const maxLoot = view?.maxLoot ?? run?.maxLootTokens ?? getStorageCapacity(deckProfile);
-  const rawLoot = view?.loot ?? (finished ? 0 : run?.lootTokens ?? 0);
-  const loot = Math.min(maxLoot, Math.max(0, Math.round(rawLoot)));
   const rawDeckCash = view?.deckCash ?? (finished ? 0 : run?.deckCash ?? 0);
   const deckCash = Math.max(0, Math.round(rawDeckCash));
   const accountCredits = Math.max(0, Math.round(view?.accountCredits ?? deckProfile.credits));
@@ -35,11 +32,6 @@ export function renderDeckTrace(deckProfile, run = null, upgradeMessage = '', vi
       <span class="deck-counters"><b>RUN ${deckCash}</b><b>CTA ${accountCredits}</b></span>
       <i>${stats}</i>
     </button>
-    <div class="deck-memory" style="--memory-slots:${maxLoot}" aria-label="Memoria del deck ${loot} de ${maxLoot}">
-      <span>MEM</span>
-      <b>${renderMemoryTokens(loot, maxLoot)}</b>
-      <em>${loot}/${maxLoot}</em>
-    </div>
     ${upgradeMessage ? `<p>${escapeHtml(upgradeMessage)}</p>` : ''}
   </section>`;
 }
@@ -98,10 +90,6 @@ export function renderDeckOverlay(isOpen, deckProfile, upgradeMessage = '') {
       </div>
     </section>
   </aside>`;
-}
-
-function renderMemoryTokens(loot, maxLoot) {
-  return Array.from({ length: maxLoot }, (_, index) => `<i class="${index < loot ? 'is-filled' : ''}"></i>`).join('');
 }
 
 function renderUpgradeRow(category, key, label, level, description, credits) {
