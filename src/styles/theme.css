@@ -747,11 +747,9 @@ button:focus-visible {
 .node-map-meter--trace i { background: linear-gradient(90deg, var(--magenta) var(--meter), rgba(131, 166, 181, .22) var(--meter)); box-shadow: 0 0 8px rgba(255, 61, 242, .22); }
 .node-map-meter--integrity i { background: linear-gradient(90deg, var(--yellow) var(--meter), rgba(131, 166, 181, .22) var(--meter)); box-shadow: 0 0 8px rgba(248, 214, 109, .22); }
 .node-map__log-button {
-  position: absolute;
-  left: 10px;
-  bottom: 10px;
-  z-index: 8;
-  width: 54px;
+  position: relative;
+  z-index: 1;
+  flex: 0 0 54px;
   height: 38px;
   display: grid;
   grid-template-columns: 1fr auto;
@@ -772,18 +770,18 @@ button:focus-visible {
 .node-map__log-button b { color: var(--yellow); font-size: .7rem; }
 .node-map__message {
   position: absolute;
-  right: 128px;
-  bottom: 10px;
-  left: 72px;
+  top: 58px;
+  right: 150px;
+  left: 10px;
   z-index: 7;
-  height: 38px;
+  height: 22px;
   overflow: hidden;
   pointer-events: none;
   contain: paint;
 }
 .node-map__message-text {
   position: absolute;
-  top: 50%;
+  top: 0;
   left: 0;
   width: max-content;
   color: var(--cyan);
@@ -793,7 +791,6 @@ button:focus-visible {
   text-align: left;
   text-shadow: 0 0 12px rgba(51, 255, 204, .36), 0 1px 8px var(--shadow-strong);
   white-space: nowrap;
-  transform: translate3d(0, -50%, 0);
   will-change: opacity, filter, transform;
   animation: mapLogTicketFade .74s steps(2, end) forwards;
   animation-delay: calc(var(--type-duration) + 1s);
@@ -853,55 +850,54 @@ button:focus-visible {
 }
 .node-focus-hud {
   position: absolute;
-  right: 8px;
-  bottom: 62px;
-  left: 8px;
+  left: 12px;
+  bottom: 8px;
   z-index: 8;
-  min-height: 84px;
+  box-sizing: border-box;
+  width: min(330px, calc(100% - 190px));
+  min-height: 58px;
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr) minmax(68px, .24fr);
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
   align-items: center;
-  padding: 8px 10px;
+  padding: 5px 10px 6px 0;
   overflow: hidden;
   color: var(--text);
-  border: 1px solid color-mix(in srgb, var(--danger-color) 64%, var(--cyan));
-  background:
-    linear-gradient(90deg, rgba(3, 9, 19, .88), rgba(4, 10, 22, .72) 58%, rgba(8, 4, 18, .82)),
-    repeating-linear-gradient(180deg, rgba(255, 255, 255, .04) 0 1px, transparent 1px 7px);
-  box-shadow: inset 0 0 18px color-mix(in srgb, var(--danger-color) 14%, transparent), 0 0 16px rgba(0, 0, 0, .34);
+  border: 0;
+  background: transparent;
+  box-shadow: none;
   pointer-events: none;
   text-shadow: 0 0 9px rgba(51, 255, 204, .22);
   animation: nodeFocusHudIn .18s cubic-bezier(.16, 1, .3, 1) both;
 }
-.node-focus-hud::before,
-.node-focus-hud::after {
-  content: "";
-  position: absolute;
-  pointer-events: none;
+.node-focus-hud--has-ice {
+  grid-template-columns: minmax(0, 1fr) minmax(60px, .22fr);
 }
 .node-focus-hud::before {
-  inset: 4px;
-  border: 1px solid rgba(51, 255, 204, .16);
+  content: none;
 }
 .node-focus-hud::after {
-  inset: 0;
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--danger-color) 24%, transparent), transparent);
-  opacity: .12;
-  transform: translateX(-100%);
-  animation: nodeFocusHudSweep 1.45s ease-out both;
+  content: none;
 }
 .node-focus-hud__grid {
   position: absolute;
   inset: 0;
-  opacity: .11;
+  opacity: .07;
   background-image:
     linear-gradient(color-mix(in srgb, var(--cyan) 16%, transparent) 1px, transparent 1px),
     linear-gradient(90deg, color-mix(in srgb, var(--cyan) 14%, transparent) 1px, transparent 1px);
-  background-size: 20px 20px;
-  mask-image: linear-gradient(90deg, #000, transparent 92%);
+  background-size: 18px 18px;
+  mask-image: linear-gradient(90deg, #000, #000 72%, transparent);
 }
-.node-focus-hud__icon,
+.node-focus-hud__grid::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: .58;
+  background: linear-gradient(180deg, transparent 0 12%, color-mix(in srgb, var(--cyan) 42%, transparent) 38%, color-mix(in srgb, var(--magenta) 24%, transparent) 50%, transparent 76%);
+  transform: translateY(110%);
+  animation: nodeFocusTextSweep .72s cubic-bezier(.16, 1, .3, 1) both;
+}
 .node-focus-hud__main,
 .node-focus-hud__header,
 .node-focus-hud__hint,
@@ -910,25 +906,21 @@ button:focus-visible {
   z-index: 1;
   min-width: 0;
 }
-.node-focus-hud__icon {
-  display: grid;
-  place-items: center;
-}
-.node-focus-hud__icon img {
-  width: 66px;
-  height: 66px;
-  object-fit: contain;
-  filter: drop-shadow(0 0 12px rgba(51, 255, 204, .34));
-}
 .node-focus-hud__main {
   display: grid;
-  gap: 5px;
+  gap: 3px;
+  justify-items: start;
+  text-align: left;
+  animation: nodeFocusTextPush .58s cubic-bezier(.16, 1, .3, 1) both;
 }
+.node-focus-hud__header span { animation: nodeFocusTextLine .5s cubic-bezier(.16, 1, .3, 1) both; }
+.node-focus-hud__header strong { animation: nodeFocusTextLine .54s cubic-bezier(.16, 1, .3, 1) .08s both; }
+.node-focus-hud__hint { animation: nodeFocusTextLine .58s cubic-bezier(.16, 1, .3, 1) .15s both; }
 .node-focus-hud__header span {
   display: block;
   overflow: hidden;
-  color: color-mix(in srgb, var(--danger-color) 66%, var(--text));
-  font-size: clamp(.5rem, 2vw, .62rem);
+  color: color-mix(in srgb, var(--magenta) 44%, var(--cyan));
+  font-size: clamp(.48rem, 1.7vw, .58rem);
   font-weight: 900;
   letter-spacing: .08em;
   text-overflow: ellipsis;
@@ -938,8 +930,8 @@ button:focus-visible {
 .node-focus-hud__header strong {
   display: block;
   overflow: hidden;
-  color: var(--text-strong);
-  font-size: clamp(.9rem, 3.4vw, 1.12rem);
+  color: var(--cyan);
+  font-size: clamp(.78rem, 2.7vw, 1rem);
   line-height: 1;
   text-overflow: ellipsis;
   text-transform: uppercase;
@@ -947,8 +939,8 @@ button:focus-visible {
 }
 .node-focus-hud__hint {
   margin: 0;
-  color: var(--yellow);
-  font-size: clamp(.58rem, 2.3vw, .74rem);
+  color: color-mix(in srgb, var(--yellow) 86%, var(--cyan));
+  font-size: clamp(.56rem, 2vw, .68rem);
   font-style: italic;
   font-weight: 800;
   line-height: 1.2;
@@ -963,20 +955,21 @@ button:focus-visible {
 .node-focus-hud__ice {
   display: grid;
   justify-items: end;
-  gap: 1px;
+  gap: 0;
   text-align: right;
+  animation: nodeFocusTextLine .54s cubic-bezier(.16, 1, .3, 1) .1s both;
 }
 .node-focus-hud__ice:not(.node-focus-hud__ice--active) {
   opacity: .64;
 }
 .node-focus-hud__ice img {
-  width: 28px;
-  height: 28px;
+  width: 20px;
+  height: 20px;
   object-fit: contain;
   filter: drop-shadow(0 0 8px rgba(255, 61, 242, .34));
 }
 .node-focus-hud__ice span {
-  color: var(--muted);
+  color: color-mix(in srgb, var(--cyan) 72%, var(--muted));
   font-size: .46rem;
   font-weight: 900;
   letter-spacing: .12em;
@@ -984,11 +977,20 @@ button:focus-visible {
 .node-focus-hud__ice b {
   max-width: 100%;
   overflow: hidden;
-  color: var(--yellow);
-  font-size: clamp(.54rem, 2.1vw, .7rem);
+  color: color-mix(in srgb, var(--yellow) 84%, var(--magenta));
+  font-size: clamp(.5rem, 1.8vw, .64rem);
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
+}
+.node-focus-hud--visited .node-focus-hud__hint {
+  color: color-mix(in srgb, var(--magenta) 54%, var(--yellow));
+}
+.node-focus-hud--visited .node-focus-hud__header span {
+  color: color-mix(in srgb, var(--magenta) 68%, var(--cyan));
+}
+.node-focus-hud--visited {
+  min-height: 62px;
 }
 .node-focus-hud__stamp {
   position: absolute;
@@ -1013,16 +1015,17 @@ button:focus-visible {
 .node-focus-hud--failed .node-focus-hud__stamp { color: var(--red); }
 @media (max-width: 640px) {
   .node-focus-hud {
-    right: 6px;
-    bottom: 52px;
-    left: 6px;
-    min-height: 78px;
-    grid-template-columns: 62px minmax(0, 1fr) minmax(52px, .22fr);
+    bottom: 4px;
+    left: 8px;
+    width: min(320px, calc(100% - 176px));
+    min-height: 58px;
+    grid-template-columns: minmax(0, 1fr);
     gap: 6px;
-    padding: 6px 7px;
+    padding: 5px 8px 6px 0;
   }
-  .node-focus-hud__icon img { width: 54px; height: 54px; }
-  .node-focus-hud__ice img { width: 22px; height: 22px; }
+  .node-focus-hud--has-ice { grid-template-columns: minmax(0, 1fr) minmax(48px, .18fr); }
+  .node-focus-hud--visited { min-height: 62px; }
+  .node-focus-hud__ice img { width: 18px; height: 18px; }
   .node-focus-hud__hint span,
   .node-focus-hud__hint b { white-space: normal; }
   .node-focus-hud__stamp {
@@ -3055,10 +3058,10 @@ button:focus-visible {
 }
 
 @keyframes mapLogTicketFade {
-  0% { opacity: 1; filter: none; transform: translate3d(0, -50%, 0); }
-  36% { opacity: .82; filter: saturate(1.8); transform: translate3d(-1px, -50%, 0); }
-  68% { opacity: .46; filter: saturate(2.2) blur(.4px); transform: translate3d(2px, -50%, 0); }
-  100% { opacity: 0; filter: saturate(2.4) blur(1px); transform: translate3d(0, -50%, 0); }
+  0% { opacity: 1; filter: none; transform: translate3d(0, 0, 0); }
+  36% { opacity: .82; filter: saturate(1.8); transform: translate3d(-1px, 0, 0); }
+  68% { opacity: .46; filter: saturate(2.2) blur(.4px); transform: translate3d(2px, 0, 0); }
+  100% { opacity: 0; filter: saturate(2.4) blur(1px); transform: translate3d(0, 0, 0); }
 }
 
 @keyframes scanlineDrift {
@@ -3142,6 +3145,25 @@ button:focus-visible {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes nodeFocusTextPush {
+  0% { opacity: 0; transform: translateY(18px); filter: blur(1px); }
+  38% { opacity: .72; filter: blur(.35px); }
+  100% { opacity: 1; transform: translateY(0); filter: none; }
+}
+
+@keyframes nodeFocusTextLine {
+  0% { opacity: 0; transform: translateY(14px); }
+  46% { opacity: .72; }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes nodeFocusTextSweep {
+  0% { opacity: 0; transform: translateY(120%); }
+  18% { opacity: .82; }
+  56% { opacity: .36; }
+  100% { opacity: 0; transform: translateY(-110%); }
+}
+
 @keyframes nodeFocusHudSweep {
   0% { transform: translateX(-120%); }
   62%, 100% { transform: translateX(120%); }
@@ -3161,6 +3183,12 @@ button:focus-visible {
   .node-map::before,
   .node-focus-hud,
   .node-focus-hud::after,
+  .node-focus-hud__grid::after,
+  .node-focus-hud__main,
+  .node-focus-hud__header span,
+  .node-focus-hud__header strong,
+  .node-focus-hud__hint,
+  .node-focus-hud__ice,
   .node-focus-hud__stamp,
   .route--recent .route__scan,
   .route--focus .route__scan,
@@ -3207,11 +3235,11 @@ button:focus-visible {
   .node-map-meter { grid-template-columns: 38px minmax(30px, 1fr) auto; gap: 4px; }
   .node-map-meter span { font-size: .42rem; }
   .node-map-meter strong { min-width: 24px; font-size: .46rem; }
-  .node-map__log-button { left: 6px; bottom: 6px; width: 50px; height: 34px; padding: 0 7px; }
+  .node-map__log-button { flex-basis: 50px; height: 34px; padding: 0 7px; }
   .node-map__actions { right: 6px; bottom: 6px; gap: 4px; }
   .node-map__jack-out { min-width: 64px; min-height: 34px; padding: 0 7px; font-size: .54rem; }
   .node-map__avatar-settings { width: 34px; height: 34px; }
-  .node-map__message { right: 110px; bottom: 6px; left: 62px; height: 34px; }
+  .node-map__message { top: 49px; right: 122px; left: 8px; height: 22px; }
   .node-map__message-text { font-size: .9rem; }
   .scan-local { min-height: 34px; font-size: .68rem; }
   .deck-trace button { min-height: 32px; padding: 6px 7px; }

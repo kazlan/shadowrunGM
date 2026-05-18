@@ -341,7 +341,7 @@ function bindEvents() {
         appState.ignoreNextNodeClick = false;
         return;
       }
-      dispatch({ type: 'move', nodeId: node.dataset.nodeId });
+      handleNodeClick(node.dataset.nodeId);
     });
   });
 
@@ -656,6 +656,10 @@ function syncNodeVisit(action, previousRun, nextRun) {
 
   if (!appState.nodeVisit) return;
   if (!['runProgram', 'scan', 'extract', 'jackOut'].includes(action.type)) return;
+  if (appState.nodeVisit.mode === 'visited') {
+    clearNodeVisit();
+    return;
+  }
 
   const node = getSystemNode(appState.nodeVisit.nodeId);
   if (!node) {
@@ -683,22 +687,53 @@ function maybeStartNodeVisit(action, previousRun, nextRun) {
   if (!action.nodeId || action.nodeId !== nextRun.currentNodeId) return false;
   if (isRunFinished(nextRun)) return false;
   const previousState = previousRun.nodeStates[action.nodeId] ?? NODE_RUNTIME_STATE.UNKNOWN;
-  if ([NODE_RUNTIME_STATE.VISITED, NODE_RUNTIME_STATE.COMPROMISED].includes(previousState)) return false;
+  return startNodeVisit(action.nodeId, previousRun, nextRun, {
+    fromNodeId: previousRun.currentNodeId,
+    previousState,
+  });
+}
 
-  const node = getSystemNode(action.nodeId);
+function handleNodeClick(nodeId) {
+  if (!nodeId || !appState.run) return;
+  const state = appState.run.nodeStates[nodeId] ?? NODE_RUNTIME_STATE.UNKNOWN;
+  const isKnown = state !== NODE_RUNTIME_STATE.UNKNOWN;
+  const isCurrent = nodeId === appState.run.currentNodeId;
+  const isReachable = isNodeReachableFromCurrent(nodeId);
+
+  if (isKnown && (isCurrent || !isReachable)) {
+    startNodeVisit(nodeId, appState.run, appState.run, {
+      fromNodeId: isCurrent ? null : appState.run.currentNodeId,
+      previousState: state,
+    });
+    void audioDirector.play('selectProgram');
+    render();
+    return;
+  }
+
+  dispatch({ type: 'move', nodeId });
+}
+
+function startNodeVisit(nodeId, previousRun, nextRun, options = {}) {
+  const node = getSystemNode(nodeId);
   if (!node) return false;
 
   stopNodeVisitTimer();
   const visitId = `${appState.runSessionId}:${appState.nodeVisitSequence + 1}`;
   appState.nodeVisitSequence += 1;
-  const recommendedProgram = getRecommendedProgram(node, nextRun);
-  const autoDismiss = !hasNodeVisitObjective(node, nextRun);
+  const previousState = options.previousState ?? previousRun.nodeStates[nodeId] ?? NODE_RUNTIME_STATE.UNKNOWN;
+  const hasObjective = hasNodeVisitObjective(node, nextRun);
+  const mode = !hasObjective && [NODE_RUNTIME_STATE.VISITED, NODE_RUNTIME_STATE.COMPROMISED].includes(previousState)
+    ? 'visited'
+    : 'active';
+  const recommendedProgram = mode === 'visited' ? null : getRecommendedProgram(node, nextRun);
+  const autoDismiss = mode === 'active' && !hasObjective;
   appState.nodeVisit = {
     visitId,
     runSessionId: appState.runSessionId,
     nodeId: node.id,
-    fromNodeId: previousRun.currentNodeId,
+    fromNodeId: options.fromNodeId ?? previousRun.currentNodeId,
     phase: 'focus',
+    mode,
     startedAt: Date.now(),
     recommendedProgram,
     autoDismiss,
@@ -707,9 +742,10 @@ function maybeStartNodeVisit(action, previousRun, nextRun) {
   debugLog('nodeVisit:start', {
     visitId,
     nodeId: node.id,
-    fromNodeId: previousRun.currentNodeId,
+    fromNodeId: options.fromNodeId ?? previousRun.currentNodeId,
     nodeKind: node.kind,
     previousState,
+    mode,
     recommendedProgram,
     autoDismiss,
   });
@@ -719,6 +755,16 @@ function maybeStartNodeVisit(action, previousRun, nextRun) {
   }
   render();
   return true;
+}
+
+function isNodeReachableFromCurrent(nodeId) {
+  if (!appState.system || !appState.run) return false;
+  if (nodeId === appState.run.currentNodeId) return false;
+  if ((appState.run.nodeStates[nodeId] ?? NODE_RUNTIME_STATE.UNKNOWN) === NODE_RUNTIME_STATE.UNKNOWN) return false;
+  return appState.system.edges.some((edge) =>
+    (edge.from === appState.run.currentNodeId && edge.to === nodeId)
+    || (edge.to === appState.run.currentNodeId && edge.from === nodeId),
+  );
 }
 
 function scheduleNodeVisitAutoClear(visitId) {
@@ -911,6 +957,7 @@ function summarizeNodeVisit(nodeVisit) {
     nodeId: nodeVisit.nodeId,
     fromNodeId: nodeVisit.fromNodeId,
     phase: nodeVisit.phase,
+    mode: nodeVisit.mode,
     recommendedProgram: nodeVisit.recommendedProgram,
     autoDismiss: nodeVisit.autoDismiss,
     stamp: nodeVisit.stamp,

@@ -505,7 +505,7 @@ const nodeVisitHtml = renderNodeMap(projectSystemForRun(iceSystem, movedIntoIce)
   recommendedProgram: 'spike',
   autoDismiss: false,
 });
-if (!nodeVisitHtml.includes('node-focus-hud') || !nodeVisitHtml.includes('route--focus') || !nodeVisitHtml.includes('Centinela') || !nodeVisitHtml.includes('REC: Spike') || nodeVisitHtml.includes('TIPO')) throw new Error('Node visits should render a non-modal tactical focus HUD with ICE and a concise recommendation hint');
+if (!nodeVisitHtml.includes('node-focus-hud') || !nodeVisitHtml.includes('route--focus') || !nodeVisitHtml.includes('ICE Centinela // LVL') || nodeVisitHtml.includes('REC:') || nodeVisitHtml.includes('TIPO')) throw new Error('Node visits should render a non-modal tactical focus HUD with ICE context without duplicating program recommendations');
 const deckTraceHtml = renderDeckTrace(upgradedDeckResult.profile, createInitialRunState(iceSystem, upgradedDeckResult.profile), 'Scan mejorado.');
 if (deckTraceHtml.includes('deck-memory')) throw new Error('Deck trace should not render the removed local memory box');
 if (!deckTraceHtml.includes('deck-extraction') || !deckTraceHtml.includes('EXTR 0/')) throw new Error('Deck trace should render segmented extraction capacity inside the deck box');

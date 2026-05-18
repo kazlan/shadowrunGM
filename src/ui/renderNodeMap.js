@@ -60,7 +60,6 @@ export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, h
       <small>${escapeHtml(system.company.name)} · Seg ${system.effectiveSecurity ?? system.archetype.security}</small>
     </div>
     ${renderMapMeters(run)}
-    ${renderMapLogButton(run)}
     ${renderMapActions(run, false, player)}
     ${renderMapMessage(mapMessage)}
     ${renderRunLogDialog(runLogOpen, run)}
@@ -274,40 +273,34 @@ function renderNodeFocusHud(system, run, nodeVisit) {
 
   const ice = node.ice && !node.iceNeutralized ? iceCatalog[node.ice] : null;
   const event = node.event && !node.eventResolved ? nodeEvents[node.event] : null;
-  const status = nodeVisit.phase === 'resolved' ? 'RESOLVED'
-    : nodeVisit.phase === 'failed' ? 'HOSTILE'
-      : node.state === 'compromised' ? 'COMPROMISED'
-        : 'ACTIVE';
+  const mode = nodeVisit.mode ?? 'active';
   const operationName = getNodeDisplayName(node);
   const defenseLabel = ice?.label ?? 'Sin ICE';
   const iceIcon = ice ? assetPaths.defensePng[node.ice] ?? assetPaths.defenses[node.ice] : null;
-  const nodeIcon = assetPaths.nodes[node.kind];
-  const recommendedProgram = nodeVisit.recommendedProgram ? labelProgram(nodeVisit.recommendedProgram) : 'Scan';
-  const hint = ice?.weakness ?? event?.hint ?? getDefaultNodeHint(node);
+  const eyebrow = getNodeFocusEyebrow(node, nodeVisit, mode, ice, event);
+  const hint = mode === 'visited' ? getVisitedNodeHint(node) : ice?.weakness ?? event?.hint ?? getDefaultNodeHint(node);
+  const hintLine = `<p class="node-focus-hud__hint">
+        <span>${escapeHtml(hint)}</span>
+      </p>`;
+  const icePanel = ice ? `<aside class="node-focus-hud__ice node-focus-hud__ice--active">
+      ${iceIcon ? `<img src="${escapeHtml(iceIcon)}" alt="" loading="lazy" />` : ''}
+      <span>ICE</span>
+      <b>${escapeHtml(defenseLabel)}</b>
+    </aside>` : '';
   const stamp = nodeVisit.stamp
     ? `<div class="node-focus-hud__stamp fx-glitch" data-text="${escapeHtml(nodeVisit.stamp)}">${escapeHtml(nodeVisit.stamp)}</div>`
     : '';
 
-  return `<article class="node-focus-hud node-focus-hud--${escapeHtml(nodeVisit.phase ?? 'focus')}" aria-live="polite">
+  return `<article class="node-focus-hud node-focus-hud--${escapeHtml(nodeVisit.phase ?? 'focus')} node-focus-hud--${escapeHtml(mode)} ${ice ? 'node-focus-hud--has-ice' : ''}" aria-live="polite">
     <div class="node-focus-hud__grid" aria-hidden="true"></div>
-    <div class="node-focus-hud__icon">
-      <img src="${escapeHtml(nodeIcon)}" alt="" loading="lazy" />
-    </div>
     <div class="node-focus-hud__main">
       <header class="node-focus-hud__header">
-        <span>${escapeHtml(status)} // ${escapeHtml(node.kind.toUpperCase())} // risk/${escapeHtml(String(node.risk ?? '?'))}</span>
+        <span>${escapeHtml(eyebrow)}</span>
         <strong>${escapeHtml(operationName)}</strong>
       </header>
-      <p class="node-focus-hud__hint">
-        <span>${escapeHtml(hint)}</span>
-        <b>REC: ${escapeHtml(recommendedProgram)}</b>
-      </p>
+      ${hintLine}
     </div>
-    <aside class="node-focus-hud__ice ${ice ? 'node-focus-hud__ice--active' : ''}">
-      ${iceIcon ? `<img src="${escapeHtml(iceIcon)}" alt="" loading="lazy" />` : ''}
-      <span>ICE</span>
-      <b>${escapeHtml(defenseLabel)}</b>
-    </aside>
+    ${icePanel}
     ${stamp}
   </article>`;
 }
@@ -318,8 +311,18 @@ function getDefaultNodeHint(node) {
   return 'Nodo estable, lectura de host sin defensa activa.';
 }
 
-function labelProgram(program) {
-  return program.charAt(0).toUpperCase() + program.slice(1);
+function getNodeFocusEyebrow(node, nodeVisit, mode, ice, event) {
+  if (ice) return `ICE ${ice.label} // LVL ${node.risk ?? '?'}`;
+  if (nodeVisit.phase === 'resolved') return 'Nodo limpio // firma sellada';
+  if (nodeVisit.phase === 'failed') return 'Retorno hostil // firma expuesta';
+  if (mode === 'visited') return `VISITED // ${node.kind.toUpperCase()} // RISK/${node.risk ?? '?'}`;
+  if (event) return `${event.label} // LVL ${node.risk ?? '?'}`;
+  return `${node.kind.toUpperCase()} // RISK/${node.risk ?? '?'}`;
+}
+
+function getVisitedNodeHint(node) {
+  if (node.state === 'compromised') return 'Nodo drenado. Chatarra caliente y silencio caro.';
+  return 'Nodo ya quemado. El neón recuerda tus huellas.';
 }
 
 function renderRunResultWindow(system, run, runResult = null, player = null, runLogOpen = false) {
@@ -345,7 +348,6 @@ function renderRunResultWindow(system, run, runResult = null, player = null, run
   const resultClass = success ? 'node-map--success' : 'node-map--failure';
 
   return `<section class="node-map node-map--result ${resultClass}" aria-label="Resumen final de la run">
-    ${renderMapLogButton(run)}
     ${renderMapActions(run, true, player)}
     ${renderRunLogDialog(runLogOpen, run)}
     <div class="result-terminal">
@@ -412,6 +414,7 @@ function renderMapActions(run, finished = false, player = null) {
   const avatar = assetPaths.avatars[identity.avatar] ?? assetPaths.avatars.ghost;
 
   return `<div class="node-map__actions" aria-label="Acciones de la run">
+    ${renderMapLogButton(run)}
     <button class="jack-out node-map__jack-out" data-action="jackOut" type="button" ${finished ? 'disabled' : ''}>Jack out</button>
     <button class="node-map__avatar-settings runner-id--${escapeHtml(identity.avatar)}" data-action="toggleSettings" type="button" aria-label="${escapeHtml(`Abrir ajustes de ${identity.shadowName}`)}" title="${escapeHtml(identity.shadowName)}">
       <img src="${escapeHtml(avatar)}" alt="" loading="lazy" />
