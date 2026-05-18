@@ -238,7 +238,7 @@ function extract(system, run, deckProfile = null) {
   const finesse = Math.floor((getStatLevel(deckProfile, 'lens') + getProgramLevel(deckProfile, 'extract') - 2) / 3);
 
   if (node?.event === 'decoy' && (run.resolvedEvents ?? []).includes(node.id)) {
-    return addLog(run, 'El señuelo ya está marcado como ruido. No hay payload útil en este nodo.');
+    return addLog(run, 'Señuelo ya aislado: buffer limpio, sin payload que extraer.');
   }
 
   if (event?.kind === 'decoy') {
@@ -249,7 +249,7 @@ function extract(system, run, deckProfile = null) {
           resolvedEvents: unique([...(run.resolvedEvents ?? []), node.id]),
           alert: clamp(run.alert + Math.max(1, 2 - finesse), 0, run.maxAlert),
           trace: clamp(run.trace + 1, 0, run.maxTrace),
-          log: appendLog(run.log, `Extract muerde un señuelo en ${nodeLabel(node)}. Ruido y traza suben.`),
+          log: appendLog(run.log, `Extract detecta tarde un señuelo en ${nodeLabel(node)}: ruido inyectado y traza en subida.`),
         },
         system,
       ),
@@ -257,17 +257,17 @@ function extract(system, run, deckProfile = null) {
   }
 
   if (!node || (!['archive', 'core'].includes(event?.kind) && !['database', 'core', 'data'].includes(node.kind))) {
-    return addLog(run, 'No hay payload útil en este nodo.');
+    return addLog(run, 'Extract abortado: este nodo no contiene payload válido.');
   }
 
   if (getNodeState(run, node.id) === NODE_RUNTIME_STATE.COMPROMISED) {
-    return addLog(run, `${nodeLabel(node)} ya fue vaciado en esta run.`);
+    return addLog(run, `${nodeLabel(node)} ya está drenado; no se duplican paquetes.`);
   }
 
   const lootSize = getLootSize(node);
   const freeSpace = Math.max(0, (run.maxLootTokens ?? 0) - (run.lootTokens ?? 0));
   if (freeSpace <= 0) {
-    return addLog(run, 'Memoria del deck llena. Busca salida o mejora almacenamiento.');
+    return addLog(run, 'Buffer de extracción lleno. Busca una salida o mejora la memoria del deck.');
   }
 
   const nextNodeStates = {
@@ -288,7 +288,7 @@ function extract(system, run, deckProfile = null) {
         resolvedEvents: node.event ? unique([...(run.resolvedEvents ?? []), node.id]) : run.resolvedEvents,
         nodeStates: nextNodeStates,
         alert: clamp(run.alert + Math.max(0, (node.kind === 'core' ? 2 : 1) - finesse), 0, run.maxAlert),
-        log: appendLog(run.log, `${storedLoot} token(s) de loot cargados desde ${nodeLabel(node)}${partial ? '; memoria al limite' : ''}. Busca salida.`),
+        log: appendLog(run.log, `${storedLoot} token(s) sellados desde ${nodeLabel(node)}${partial ? '; buffer al límite' : ''}. Busca salida para cobrar.`),
       },
       system,
     ),
@@ -303,7 +303,7 @@ function jackOut(system, run) {
     return {
       ...run,
       status: RUN_STATUS.ESCAPED,
-      log: appendLog(run.log, 'Jack-out limpio. Payload asegurado.'),
+      log: appendLog(run.log, 'Jack-out limpio. Payload asegurado y transferencia preparada.'),
     };
   }
 
@@ -311,7 +311,7 @@ function jackOut(system, run) {
     return {
       ...run,
       status: RUN_STATUS.ESCAPED,
-      log: appendLog(run.log, 'Jack-out limpio sin payload. Run abortada.'),
+      log: appendLog(run.log, 'Jack-out limpio sin payload. Run cerrada sin extracción.'),
     };
   }
 
