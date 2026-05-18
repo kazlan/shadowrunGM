@@ -96,7 +96,7 @@ Efectos actuales:
 
 El radio de scanner se calcula desde el deck y escala con **Lens**. El scanner local usa la ubicación del jugador; el scanner remoto de bookmarks usa la ubicación guardada del host.
 
-La música usa WebAudio procedural propio. Se evita depender de motores de secuenciación externos para que el botón de música corte el loop de forma inmediata y estable.
+La música usa un motor WebAudio adaptativo: stems cortos de alta calidad se mezclan por capas con crossfades, filtros y stingers según alerta, traza, ICE y extracción. Los efectos siguen siendo WebAudio procedural para responder al instante.
 
 La progresión debe conservar una tensión clara: un deck mejor permite asumir hosts más valiosos, pero no elimina alerta, traza ni convergencia.
 

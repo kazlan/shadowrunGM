@@ -4,6 +4,7 @@ export const assetPaths = {
   logo: `${BASE}/logos/logo-shadowhack.svg`,
   splash: `${BASE}/logos/splash-shadowhack.svg`,
   backgrounds: {
+    tronTest: `${BASE}/backgrounds/tron_1.png`,
     default: `${BASE}/backgrounds/bg-default.svg`,
     retail: `${BASE}/backgrounds/bg-retail.svg`,
     food: `${BASE}/backgrounds/bg-food.svg`,
@@ -61,5 +62,5 @@ export const assetPaths = {
 };
 
 export function getHostBackground(archetype) {
-  return assetPaths.backgrounds[archetype] ?? assetPaths.backgrounds.default;
+  return assetPaths.backgrounds.tronTest ?? assetPaths.backgrounds[archetype] ?? assetPaths.backgrounds.default;
 }
