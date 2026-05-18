@@ -16,6 +16,8 @@ export function renderDeckTrace(deckProfile, run = null, upgradeMessage = '', vi
   const rawDeckCash = view?.deckCash ?? (finished ? 0 : run?.deckCash ?? 0);
   const deckCash = Math.max(0, Math.round(rawDeckCash));
   const accountCredits = Math.max(0, Math.round(view?.accountCredits ?? deckProfile.credits));
+  const maxLoot = Math.max(0, Math.round(view?.maxLoot ?? run?.maxLootTokens ?? getStorageCapacity(deckProfile)));
+  const loot = Math.min(maxLoot, Math.max(0, Math.round(view?.loot ?? run?.lootTokens ?? 0)));
   const phaseClass = view?.phase ? ` deck-trace--${String(view.phase).replace(/[^a-z0-9-]/gi, '')}` : '';
   const stats = [
     ['P', deckProfile.deck.pulse],
@@ -30,10 +32,21 @@ export function renderDeckTrace(deckProfile, run = null, upgradeMessage = '', vi
     <button data-action="toggleDeck" type="button">
       <strong>Deck L${deckLevel}</strong>
       <span class="deck-counters"><b>RUN ${deckCash}</b><b>CTA ${accountCredits}</b></span>
+      ${renderExtractionCapacity(loot, maxLoot)}
       <i>${stats}</i>
     </button>
     ${upgradeMessage ? `<p>${escapeHtml(upgradeMessage)}</p>` : ''}
   </section>`;
+}
+
+function renderExtractionCapacity(loot, maxLoot) {
+  if (!maxLoot) return '';
+
+  const segments = Array.from({ length: maxLoot }, (_, index) => `<span class="${index < loot ? 'is-filled' : ''}"></span>`).join('');
+  return `<span class="deck-extraction" aria-label="Capacidad de extraccion ${loot} de ${maxLoot}">
+    <b>EXTR ${loot}/${maxLoot}</b>
+    <em aria-hidden="true">${segments}</em>
+  </span>`;
 }
 
 export function renderDeckOverlay(isOpen, deckProfile, upgradeMessage = '') {
