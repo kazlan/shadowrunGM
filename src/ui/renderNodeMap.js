@@ -50,11 +50,7 @@ export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, h
       <strong class="fx-glitch" data-text="${escapeHtml(system.alias)}">${escapeHtml(system.alias)}</strong>
       <small>${escapeHtml(system.company.name)} · Seg ${system.effectiveSecurity ?? system.archetype.security}</small>
     </div>
-    <div class="node-map__controls" aria-label="Controles del mapa">
-      <button data-map-action="zoomOut" type="button" aria-label="Alejar mapa">-</button>
-      <button data-map-action="reset" type="button" aria-label="Recentrar mapa">R</button>
-      <button data-map-action="zoomIn" type="button" aria-label="Acercar mapa">+</button>
-    </div>
+    ${renderMapMeters(run)}
     ${renderMapLogButton(run)}
     ${renderMapMessage(mapMessage)}
     <svg viewBox="${formatViewBox(mapView)}" role="img" data-map-surface="true">
@@ -76,6 +72,23 @@ export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, h
     </svg>
     ${renderNodeFocusHud(system, run, nodeVisit)}
   </section>`;
+}
+
+function renderMapMeters(run) {
+  return `<aside class="node-map__meters" aria-label="Estado de la run">
+    ${renderMapMeter('ALERTA', run.alert, run.maxAlert, 'alert')}
+    ${renderMapMeter('TRAZA', run.trace, run.maxTrace, 'trace')}
+    ${renderMapMeter('SHELL', run.integrity, run.maxIntegrity, 'integrity')}
+  </aside>`;
+}
+
+function renderMapMeter(label, value, max, kind) {
+  const percent = Math.round((value / max) * 100);
+  return `<div class="node-map-meter node-map-meter--${kind}">
+    <span>${label}</span>
+    <i style="--meter:${percent}%"></i>
+    <strong>${value}/${max}</strong>
+  </div>`;
 }
 
 function renderRoute(edge, nodeLookup, run, recentNodeIds, recentEdgeKeys, focusEdgeKey, nodeVisit) {

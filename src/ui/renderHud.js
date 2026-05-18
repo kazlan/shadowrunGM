@@ -29,12 +29,7 @@ export function renderHud(system, run, finished = false, player = null) {
           ${renderCogIcon()}
         </button>
       </div>
-    </header>
-    <section class="meters" aria-label="Estado de la run">
-      ${renderMeter('ALERTA', run.alert, run.maxAlert, 'alert')}
-      ${renderMeter('TRAZA', run.trace, run.maxTrace, 'trace')}
-      ${renderMeter('SHELL', run.integrity, run.maxIntegrity, 'integrity')}
-    </section>`;
+    </header>`;
 }
 
 function normalizeHudIdentity(player) {
@@ -96,15 +91,4 @@ function renderProgramPips(level) {
 
 function clampProgramLevel(level) {
   return Math.min(5, Math.max(1, Number.parseInt(level, 10) || 1));
-}
-
-function renderMeter(label, value, max, kind) {
-  const percent = Math.round((value / max) * 100);
-  return `<div class="meter meter--${kind}">
-    <div>
-      <span>${label}</span>
-      <strong>${value}/${max}</strong>
-    </div>
-    <i style="--meter:${percent}%"></i>
-  </div>`;
 }

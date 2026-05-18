@@ -100,7 +100,6 @@ button:focus-visible {
   .scanner-toggle,
   .scan-local,
   .program-dock button,
-  .node-map__controls button,
   .node-map__log-button,
   .settings-toggle,
   .audio-toggle,
@@ -128,7 +127,6 @@ button:focus-visible {
   .scanner-toggle,
   .scan-local,
   .program-dock button,
-  .node-map__controls button,
   .node-map__log-button,
   .settings-toggle,
   .audio-toggle,
@@ -672,25 +670,47 @@ button:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.node-map__controls {
+.node-map__meters {
   position: absolute;
   top: 8px;
   right: 8px;
   z-index: 6;
-  display: flex;
+  display: grid;
+  width: min(134px, 42vw);
   gap: 4px;
-  pointer-events: auto;
+  pointer-events: none;
+  text-shadow: 0 0 10px var(--shadow-strong);
 }
-.node-map__controls button {
-  width: 31px;
-  height: 31px;
-  padding: 0;
-  color: var(--cyan);
-  border: 1px solid rgba(51, 255, 204, .36);
-  background: var(--control-bg);
+.node-map-meter {
+  display: grid;
+  grid-template-columns: 44px minmax(38px, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+  min-height: 12px;
+  color: var(--text-strong);
+}
+.node-map-meter span {
+  color: var(--muted);
+  font-size: .48rem;
   font-weight: 900;
-  box-shadow: 0 0 12px rgba(51, 255, 204, .14);
+  letter-spacing: .08em;
 }
+.node-map-meter strong {
+  min-width: 27px;
+  color: var(--text-strong);
+  font-size: .52rem;
+  line-height: 1;
+  text-align: right;
+}
+.node-map-meter i {
+  display: block;
+  height: 3px;
+  background: linear-gradient(90deg, var(--cyan) var(--meter), rgba(131, 166, 181, .22) var(--meter));
+  box-shadow: 0 0 8px rgba(51, 255, 204, .22);
+}
+.node-map-meter--alert i { background: linear-gradient(90deg, var(--red) var(--meter), rgba(131, 166, 181, .22) var(--meter)); box-shadow: 0 0 8px rgba(255, 61, 110, .24); }
+.node-map-meter--trace i { background: linear-gradient(90deg, var(--magenta) var(--meter), rgba(131, 166, 181, .22) var(--meter)); box-shadow: 0 0 8px rgba(255, 61, 242, .22); }
+.node-map-meter--integrity i { background: linear-gradient(90deg, var(--yellow) var(--meter), rgba(131, 166, 181, .22) var(--meter)); box-shadow: 0 0 8px rgba(248, 214, 109, .22); }
 .node-map__log-button {
   position: absolute;
   left: 10px;
@@ -741,7 +761,7 @@ button:focus-visible {
   white-space: nowrap;
 }
 .node-map--visiting .node-map__heading,
-.node-map--visiting .node-map__controls {
+.node-map--visiting .node-map__meters {
   opacity: 1;
 }
 .node-map--visiting .node-map__message {
@@ -749,7 +769,6 @@ button:focus-visible {
   opacity: 0;
   animation: none;
 }
-.node-map--visiting .node-map__controls { pointer-events: auto; }
 .node-map--visiting svg { cursor: grab; }
 .node-map--visiting .node-map__graph {
   opacity: 1;
@@ -2237,30 +2256,6 @@ button:focus-visible {
   box-shadow: 0 0 18px rgba(255, 61, 110, .18);
 }
 
-.meters {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-bottom: 0;
-}
-
-.meter {
-  padding: 7px 8px;
-  border: 1px solid var(--danger-border);
-  background: var(--surface);
-  box-shadow: 0 0 12px var(--danger-glow);
-}
-
-.meter div { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.meter span { color: var(--muted); font-size: .6rem; letter-spacing: .14em; }
-.meter strong { color: var(--text-strong); font-size: .78rem; }
-.meter i { display: block; height: 3px; margin-top: 5px; background: linear-gradient(90deg, var(--cyan) var(--meter), rgba(131, 166, 181, .24) var(--meter)); }
-.meter--alert i { background: linear-gradient(90deg, var(--red) var(--meter), rgba(131, 166, 181, .24) var(--meter)); }
-.meter--trace i { background: linear-gradient(90deg, var(--magenta) var(--meter), rgba(131, 166, 181, .24) var(--meter)); }
-.meter--integrity i { background: linear-gradient(90deg, var(--yellow) var(--meter), rgba(131, 166, 181, .24) var(--meter)); }
-
 .scan-local {
   min-height: 42px;
   color: var(--text);
@@ -3192,10 +3187,6 @@ button:focus-visible {
   .settings-toggle { width: 34px; padding: 0; }
   .settings-icon { width: 18px; height: 18px; }
   .eyebrow { font-size: .56rem; }
-  .meters { gap: 6px; }
-  .meter { padding: 5px 6px; }
-  .meter span { font-size: .52rem; letter-spacing: .1em; }
-  .meter strong { font-size: .68rem; }
   .program-dock .program-card { min-height: 56px; grid-template-rows: 20px auto 4px; gap: 2px; padding: 5px 4px 6px; }
   .program-card__icon { width: 20px; height: 20px; }
   .program-card__icon img { width: 14px; height: 14px; }
@@ -3203,8 +3194,10 @@ button:focus-visible {
   .program-card__body small { display: none; }
   .program-card__rec { top: 4px; right: 4px; font-size: .38rem; }
   .node-map { flex-basis: 230px; min-height: 180px; }
-  .node-map__controls { top: 6px; right: 6px; }
-  .node-map__controls button { width: 28px; height: 28px; }
+  .node-map__meters { top: 6px; right: 6px; width: min(116px, 48vw); gap: 3px; }
+  .node-map-meter { grid-template-columns: 38px minmax(30px, 1fr) auto; gap: 4px; }
+  .node-map-meter span { font-size: .42rem; }
+  .node-map-meter strong { min-width: 24px; font-size: .46rem; }
   .node-map__log-button { left: 6px; bottom: 6px; width: 50px; height: 34px; padding: 0 7px; }
   .node-map__message { right: 6px; bottom: 6px; left: 62px; }
   .node-map__message span { padding: 6px 8px; font-size: .74rem; }
