@@ -16,7 +16,7 @@ import { renderHelpOverlay, renderSettingsOverlay } from '../ui/renderHelpOverla
 import { renderHud, renderProgramDock } from '../ui/renderHud.js';
 import { renderLandingPage } from '../ui/renderLandingPage.js';
 import { renderNodeMap } from '../ui/renderNodeMap.js';
-import { renderPostRunScannerPanel, renderRunLogDialog } from '../ui/renderRunLog.js';
+import { renderPostRunScannerPanel } from '../ui/renderRunLog.js';
 import { renderScannerOverlay } from '../ui/renderScannerOverlay.js';
 import { applyTheme, loadThemePreference, saveThemePreference } from '../ui/themeStore.js';
 import { classifyCompany } from '../world/companyArchetypes.js';
@@ -34,8 +34,8 @@ const demoNearbyProvider = createDemoNearbyProvider();
 const DEFAULT_MAP_VIEW = { x: -12, y: 12, width: 124, height: 124 };
 const DEFAULT_MAP_BOUNDS = { ...DEFAULT_MAP_VIEW };
 const MAP_GRAPH_OFFSET_Y = 20;
-const MAP_VIEW_PADDING = 18;
-const MAP_LABEL_PADDING = 6;
+const MAP_VIEW_PADDING = 22;
+const MAP_LABEL_PADDING = 8;
 const MIN_MAP_SIZE = 32;
 const MAP_DRAG_THRESHOLD_PX = 12;
 const MAP_LOG_MESSAGE_MS = 5200;
@@ -200,12 +200,11 @@ function render() {
     <div class="scanline"></div>
     <div class="crt-vignette"></div>
     ${renderHud(runtimeSystem, appState.run, finished, appState.deckProfile.player)}
-    ${renderNodeMap(runtimeSystem, appState.run, appState.mapView, getVisibleMapLogMessage(), appState.runResult, resultVisible, appState.nodeVisit, getVisibleMapReveal())}
+    ${renderNodeMap(runtimeSystem, appState.run, appState.mapView, getVisibleMapLogMessage(), appState.runResult, resultVisible, appState.nodeVisit, getVisibleMapReveal(), appState.deckProfile.player, appState.isRunLogOpen)}
     ${renderProgramDock(appState.run, finished, appState.nodeVisit?.recommendedProgram, appState.deckProfile)}
     ${postRunPanelVisible ? renderPostRunScannerPanel(appState.runResult, appState.completion, appState.deckProfile, appState.postRunRebooted) : ''}
     ${renderDeckTrace(appState.deckProfile, appState.run, appState.deckMessage, getDeckTraceView())}
     ${renderDeckOverlay(appState.isDeckOpen, appState.deckProfile, appState.deckMessage)}
-    ${renderRunLogDialog(appState.isRunLogOpen, appState.run)}
     ${renderSettingsOverlay(appState.isSettingsOpen, audioDirector.getState(), appState.theme, appState.cloud, appState.deckProfile)}
     ${renderHelpOverlay(appState.isHelpOpen, appState.helpTab)}
     ${renderScannerOverlay({

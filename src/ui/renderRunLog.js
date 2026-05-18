@@ -6,15 +6,14 @@ export function renderRunLogDialog(isOpen, run) {
   const lines = run.log.map((line, index) => `<li><span>${String(index + 1).padStart(2, '0')}</span>${escapeHtml(line)}</li>`).join('');
   const statusClass = run.status === 'escaped' ? 'is-success' : run.status === 'dumped' ? 'is-danger' : '';
 
-  return `<aside class="run-log-dialog ${statusClass}" role="dialog" aria-modal="true" aria-labelledby="run-log-title">
-    <button class="overlay-backdrop" data-action="closeRunLog" type="button" aria-label="Cerrar historial"></button>
-    <section class="overlay-panel run-log-dialog__panel">
-      <div class="overlay-panel__header">
+  return `<aside class="run-log-dialog ${statusClass}" role="dialog" aria-modal="false" aria-labelledby="run-log-title">
+    <section class="run-log-dialog__panel">
+      <div class="run-log-dialog__header">
         <div>
-          <p class="eyebrow">Historial de intrusión</p>
+          <p class="eyebrow">Run terminal</p>
           <h2 id="run-log-title">${escapeHtml(statusLabel(run.status))}</h2>
         </div>
-        <button class="overlay-close" data-action="closeRunLog" type="button" aria-label="Cerrar historial">×</button>
+        <button class="run-log-dialog__close" data-action="closeRunLog" type="button" aria-label="Cerrar historial">×</button>
       </div>
       <ol class="run-log-dialog__list">${lines}</ol>
     </section>

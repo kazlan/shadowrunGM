@@ -35,7 +35,6 @@ const requiredFiles = [
   'src/game/nodeEvents.js',
   'src/ui/renderRunLog.js',
   'src/ui/renderDeckPanel.js',
-  'src/ui/renderCompletionScreen.js',
   'src/ui/dangerTheme.js',
   'src/ui/renderNodeMap.js',
   'src/ui/renderHelpOverlay.js',
@@ -227,7 +226,6 @@ const { getFirebaseStatus } = await import('../src/firebase/firebaseClient.js');
 const { cloudPaths } = await import('../src/firebase/cloudPersistence.js');
 const { mergeDeckProfiles } = await import('../src/firebase/cloudSync.js');
 const { createOverpassProvider } = await import('../src/world/overpassProvider.js');
-const { renderCompletionScreen } = await import('../src/ui/renderCompletionScreen.js');
 const { addHostBookmark, avatarCatalog, awardRunCredits, createDefaultDeckProfile, getBookmarkCapacity, getStorageCapacity, updatePlayerProfile, upgradeDeckProfile } = await import('../src/world/deckStore.js');
 
 const jackOutPlace = demoPlaces[0];
@@ -282,7 +280,10 @@ const defaultDeck = createDefaultDeckProfile();
 if (defaultDeck.player.shadowName !== 'NEON GHOST' || avatarCatalog.length < 5) throw new Error('Default deck should include runner identity and avatar presets');
 const identityDeck = updatePlayerProfile(defaultDeck, { shadowName: 'HEX MANTA', avatar: 'cipher' });
 if (identityDeck.player.shadowName !== 'HEX MANTA' || identityDeck.player.avatar !== 'cipher') throw new Error('Runner identity updates should persist through deck normalization');
-if (!renderHud(jackOutSystem, createInitialRunState(jackOutSystem, identityDeck), false, identityDeck.player).includes('HEX MANTA')) throw new Error('HUD should render the runner shadow name');
+const identityMapHtml = renderNodeMap(projectSystemForRun(jackOutSystem, createInitialRunState(jackOutSystem, identityDeck)), createInitialRunState(jackOutSystem, identityDeck), undefined, null, null, false, null, null, identityDeck.player);
+if (!identityMapHtml.includes('HEX MANTA') || !identityMapHtml.includes('data-action="toggleSettings"') || !identityMapHtml.includes('/assets/avatars/avatar-cipher.png')) {
+  throw new Error('Node map should render runner identity as the settings avatar control');
+}
 const identitySettingsHtml = renderSettingsOverlay(true, {}, 'black', null, identityDeck);
 if (!identitySettingsHtml.includes('data-shadow-name-input') || !identitySettingsHtml.includes('data-avatar-option="cipher"')) {
   throw new Error('Settings should expose runner identity editing');
@@ -305,10 +306,6 @@ const bookmarkResult = addHostBookmark(defaultDeck, jackOutSystem);
 if (!bookmarkResult.changed || bookmarkResult.profile.bookmarks.length !== 1) throw new Error('Successful hosts should be bookmarkable');
 const rewardResult = awardRunCredits(defaultDeck, jackOutSystem, jackOutRun, scoreRun(jackOutSystem, jackOutRun));
 if (rewardResult.reward <= 0 || rewardResult.profile.credits <= 0) throw new Error('Completed runs should award deck upgrade credits');
-const completionChoiceHtml = renderCompletionScreen({ hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3, canBookmark: true, bookmarkCapacity: 3, bookmarkDecision: null }, defaultDeck);
-if (!completionChoiceHtml.includes('Guardar host') || !completionChoiceHtml.includes('Objetivos / scanner') || completionChoiceHtml.includes('No guardar') || completionChoiceHtml.includes('skipBookmark')) {
-  throw new Error('Completion screen should prompt for bookmark saving');
-}
 const postRunResult = { status: 'escaped', hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3 };
 const postRunChoiceHtml = renderPostRunScannerPanel(postRunResult, { hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3, canBookmark: true, bookmarkCapacity: 3, bookmarkDecision: null }, defaultDeck, true);
 if (!postRunChoiceHtml.includes('Guardar host') || !postRunChoiceHtml.includes('Abrir scanner') || postRunChoiceHtml.includes('No guardar') || postRunChoiceHtml.includes('skipBookmark')) {
@@ -317,6 +314,15 @@ if (!postRunChoiceHtml.includes('Guardar host') || !postRunChoiceHtml.includes('
 const savedPostRunHtml = renderPostRunScannerPanel(postRunResult, { hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3, canBookmark: false, bookmarkCapacity: 3, bookmarkDecision: 'saved' }, defaultDeck, true);
 if (!savedPostRunHtml.includes('Host guardado') || savedPostRunHtml.includes('Guardar host') || !savedPostRunHtml.includes('Abrir scanner')) {
   throw new Error('Saved hosts should show confirmation and leave only scanner available');
+}
+if (themeSource.includes('node-diorama') || themeSource.includes('completion-card') || themeSource.includes('completion-shell')) {
+  throw new Error('Legacy extract completion windows should not remain in the active stylesheet');
+}
+if (!themeSource.includes('--threat-accent') || !themeSource.includes('--threat-border') || !themeSource.includes('calc(var(--danger-level) * 100%)') || !themeSource.includes('calc(34px + (var(--danger-level) * 24px))')) {
+  throw new Error('Frames and controls should react visually to the current alert danger level');
+}
+if (!themeSource.includes('.program-card__frame-outer') || !themeSource.includes('.deck-stat-card') || !themeSource.includes('.deck-software-card') || !themeSource.includes('calc(var(--danger-level) * 68%)')) {
+  throw new Error('Program and deck frames should intensify with the current alert danger level');
 }
 
 function assertStructuredHost(system) {
@@ -370,10 +376,10 @@ function assertMapViewContainsGraph(system) {
 function checkMapBounds(system) {
   const xs = system.nodes.map((node) => node.x);
   const ys = system.nodes.map((node) => node.y + 20);
-  const minX = Math.min(...xs) - 18;
-  const maxX = Math.max(...xs) + 18;
-  const minY = Math.min(...ys) - 18;
-  const maxY = Math.max(...ys) + 24;
+  const minX = Math.min(...xs) - 22;
+  const maxX = Math.max(...xs) + 22;
+  const minY = Math.min(...ys) - 22;
+  const maxY = Math.max(...ys) + 30;
   return {
     x: minX,
     y: minY,
@@ -490,7 +496,8 @@ const cleanedSuccessMapHtml = renderNodeMap(projectSystemForRun(jackOutSystem, {
 if (!cleanedSuccessMapHtml.includes('EXTRACCIÓN CONFIRMADA') || cleanedSuccessMapHtml.includes('CONEXIÓN CORTADA')) throw new Error('Successful cleaned runs should still render the success terminal from the run result snapshot');
 const mapMessageHtml = renderNodeMap(projectSystemForRun(iceSystem, killedIceRun), killedIceRun, undefined, { key: 'check', text: 'Ultima traza visible' });
 if (!mapMessageHtml.includes('node-map__message') || !mapMessageHtml.includes('node-map__log-button') || !mapMessageHtml.includes('Ultima traza visible')) throw new Error('Node map should surface the latest log message and log button');
-if (!themeSource.includes('.node-map__message span') || !themeSource.includes('left: 100%') || !themeSource.includes('translate(calc(-100% - 100vw), -50%)')) throw new Error('Latest-log ticket should travel from right to left beside the log button');
+if (!mapMessageHtml.includes('node-map__message-char') || !mapMessageHtml.includes('node-map__message-cursor')) throw new Error('Node map latest-log ticket should render typewriter characters and a cursor');
+if (!themeSource.includes('.node-map__message-text') || !themeSource.includes('mapLogTypeChar') || !themeSource.includes('mapLogCursorBlink') || !themeSource.includes('mapLogTicketGlitch')) throw new Error('Latest-log ticket should type from the left, blink a cursor, then glitch-fade');
 const nodeVisitHtml = renderNodeMap(projectSystemForRun(iceSystem, movedIntoIce), movedIntoIce, undefined, null, null, true, {
   nodeId: 'n-1',
   fromNodeId: 'n-0',
@@ -507,17 +514,19 @@ if (!finishedDeckTraceHtml.includes('RUN 0') || !finishedDeckTraceHtml.includes(
 const animatedDeckTraceHtml = renderDeckTrace(upgradedDeckResult.profile, createInitialRunState(iceSystem, upgradedDeckResult.profile), 'Transfer.', { phase: 'transfer', maxLoot: 5, loot: 2, deckCash: 40, accountCredits: 120 });
 if (!animatedDeckTraceHtml.includes('deck-trace--transfer') || !animatedDeckTraceHtml.includes('RUN 40') || !animatedDeckTraceHtml.includes('CTA 120')) throw new Error('Deck trace should render animated transfer counters');
 const runLogDialogHtml = renderRunLogDialog(true, killedIceRun);
-if (!runLogDialogHtml.includes('run-log-dialog') || !runLogDialogHtml.includes('run-log-dialog__list') || !runLogDialogHtml.includes('Cerrar historial')) throw new Error('Run log should render as a modal dialog with a scrollable history list');
+if (!runLogDialogHtml.includes('run-log-dialog') || !runLogDialogHtml.includes('run-log-dialog__list') || !runLogDialogHtml.includes('Run terminal') || runLogDialogHtml.includes('overlay-backdrop') || !runLogDialogHtml.includes('aria-modal="false"')) throw new Error('Run log should render as a non-blocking terminal popover with a scrollable history list');
+const mapLogOpenHtml = renderNodeMap(projectSystemForRun(iceSystem, killedIceRun), killedIceRun, undefined, null, null, true, null, null, null, true);
+if (!mapLogOpenHtml.includes('run-log-dialog') || !mapLogOpenHtml.includes('node-map__log-button')) throw new Error('Node map should open the run log as a contextual terminal window near the log button');
 const postRunPanelHtml = renderPostRunScannerPanel({ ...jackOutRun, hostAlias: 'ICE CHECK', score: 10, reward: 1, lootTokens: 0 }, null, upgradedDeckResult.profile);
 if (!postRunPanelHtml.includes('data-action="toggleRunLog"') || !postRunPanelHtml.includes('Ver log')) throw new Error('Post-run panel should keep the previous run log accessible before the next host starts');
 const deckOverlayHtml = renderDeckOverlay(true, upgradedDeckResult.profile, 'Scan mejorado.');
 if (!deckOverlayHtml.includes('Software cargado') || !deckOverlayHtml.includes('cred en cuenta')) throw new Error('Deck overlay should render loaded software and player account credits');
 if (!deckOverlayHtml.includes('deck-software-grid')) throw new Error('Deck software should render as a card grid');
 if (!deckOverlayHtml.includes('/assets/stats/stat-pulse.svg')) throw new Error('Deck stats should use custom SVG icons');
-const hudHtml = renderHud(iceSystem, createInitialRunState(iceSystem));
-if (!hudHtml.includes('data-action="toggleSettings"') || !hudHtml.includes('settings-icon')) throw new Error('HUD should expose settings cog next to jack-out');
-if (hudHtml.includes('data-action="toggleMusic"') || hudHtml.includes('data-action="toggleSfx"')) throw new Error('Audio controls should live inside settings, not the main HUD');
-if (!renderHud(iceSystem, { ...jackOutRun, selectedProgram: 'scan', disabledPrograms: [] }, true).includes('disabled')) throw new Error('Finished runs should disable jack-out controls');
+const mapActionHtml = renderNodeMap(projectSystemForRun(iceSystem, createInitialRunState(iceSystem)), createInitialRunState(iceSystem));
+if (!mapActionHtml.includes('node-map__actions') || !mapActionHtml.includes('data-action="toggleSettings"') || !mapActionHtml.includes('node-map__avatar-settings')) throw new Error('Node map should expose settings avatar next to jack-out');
+if (mapActionHtml.includes('data-action="toggleMusic"') || mapActionHtml.includes('data-action="toggleSfx"')) throw new Error('Audio controls should live inside settings, not the main HUD');
+if (!renderNodeMap(projectSystemForRun(iceSystem, { ...jackOutRun, selectedProgram: 'scan', disabledPrograms: [] }), { ...jackOutRun, selectedProgram: 'scan', disabledPrograms: [] }, undefined, null, null, true).includes('disabled')) throw new Error('Finished runs should disable jack-out controls');
 if (!renderProgramDock({ ...jackOutRun, selectedProgram: 'scan', disabledPrograms: [] }, true).includes('program-dock--inactive')) throw new Error('Finished runs should fade and disable program controls');
 const cyberProgramDockHtml = renderProgramDock({ ...jackOutRun, selectedProgram: 'scan', disabledPrograms: [] }, false, 'spike', upgradedDeckResult.profile);
 if (!cyberProgramDockHtml.includes('is-recommended') || !cyberProgramDockHtml.includes('program-card__frame') || !cyberProgramDockHtml.includes('LVL')) throw new Error('Program dock should render cyberdeck cards with levels and mark the recommended node visit program');

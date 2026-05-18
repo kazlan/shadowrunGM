@@ -81,10 +81,15 @@ function buildStarTopologyAttempt(template, targetCount, archetype, rng) {
   const edges = [];
   const mirrorX = rng.nextFloat() < 0.5;
   const mirrorY = rng.nextFloat() < 0.5;
-  const place = (x, y) => ({
-    x: mirrorX ? 100 - x : x,
-    y: mirrorY ? 100 - y : y,
-  });
+  const drift = rng.nextFloat() < 0.5 ? -1 : 1;
+  const place = (x, y) => {
+    const placedX = mirrorX ? 100 - x : x;
+    const placedY = mirrorY ? 100 - y : y;
+    return {
+      x: clamp(placedX, 4, 96),
+      y: clamp(placedY + drift * Math.sin((x + y) / 19) * 1.8, 4, 96),
+    };
+  };
 
   const addNode = (zone, kind, x, y) => {
     const point = place(x, y);
@@ -94,15 +99,15 @@ function buildStarTopologyAttempt(template, targetCount, archetype, rng) {
   };
   const connect = (from, to) => edges.push(edge(from, to));
 
-  const entry = addNode('entry', 'entry', 6, 50);
-  const entryControl = addNode('entryControl', rng.pick(['camera', 'firewall']), 22, 50);
-  const hub = addNode('hub', 'firewall', 40, 50);
-  const coreGate = addNode('coreGate', 'firewall', 58, 50);
-  const core = addNode('core', 'core', 76, 50);
-  const exitGate = addNode('exitGate', rng.pick(['camera', 'firewall']), 58, 78);
-  const exitNode = addNode('exit', 'exit', 76, 78);
-  const primaryDataGate = addNode('dataGateA', rng.pick(['firewall', 'camera']), 58, 22);
-  const primaryData = addNode('dataA', 'database', 76, 22);
+  const entry = addNode('entry', 'entry', 8, 84);
+  const entryControl = addNode('entryControl', rng.pick(['camera', 'firewall']), 24, 75);
+  const hub = addNode('hub', 'firewall', 38, 63);
+  const coreGate = addNode('coreGate', 'firewall', 49, 56);
+  const core = addNode('core', 'core', 53, 39);
+  const exitGate = addNode('exitGate', rng.pick(['camera', 'firewall']), 53, 73);
+  const exitNode = addNode('exit', 'exit', 50, 91);
+  const primaryDataGate = addNode('dataGateA', rng.pick(['firewall', 'camera']), 34, 34);
+  const primaryData = addNode('dataA', 'database', 52, 18);
 
   connect(entry, entryControl);
   connect(entryControl, hub);
@@ -114,57 +119,69 @@ function buildStarTopologyAttempt(template, targetCount, archetype, rng) {
   connect(primaryDataGate, primaryData);
 
   if (targetCount >= 10) {
-    const decoyGate = addNode('decoyGate', rng.pick(['camera', 'data']), 24, 22);
+    const decoyGate = addNode('decoyGate', rng.pick(['camera', 'data']), 20, 53);
     connect(entryControl, decoyGate);
     if (targetCount >= 11) {
-      const decoy = addNode('decoy', 'data', 8, 22);
+      const decoy = addNode('decoy', 'data', 6, 39);
       connect(decoyGate, decoy);
     }
   }
 
   if (targetCount >= 12 && (template === 'secure' || template === 'standard' || archetype.dataBias >= 4)) {
-    const secondaryDataGate = addNode('dataGateB', rng.pick(['firewall', 'camera']), 58, 92);
+    const secondaryDataGate = addNode('dataGateB', rng.pick(['firewall', 'camera']), 69, 34);
     const secondaryDataKind = archetype.dataBias >= 4 ? 'database' : rng.pick(['database', 'data']);
-    const secondaryData = addNode('dataB', secondaryDataKind, 76, 92);
-    connect(hub, secondaryDataGate);
+    const secondaryData = addNode('dataB', secondaryDataKind, 84, 25);
+    connect(coreGate, secondaryDataGate);
     connect(secondaryDataGate, secondaryData);
-    if (rng.nextFloat() < 0.7) safeConnect(edges, nodes, primaryDataGate, secondaryDataGate);
+    if (rng.nextFloat() < 0.7) safeConnect(edges, nodes, primaryData, secondaryDataGate);
   }
 
   if (targetCount >= 14) {
-    const monitor = addNode('monitor', 'camera', 24, 78);
-    connect(entryControl, monitor);
-    safeConnect(edges, nodes, monitor, hub);
+    const monitor = addNode('monitor', 'camera', 73, 56);
+    connect(coreGate, monitor);
+    safeConnect(edges, nodes, monitor, exitGate);
   }
 
   if (targetCount >= 15) {
-    const relay = addNode('relay', rng.pick(['firewall', 'camera']), 40, 22);
-    connect(hub, relay);
-    safeConnect(edges, nodes, relay, coreGate);
+    const relay = addNode('relay', rng.pick(['firewall', 'camera']), 18, 24);
+    connect(primaryDataGate, relay);
+    safeConnect(edges, nodes, relay, decoyGateIndex(nodes));
   }
 
   if (targetCount >= 16) {
-    const snare = addNode('snare', 'firewall', 94, 78);
+    const snare = addNode('snare', 'firewall', 79, 75);
     connect(exitGate, snare);
-    safeConnect(edges, nodes, snare, hub);
+    safeConnect(edges, nodes, snare, monitorIndex(nodes));
   }
 
   if (targetCount >= 17) {
-    const vaultGate = addNode('vaultGate', 'firewall', 40, 92);
-    const vault = addNode('vaultMirror', 'database', 22, 92);
-    connect(hub, vaultGate);
+    const vaultGate = addNode('vaultGate', 'firewall', 34, 94);
+    const vault = addNode('vaultMirror', 'database', 18, 96);
+    connect(exitGate, vaultGate);
     connect(vaultGate, vault);
-    safeConnect(edges, nodes, vaultGate, coreGate);
+    safeConnect(edges, nodes, vaultGate, entryControl);
   }
 
   if (targetCount >= 19) {
-    const outerExit = addNode('outerExit', 'exit', 6, 78);
-    safeConnect(edges, nodes, entryControl, outerExit);
+    const outerExit = addNode('outerExit', 'exit', 93, 91);
+    safeConnect(edges, nodes, snareIndex(nodes), outerExit);
   }
 
   addStarCrossLinks(edges, nodes, template, rng);
 
   return { nodes, edges };
+}
+
+function decoyGateIndex(nodes) {
+  return nodes.findIndex((candidate) => candidate.zone === 'decoyGate');
+}
+
+function monitorIndex(nodes) {
+  return nodes.findIndex((candidate) => candidate.zone === 'monitor');
+}
+
+function snareIndex(nodes) {
+  return nodes.findIndex((candidate) => candidate.zone === 'snare');
 }
 
 function addStarCrossLinks(edges, nodes, template, rng) {

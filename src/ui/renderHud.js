@@ -2,48 +2,8 @@ import { assetPaths } from '../assets/assetRegistry.js';
 import { escapeHtml } from './html.js';
 import { programs } from '../game/programCatalog.js';
 
-const avatarGlyphs = {
-  ghost: 'GH',
-  spark: 'SP',
-  cipher: 'CI',
-  vector: 'VX',
-  null: 'N0',
-};
-
 export function renderHud(system, run, finished = false, player = null) {
-  const identity = normalizeHudIdentity(player);
-  return `<header class="hud-top">
-      <div class="runner-id runner-id--${escapeHtml(identity.avatar)}" aria-label="Runner activo">
-        <span class="runner-id__avatar">
-          <img src="${assetPaths.avatars[identity.avatar] ?? assetPaths.avatars.ghost}" alt="" loading="lazy" />
-          <b>${escapeHtml(avatarGlyphs[identity.avatar] ?? 'GH')}</b>
-        </span>
-        <span class="runner-id__text">
-          <b>${escapeHtml(identity.shadowName)}</b>
-          <small>${escapeHtml(system.alias)}</small>
-        </span>
-      </div>
-      <div class="hud-actions">
-        <button class="jack-out" data-action="jackOut" type="button" ${finished ? 'disabled' : ''}>Jack out</button>
-        <button class="settings-toggle" data-action="toggleSettings" type="button" aria-label="Abrir ajustes">
-          ${renderCogIcon()}
-        </button>
-      </div>
-    </header>`;
-}
-
-function normalizeHudIdentity(player) {
-  return {
-    shadowName: String(player?.shadowName || 'NEON GHOST').slice(0, 24),
-    avatar: Object.hasOwn(avatarGlyphs, player?.avatar) ? player.avatar : 'ghost',
-  };
-}
-
-function renderCogIcon() {
-  return `<svg class="settings-icon" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M12 8.2a3.8 3.8 0 1 1 0 7.6 3.8 3.8 0 0 1 0-7.6Z" fill="none" stroke="currentColor" stroke-width="1.8"/>
-    <path d="m19.2 13.7 1.5 1.1-1.7 3-1.8-.7a7.7 7.7 0 0 1-1.5.9l-.3 1.9h-3.5l-.3-1.9a7.4 7.4 0 0 1-1.6-.9l-1.8.7-1.7-3 1.5-1.1a7.8 7.8 0 0 1 0-1.8l-1.5-1.1 1.7-3 1.8.7c.5-.35 1-.65 1.6-.9l.3-1.9h3.5l.3 1.9c.55.24 1.05.54 1.5.9l1.8-.7 1.7 3-1.5 1.1c.08.6.08 1.2 0 1.8Z" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linejoin="round"/>
-  </svg>`;
+  return '';
 }
 
 export function renderProgramDock(run, finished = false, recommendedProgram = null, deckProfile = null) {
@@ -64,9 +24,8 @@ export function renderProgramDock(run, finished = false, recommendedProgram = nu
       return `<button class="${classes}" data-program="${program.kind}" type="button" aria-label="${escapeHtml(`Ejecutar ${program.label}: ${stateLabel}`)}" title="${escapeHtml(stateLabel)}" ${disabled ? 'disabled' : ''}>
         <span class="program-card__frame" aria-hidden="true">
           <svg viewBox="0 0 100 100" focusable="false">
-            <path class="program-card__frame-outer" d="M14 2H74l22 22v52L74 98H14L2 86V14L14 2Z" />
-            <path class="program-card__frame-inner" d="M19 10h51l17 17v46L70 90H19L10 81V19l9-9Z" />
-            <path class="program-card__frame-cut" d="M17 2h18M65 2h10l21 21v10M98 67v9L76 98H60M35 98H14L2 86V72" />
+            <path class="program-card__frame-outer" d="M13 3H72L97 28V78L78 97H13L3 87V13L13 3Z" />
+            <path class="program-card__frame-cut" d="M17 3h17M64 3h8l25 25v9M97 67v11L78 97H61M34 97H13L3 87V70" />
           </svg>
         </span>
         <span class="program-card__icon">

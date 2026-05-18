@@ -2,6 +2,7 @@ import { assetPaths } from '../assets/assetRegistry.js';
 import { iceCatalog } from '../game/iceCatalog.js';
 import { nodeEvents } from '../game/nodeEvents.js';
 import { escapeHtml } from './html.js';
+import { renderRunLogDialog } from './renderRunLog.js';
 
 const nodeNamePools = {
   entry: ['DEV TERMINAL', 'ENTRY PORT', 'ACCESS JACK'],
@@ -23,9 +24,17 @@ const nodeGlyph = {
   exit: '↑',
 };
 
-export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, height: 100 }, mapMessage = null, runResult = null, showResult = true, nodeVisit = null, mapReveal = null) {
+const avatarGlyphs = {
+  ghost: 'GH',
+  spark: 'SP',
+  cipher: 'CI',
+  vector: 'VX',
+  null: 'N0',
+};
+
+export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, height: 100 }, mapMessage = null, runResult = null, showResult = true, nodeVisit = null, mapReveal = null, player = null, runLogOpen = false) {
   if (showResult && (run.status === 'escaped' || run.status === 'dumped')) {
-    return renderRunResultWindow(system, run, runResult);
+    return renderRunResultWindow(system, run, runResult, player, runLogOpen);
   }
 
   const nodeLookup = new Map(system.nodes.map((node) => [node.id, node]));
@@ -52,7 +61,9 @@ export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, h
     </div>
     ${renderMapMeters(run)}
     ${renderMapLogButton(run)}
+    ${renderMapActions(run, false, player)}
     ${renderMapMessage(mapMessage)}
+    ${renderRunLogDialog(runLogOpen, run)}
     <svg viewBox="${formatViewBox(mapView)}" role="img" data-map-surface="true">
       <defs>
         <filter id="mapNodeGlow" x="-80%" y="-80%" width="260%" height="260%">
@@ -133,8 +144,8 @@ function renderCyberNode(node, system, run, recentNodeIds, nodeVisit) {
   const label = isKnown ? getNodeDisplayName(node) : 'UNKNOWN';
   const level = isKnown ? `LVL ${node.risk ?? '?'}` : 'LOCKED';
   const isCore = node.kind === 'core';
-  const outerRadius = isCore ? 8.2 : 6.05;
-  const innerRadius = isCore ? 5.25 : 3.95;
+  const outerRadius = isCore ? 6.95 : 5.15;
+  const iconSize = isCore ? 11.4 : 9.05;
   const title = [
     label,
     `Estado: ${node.state}`,
@@ -143,7 +154,7 @@ function renderCyberNode(node, system, run, recentNodeIds, nodeVisit) {
     event ? `${event.label}: ${event.hint}` : '',
   ].filter(Boolean).join(' | ');
   const icon = isKnown && assetPaths.nodes[node.kind]
-    ? `<image href="${escapeHtml(assetPaths.nodes[node.kind])}" x="${isCore ? -3.9 : -3.05}" y="${isCore ? -3.9 : -3.05}" width="${isCore ? 7.8 : 6.1}" height="${isCore ? 7.8 : 6.1}" preserveAspectRatio="xMidYMid meet" class="node__icon" />`
+    ? `<image href="${escapeHtml(assetPaths.nodes[node.kind])}" x="${formatNumber(-iconSize / 2)}" y="${formatNumber(-iconSize / 2)}" width="${formatNumber(iconSize)}" height="${formatNumber(iconSize)}" preserveAspectRatio="xMidYMid meet" class="node__icon" />`
     : `<text x="0" y="1.3" class="node__glyph">${escapeHtml(isKnown ? nodeGlyph[node.kind] ?? '?' : '?')}</text>`;
   const iceBadge = isKnown && ice
     ? `<g class="node__badge node__badge--ice" transform="translate(${isCore ? 7.15 : 5.25} ${isCore ? -7.15 : -5.25})">
@@ -171,19 +182,15 @@ function renderCyberNode(node, system, run, recentNodeIds, nodeVisit) {
     nodeVisit?.nodeId === node.id ? `node--visit-${nodeVisit.phase ?? 'focus'}` : '',
   ].filter(Boolean).join(' ');
   const coreRings = isCore
-    ? `<circle class="node__core-ring node__core-ring--outer" r="11.4" />
-       <circle class="node__core-ring node__core-ring--mid" r="9.6" />
-       <circle class="node__core-ring node__core-ring--inner" r="7.3" />`
+    ? `<circle class="node__core-ring node__core-ring--outer" r="12.1" />`
     : '';
 
   return `<g data-node-id="${escapeHtml(node.id)}" class="${classes}" transform="translate(${formatNumber(node.x)} ${formatNumber(node.y)})">
     <title>${escapeHtml(title)}</title>
     <circle class="node__hit" r="${isCore ? 13.2 : 10.4}" />
     ${coreRings}
-    <polygon class="node__frame node__frame--aura" points="${hexPoints(outerRadius + 1.35)}" />
+    <polygon class="node__frame node__frame--aura" points="${hexPoints(outerRadius + .88)}" />
     <polygon class="node__frame node__frame--outer" points="${hexPoints(outerRadius)}" filter="${isCore ? 'url(#mapCoreGlow)' : 'url(#mapNodeGlow)'}" />
-    <polygon class="node__frame node__frame--inner" points="${hexPoints(innerRadius)}" />
-    <circle class="node__socket" r="${isCore ? 3.35 : 2.55}" />
     ${icon}
     <text x="0" y="${isCore ? 13.35 : 10.45}" class="node__label">${escapeHtml(label)}</text>
     <text x="0" y="${isCore ? 16.05 : 12.8}" class="node__level">${escapeHtml(level)}</text>
@@ -315,7 +322,7 @@ function labelProgram(program) {
   return program.charAt(0).toUpperCase() + program.slice(1);
 }
 
-function renderRunResultWindow(system, run, runResult = null) {
+function renderRunResultWindow(system, run, runResult = null, player = null, runLogOpen = false) {
   const resultStatus = runResult?.status ?? run.status;
   const lootTokens = runResult?.lootTokens ?? run.lootTokens ?? 0;
   const success = resultStatus === 'escaped' && (run.hasPayload || lootTokens > 0);
@@ -339,6 +346,8 @@ function renderRunResultWindow(system, run, runResult = null) {
 
   return `<section class="node-map node-map--result ${resultClass}" aria-label="Resumen final de la run">
     ${renderMapLogButton(run)}
+    ${renderMapActions(run, true, player)}
+    ${renderRunLogDialog(runLogOpen, run)}
     <div class="result-terminal">
       <p class="result-command">${escapeHtml(command)}</p>
       <strong class="result-brand fx-glitch" data-text="SHADOW HACK">SHADOW HACK</strong>
@@ -379,13 +388,44 @@ function renderMapLogButton(run) {
 
 function renderMapMessage(mapMessage) {
   if (!mapMessage?.text) return '';
+  const text = String(mapMessage.text);
+  const characterMs = 34;
+  const characters = Array.from(text).slice(0, 160);
+  const typeDuration = Math.max(characterMs, characters.length * characterMs);
+  const typedCharacters = characters
+    .map((character, index) => `<span class="node-map__message-char" style="animation-delay:${index * characterMs}ms">${character === ' ' ? '&nbsp;' : escapeHtml(character)}</span>`)
+    .join('');
+
   return `<div class="node-map__message" aria-live="polite" data-log-key="${escapeHtml(mapMessage.key ?? 'log')}">
-    <span class="fx-glitch" data-text="${escapeHtml(mapMessage.text)}">${escapeHtml(mapMessage.text)}</span>
+    <span class="node-map__message-text" data-text="${escapeHtml(text)}" style="--type-duration:${typeDuration}ms">
+      ${typedCharacters}<i class="node-map__message-cursor" aria-hidden="true"></i>
+    </span>
   </div>`;
 }
 
 function formatViewBox(view) {
-  return `${view.x} ${view.y} ${view.width} ${view.height}`;
+  return [view.x, view.y, view.width, view.height].map(formatNumber).join(' ');
+}
+
+function renderMapActions(run, finished = false, player = null) {
+  const identity = normalizeMapIdentity(player);
+  const avatar = assetPaths.avatars[identity.avatar] ?? assetPaths.avatars.ghost;
+
+  return `<div class="node-map__actions" aria-label="Acciones de la run">
+    <button class="jack-out node-map__jack-out" data-action="jackOut" type="button" ${finished ? 'disabled' : ''}>Jack out</button>
+    <button class="node-map__avatar-settings runner-id--${escapeHtml(identity.avatar)}" data-action="toggleSettings" type="button" aria-label="${escapeHtml(`Abrir ajustes de ${identity.shadowName}`)}" title="${escapeHtml(identity.shadowName)}">
+      <img src="${escapeHtml(avatar)}" alt="" loading="lazy" />
+      <b>${escapeHtml(avatarGlyphs[identity.avatar] ?? 'GH')}</b>
+    </button>
+  </div>`;
+}
+
+function normalizeMapIdentity(player) {
+  const avatar = Object.hasOwn(avatarGlyphs, player?.avatar) ? player.avatar : 'ghost';
+  return {
+    shadowName: String(player?.shadowName || 'NEON GHOST').slice(0, 24),
+    avatar,
+  };
 }
 
 function formatNumber(value) {
