@@ -207,31 +207,17 @@ function renderMapBackplane() {
   </g>`;
 }
 
-function getConnectionPath(from, to, key) {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const distance = Math.max(1, Math.hypot(dx, dy));
-  const bend = clamp(distance * 0.055, 1.15, 3.2) * (hashKey(key) % 2 === 0 ? 1 : -1);
-  const normalX = -dy / distance;
-  const normalY = dx / distance;
-  const p1 = {
-    x: from.x + dx * 0.38 + normalX * bend,
-    y: from.y + dy * 0.38 + normalY * bend,
-  };
-  const p2 = {
-    x: from.x + dx * 0.62 + normalX * bend,
-    y: from.y + dy * 0.62 + normalY * bend,
-  };
+function getConnectionPath(from, to) {
   const mid = {
-    x: (p1.x + p2.x) / 2,
-    y: (p1.y + p2.y) / 2,
+    x: (from.x + to.x) / 2,
+    y: (from.y + to.y) / 2,
   };
 
   return {
     start: { x: from.x, y: from.y },
     mid,
     end: { x: to.x, y: to.y },
-    d: `M ${formatNumber(from.x)} ${formatNumber(from.y)} L ${formatNumber(p1.x)} ${formatNumber(p1.y)} L ${formatNumber(p2.x)} ${formatNumber(p2.y)} L ${formatNumber(to.x)} ${formatNumber(to.y)}`,
+    d: `M ${formatNumber(from.x)} ${formatNumber(from.y)} L ${formatNumber(to.x)} ${formatNumber(to.y)}`,
   };
 }
 
@@ -272,14 +258,6 @@ function isHostileNode(node) {
 
 function getEdgeKey(edge) {
   return [edge.from, edge.to].sort().join(':');
-}
-
-function hashKey(value) {
-  return String(value).split('').reduce((hash, character) => hash + character.charCodeAt(0), 0);
-}
-
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
 }
 
 function renderNodeFocusHud(system, run, nodeVisit) {

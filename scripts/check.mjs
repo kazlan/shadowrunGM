@@ -71,6 +71,7 @@ if (authSource.includes('signInWithPopup') || !authSource.includes('signInWithRe
   throw new Error('Google auth should use redirect flow and support guest-to-Google linking');
 }
 if (!mainSource.includes('mapPointers: new Map()') || !mainSource.includes('startMapPinch') || !mainSource.includes('zoomMapAtPoint')) throw new Error('Node map should keep pinch zoom support wired into pointer handling');
+if (!mainSource.includes('mapBounds') || !mainSource.includes('getMapBounds') || !mainSource.includes('MAP_GRAPH_OFFSET_Y')) throw new Error('Node map should derive its gesture bounds from the generated graph');
 const scanLocalBody = mainSource.match(/async function scanLocalTargets\(\) \{[\s\S]*?\n\}/)?.[0] ?? '';
 if (scanLocalBody.includes('startRun(') || !scanLocalBody.includes('appState.isScannerOpen = true;')) throw new Error('Local scanner should keep the target picker open instead of auto-starting a run');
 const locationSource = await readFile('src/location/locationService.js', 'utf8');
@@ -250,6 +251,7 @@ if (JSON.stringify(jackOutSystem.nodes.map(({ id, kind, event }) => ({ id, kind,
   throw new Error('Generated node events must be deterministic for the same host seed');
 }
 assertStructuredHost(jackOutSystem);
+assertMapViewContainsGraph(jackOutSystem);
 if (!jackOutSystem.nodes.some((node) => node.event === nodeEvents.archive.kind || node.event === nodeEvents.core.kind)) {
   throw new Error('Generated hosts should include extractable node events');
 }
@@ -269,6 +271,8 @@ const highValueSystem = generateSystem({
 });
 assertStructuredHost(lowValueSystem);
 assertStructuredHost(highValueSystem);
+assertMapViewContainsGraph(lowValueSystem);
+assertMapViewContainsGraph(highValueSystem);
 if (countHostDefenses(highValueSystem) <= countHostDefenses(lowValueSystem)) throw new Error('High-value hosts should contain more defenses than low-value hosts');
 assertHighTierPayloadApproach(highValueSystem);
 const jackOutRun = reduceRun(jackOutSystem, createInitialRunState(jackOutSystem), { type: 'jackOut' });
@@ -316,6 +320,7 @@ if (!savedPostRunHtml.includes('Host guardado') || savedPostRunHtml.includes('Gu
 }
 
 function assertStructuredHost(system) {
+  assertReadableMapGeometry(system);
   const distances = hostDistances(system);
   if (distances[system.coreNodeId] === undefined || distances[system.coreNodeId] < 4) throw new Error('Generated host core should be at least four hops from entry');
   if (!system.nodes.some((node) => node.kind === 'exit' && distances[node.id] !== undefined)) throw new Error('Generated host should include a reachable exit');
@@ -323,6 +328,98 @@ function assertStructuredHost(system) {
   for (const node of system.nodes) {
     if (node.event === nodeEvents.archive.kind && distances[node.id] < 3) throw new Error('Generated host archive paydata should not sit beside the entry');
   }
+}
+
+
+function assertReadableMapGeometry(system) {
+  for (let leftIndex = 0; leftIndex < system.nodes.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < system.nodes.length; rightIndex += 1) {
+      const left = system.nodes[leftIndex];
+      const right = system.nodes[rightIndex];
+      const minimumDistance = left.kind === 'core' || right.kind === 'core' ? 16 : 13;
+      if (Math.hypot(left.x - right.x, left.y - right.y) < minimumDistance) {
+        throw new Error(`Generated host map nodes should breathe: ${left.id} is too close to ${right.id}`);
+      }
+    }
+  }
+
+  for (let leftIndex = 0; leftIndex < system.edges.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < system.edges.length; rightIndex += 1) {
+      const left = system.edges[leftIndex];
+      const right = system.edges[rightIndex];
+      if (sharesEndpoint(left, right)) continue;
+      if (segmentsIntersect(nodePoint(system, left.from), nodePoint(system, left.to), nodePoint(system, right.from), nodePoint(system, right.to))) {
+        throw new Error(`Generated host map routes should not cross: ${left.from}-${left.to} crosses ${right.from}-${right.to}`);
+      }
+    }
+  }
+}
+
+function assertMapViewContainsGraph(system) {
+  const bounds = checkMapBounds(system);
+  const html = renderNodeMap(projectSystemForRun(system, createInitialRunState(system)), createInitialRunState(system), bounds);
+  if (!html.includes(`viewBox="${formatCheckViewBox(bounds)}"`)) throw new Error('Node map should render the supplied graph-sized viewBox');
+  for (const node of system.nodes) {
+    const y = node.y + 20;
+    if (node.x < bounds.x || node.x > bounds.x + bounds.width || y < bounds.y || y > bounds.y + bounds.height) {
+      throw new Error(`Initial map bounds should contain node ${node.id}`);
+    }
+  }
+}
+
+function checkMapBounds(system) {
+  const xs = system.nodes.map((node) => node.x);
+  const ys = system.nodes.map((node) => node.y + 20);
+  const minX = Math.min(...xs) - 18;
+  const maxX = Math.max(...xs) + 18;
+  const minY = Math.min(...ys) - 18;
+  const maxY = Math.max(...ys) + 24;
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(32, maxX - minX),
+    height: Math.max(32, maxY - minY),
+  };
+}
+
+function formatCheckViewBox(view) {
+  return [view.x, view.y, view.width, view.height].map((value) => Number(value.toFixed(2))).join(' ');
+}
+
+function nodePoint(system, nodeId) {
+  const node = system.nodes.find((candidate) => candidate.id === nodeId);
+  if (!node) throw new Error(`Missing node ${nodeId}`);
+  return node;
+}
+
+function sharesEndpoint(leftEdge, rightEdge) {
+  return leftEdge.from === rightEdge.from
+    || leftEdge.from === rightEdge.to
+    || leftEdge.to === rightEdge.from
+    || leftEdge.to === rightEdge.to;
+}
+
+function segmentsIntersect(a, b, c, d) {
+  const abC = orientation(a, b, c);
+  const abD = orientation(a, b, d);
+  const cdA = orientation(c, d, a);
+  const cdB = orientation(c, d, b);
+  if (Math.abs(abC) < 0.001 && onSegment(a, c, b)) return true;
+  if (Math.abs(abD) < 0.001 && onSegment(a, d, b)) return true;
+  if (Math.abs(cdA) < 0.001 && onSegment(c, a, d)) return true;
+  if (Math.abs(cdB) < 0.001 && onSegment(c, b, d)) return true;
+  return (abC > 0) !== (abD > 0) && (cdA > 0) !== (cdB > 0);
+}
+
+function orientation(a, b, c) {
+  return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+}
+
+function onSegment(a, b, c) {
+  return b.x <= Math.max(a.x, c.x) + 0.001
+    && b.x + 0.001 >= Math.min(a.x, c.x)
+    && b.y <= Math.max(a.y, c.y) + 0.001
+    && b.y + 0.001 >= Math.min(a.y, c.y);
 }
 
 function assertHighTierPayloadApproach(system) {
