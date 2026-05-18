@@ -32,3 +32,9 @@ La valoración produce:
 ## Importante
 
 Esta valoración es ficción sistémica. No debe mostrarse como valor económico real ni afirmación sobre una empresa real.
+
+## Relación con dificultad de host
+
+La valoración es la puerta de entrada a la dificultad, pero no es la dificultad completa. El `score` produce etiquetas legibles (`tier` y `difficulty`) y tres salidas mecánicas: `securityModifier`, `sizeModifier` y `payoutMultiplier`. El generador de mapa usa esas salidas para calcular la seguridad efectiva, elegir una plantilla de topología y modular defensas; la recompensa final usa el multiplicador para pagar mejor los objetivos más valiosos.
+
+Para el detalle completo de cómo esos campos terminan afectando nodos, riesgo, ICE, plantillas y límites actuales de alerta/traza, ver [`host-difficulty.md`](./host-difficulty.md).
