@@ -55,6 +55,7 @@ export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, h
       <button data-map-action="reset" type="button" aria-label="Recentrar mapa">R</button>
       <button data-map-action="zoomIn" type="button" aria-label="Acercar mapa">+</button>
     </div>
+    ${renderMapLogButton(run)}
     ${renderMapMessage(mapMessage)}
     <svg viewBox="${formatViewBox(mapView)}" role="img" data-map-surface="true">
       <defs>
@@ -360,6 +361,15 @@ function renderRunResultWindow(system, run, runResult = null) {
       </ul>
     </div>
   </section>`;
+}
+
+
+function renderMapLogButton(run) {
+  const count = run?.log?.length ?? 0;
+  return `<button class="node-map__log-button" data-action="toggleRunLog" type="button" aria-label="Abrir historial de intrusión">
+    <span>LOG</span>
+    <b>${count}</b>
+  </button>`;
 }
 
 function renderMapMessage(mapMessage) {

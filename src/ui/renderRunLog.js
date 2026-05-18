@@ -1,14 +1,24 @@
 import { escapeHtml } from './html.js';
-export function renderRunLog(run) {
-  const lines = run.log.map((line) => `<li>${escapeHtml(line)}</li>`).join('');
+
+export function renderRunLogDialog(isOpen, run) {
+  if (!isOpen || !run) return '';
+
+  const lines = run.log.map((line, index) => `<li><span>${String(index + 1).padStart(2, '0')}</span>${escapeHtml(line)}</li>`).join('');
   const statusClass = run.status === 'escaped' ? 'is-success' : run.status === 'dumped' ? 'is-danger' : '';
-  return `<section class="run-log ${statusClass}" aria-label="Log de intrusión" aria-live="polite">
-    <div>
-      <p class="eyebrow">Estado</p>
-      <strong class="fx-glitch" data-text="${escapeHtml(statusLabel(run.status))}">${escapeHtml(statusLabel(run.status))}</strong>
-    </div>
-    <ol>${lines}</ol>
-  </section>`;
+
+  return `<aside class="run-log-dialog ${statusClass}" role="dialog" aria-modal="true" aria-labelledby="run-log-title">
+    <button class="overlay-backdrop" data-action="closeRunLog" type="button" aria-label="Cerrar historial"></button>
+    <section class="overlay-panel run-log-dialog__panel">
+      <div class="overlay-panel__header">
+        <div>
+          <p class="eyebrow">Historial de intrusión</p>
+          <h2 id="run-log-title">${escapeHtml(statusLabel(run.status))}</h2>
+        </div>
+        <button class="overlay-close" data-action="closeRunLog" type="button" aria-label="Cerrar historial">×</button>
+      </div>
+      <ol class="run-log-dialog__list">${lines}</ol>
+    </section>
+  </aside>`;
 }
 
 export function renderPostRunScannerPanel(runResult, completion, deckProfile, rebooted = false) {

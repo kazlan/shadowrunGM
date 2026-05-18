@@ -17,7 +17,7 @@ import { renderHud, renderProgramDock } from '../ui/renderHud.js';
 import { renderLandingPage } from '../ui/renderLandingPage.js';
 import { renderNodeMap } from '../ui/renderNodeMap.js';
 import { renderProgressPanel } from '../ui/renderProgress.js';
-import { renderPostRunScannerPanel, renderRunLog } from '../ui/renderRunLog.js';
+import { renderPostRunScannerPanel, renderRunLogDialog } from '../ui/renderRunLog.js';
 import { renderScannerOverlay } from '../ui/renderScannerOverlay.js';
 import { applyTheme, loadThemePreference, saveThemePreference } from '../ui/themeStore.js';
 import { classifyCompany } from '../world/companyArchetypes.js';
@@ -73,6 +73,7 @@ const appState = {
   helpTab: 'run',
   isDeckOpen: false,
   isScannerOpen: false,
+  isRunLogOpen: false,
   mapView: { ...DEFAULT_MAP_VIEW },
   mapPointer: null,
   mapPointers: new Map(),
@@ -121,6 +122,7 @@ async function startRun(place) {
   appState.deckProfile = loadDeckProfile();
   appState.deckMessage = '';
   appState.isDeckOpen = false;
+  appState.isRunLogOpen = false;
   appState.run = createInitialRunState(appState.system, appState.deckProfile);
   appState.lastMapLogLength = 0;
   appState.mapReveal = null;
@@ -196,10 +198,11 @@ function render() {
     ${renderHud(runtimeSystem, appState.run, finished, appState.deckProfile.player)}
     ${renderNodeMap(runtimeSystem, appState.run, appState.mapView, getVisibleMapLogMessage(), appState.runResult, resultVisible, appState.nodeVisit, getVisibleMapReveal())}
     ${renderProgramDock(appState.run, finished, appState.nodeVisit?.recommendedProgram, appState.deckProfile)}
-    ${postRunPanelVisible ? renderPostRunScannerPanel(appState.runResult, appState.completion, appState.deckProfile, appState.postRunRebooted) : renderRunLog(appState.run)}
+    ${postRunPanelVisible ? renderPostRunScannerPanel(appState.runResult, appState.completion, appState.deckProfile, appState.postRunRebooted) : ''}
     ${renderDeckTrace(appState.deckProfile, appState.run, appState.deckMessage, getDeckTraceView())}
     ${renderProgressPanel(appState.currentProgress, appState.recentProgress)}
     ${renderDeckOverlay(appState.isDeckOpen, appState.deckProfile, appState.deckMessage)}
+    ${renderRunLogDialog(appState.isRunLogOpen, appState.run)}
     ${renderSettingsOverlay(appState.isSettingsOpen, audioDirector.getState(), appState.theme, appState.cloud, appState.deckProfile)}
     ${renderHelpOverlay(appState.isHelpOpen, appState.helpTab)}
     ${renderScannerOverlay({
@@ -428,6 +431,7 @@ function bindEvents() {
         appState.isHelpOpen = false;
         appState.isScannerOpen = false;
         appState.isDeckOpen = false;
+        appState.isRunLogOpen = false;
         void audioDirector.play('openOverlay');
         render();
       }
@@ -436,6 +440,7 @@ function bindEvents() {
         appState.isSettingsOpen = false;
         appState.isScannerOpen = false;
         appState.isDeckOpen = false;
+        appState.isRunLogOpen = false;
         void audioDirector.play('openOverlay');
         render();
       }
@@ -456,6 +461,7 @@ function bindEvents() {
         appState.isSettingsOpen = false;
         appState.isHelpOpen = false;
         appState.isDeckOpen = false;
+        appState.isRunLogOpen = false;
         void audioDirector.play('openOverlay');
         render();
       }
@@ -469,11 +475,26 @@ function bindEvents() {
         appState.isSettingsOpen = false;
         appState.isHelpOpen = false;
         appState.isScannerOpen = false;
+        appState.isRunLogOpen = false;
         void audioDirector.play('openOverlay');
         render();
       }
       if (action === 'closeDeck') {
         appState.isDeckOpen = false;
+        void audioDirector.play('openOverlay');
+        render();
+      }
+      if (action === 'toggleRunLog') {
+        appState.isRunLogOpen = !appState.isRunLogOpen;
+        appState.isSettingsOpen = false;
+        appState.isHelpOpen = false;
+        appState.isScannerOpen = false;
+        appState.isDeckOpen = false;
+        void audioDirector.play('openOverlay');
+        render();
+      }
+      if (action === 'closeRunLog') {
+        appState.isRunLogOpen = false;
         void audioDirector.play('openOverlay');
         render();
       }
@@ -566,7 +587,7 @@ function audioEventForAction(action) {
 }
 
 function scrollRunLogToLatest() {
-  const log = root?.querySelector('.run-log ol');
+  const log = root?.querySelector('.run-log-dialog__list');
   if (!log) return;
   log.scrollTop = log.scrollHeight;
 }
