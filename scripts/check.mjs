@@ -397,6 +397,7 @@ const nodeVisitHtml = renderNodeMap(projectSystemForRun(iceSystem, movedIntoIce)
 if (!nodeVisitHtml.includes('node-focus-hud') || !nodeVisitHtml.includes('route--focus') || !nodeVisitHtml.includes('Centinela') || !nodeVisitHtml.includes('REC: Spike') || nodeVisitHtml.includes('TIPO')) throw new Error('Node visits should render a non-modal tactical focus HUD with ICE and a concise recommendation hint');
 const deckTraceHtml = renderDeckTrace(upgradedDeckResult.profile, createInitialRunState(iceSystem, upgradedDeckResult.profile), 'Scan mejorado.');
 if (deckTraceHtml.includes('deck-memory')) throw new Error('Deck trace should not render the removed local memory box');
+if (!deckTraceHtml.includes('deck-extraction') || !deckTraceHtml.includes('EXTR 0/')) throw new Error('Deck trace should render segmented extraction capacity inside the deck box');
 const finishedDeckTraceHtml = renderDeckTrace(upgradedDeckResult.profile, { ...createInitialRunState(iceSystem, upgradedDeckResult.profile), status: 'escaped', lootTokens: 3, deckCash: 99 }, 'Run limpia.');
 if (!finishedDeckTraceHtml.includes('RUN 0') || !finishedDeckTraceHtml.includes('CTA')) throw new Error('Finished runs should empty deck cash in the deck trace');
 const animatedDeckTraceHtml = renderDeckTrace(upgradedDeckResult.profile, createInitialRunState(iceSystem, upgradedDeckResult.profile), 'Transfer.', { phase: 'transfer', maxLoot: 5, loot: 2, deckCash: 40, accountCredits: 120 });
