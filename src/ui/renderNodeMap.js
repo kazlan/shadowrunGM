@@ -13,7 +13,7 @@ const nodeGlyph = {
   exit: 'OUT',
 };
 
-export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, height: 100 }, mapMessage = null, runResult = null, showResult = true) {
+export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, height: 100 }, mapMessage = null, runResult = null, showResult = true, nodeVisit = null) {
   if (showResult && (run.status === 'escaped' || run.status === 'dumped')) {
     return renderRunResultWindow(system, run, runResult);
   }
@@ -35,7 +35,7 @@ export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, h
       const radius = node.kind === 'core' ? 5.6 : 4.3;
       const isReachable = isNodeReachable(system, run, node.id);
       const iceMarker = ice && node.state !== 'unknown'
-        ? `<image href="${assetPaths.defenses[node.ice]}" x="${node.x + 3.8}" y="${node.y - 10.8}" width="7" height="7" class="ice-marker" />`
+        ? `<image href="${assetPaths.defensePng[node.ice] ?? assetPaths.defenses[node.ice]}" x="${node.x + 3.8}" y="${node.y - 10.8}" width="7" height="7" class="ice-marker" />`
         : '';
       const eventMarker = event && node.state !== 'unknown'
         ? `<text x="${node.x}" y="${node.y + radius + 4.6}" class="event-marker">${escapeHtml(event.glyph)}</text>`
@@ -51,7 +51,9 @@ export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, h
     })
     .join('');
 
-  return `<section class="node-map" aria-label="Mapa de nodos del host">
+  const visitingClass = nodeVisit ? ` node-map--visiting node-map--visit-${escapeHtml(nodeVisit.phase ?? 'focus')}` : '';
+
+  return `<section class="node-map${visitingClass}" aria-label="Mapa de nodos del host">
     <div class="node-map__heading">
       <p class="eyebrow">Turno ${run.turn} · ${escapeHtml(system.valuation?.tier ?? 'C')} ${system.valuation?.score ?? 0}/100</p>
       <strong class="fx-glitch" data-text="${escapeHtml(system.alias)}">${escapeHtml(system.alias)}</strong>
@@ -78,18 +80,75 @@ export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, h
         ${nodes}
       </g>
     </svg>
+    ${renderNodeDiorama(system, run, nodeVisit)}
   </section>`;
 }
 
+function renderNodeDiorama(system, run, nodeVisit) {
+  if (!nodeVisit) return '';
+  const node = system.nodes.find((candidate) => candidate.id === nodeVisit.nodeId);
+  if (!node) return '';
+
+  const ice = node.ice && !node.iceNeutralized ? iceCatalog[node.ice] : null;
+  const event = node.event && !node.eventResolved ? nodeEvents[node.event] : null;
+  const status = nodeVisit.phase === 'resolved' ? 'RESOLVED'
+    : nodeVisit.phase === 'failed' ? 'HOSTILE'
+      : node.state === 'compromised' ? 'COMPROMISED'
+        : 'ACTIVE';
+  const operationName = `${node.kind.toUpperCase()} ${node.id}`;
+  const defenseLabel = ice?.label ?? 'Sin ICE';
+  const iceIcon = ice ? assetPaths.defensePng[node.ice] ?? assetPaths.defenses[node.ice] : null;
+  const nodeIcon = assetPaths.nodes[node.kind];
+  const recommendedProgram = nodeVisit.recommendedProgram ? labelProgram(nodeVisit.recommendedProgram) : 'Scan';
+  const hint = ice?.weakness ?? event?.hint ?? getDefaultNodeHint(node);
+  const stamp = nodeVisit.stamp
+    ? `<div class="node-diorama__stamp fx-glitch" data-text="${escapeHtml(nodeVisit.stamp)}">${escapeHtml(nodeVisit.stamp)}</div>`
+    : '';
+
+  return `<article class="node-diorama node-diorama--${escapeHtml(nodeVisit.phase ?? 'focus')}" aria-live="polite">
+    <div class="node-diorama__grid" aria-hidden="true"></div>
+    <div class="node-diorama__icon">
+      <img src="${escapeHtml(nodeIcon)}" alt="" loading="lazy" />
+    </div>
+    <div class="node-diorama__main">
+      <header class="node-diorama__header">
+        <span>${escapeHtml(status)} · risk/${escapeHtml(String(node.risk ?? '?'))}</span>
+        <strong>${escapeHtml(operationName)}</strong>
+      </header>
+      <p class="node-diorama__hint">
+        <span>${escapeHtml(hint)}</span>
+        <b>Recomendado: ${escapeHtml(recommendedProgram)}</b>
+      </p>
+    </div>
+    <aside class="node-diorama__ice ${ice ? 'node-diorama__ice--active' : ''}">
+      ${iceIcon ? `<img src="${escapeHtml(iceIcon)}" alt="" loading="lazy" />` : ''}
+      <span>ICE</span>
+      <b>${escapeHtml(defenseLabel)}</b>
+    </aside>
+    ${stamp}
+  </article>`;
+}
+
+function getDefaultNodeHint(node) {
+  if (['data', 'database', 'core'].includes(node.kind)) return 'Payload posible en el buffer del nodo.';
+  if (node.kind === 'exit') return 'Salida viable para asegurar la run.';
+  return 'Nodo estable, lectura de host sin defensa activa.';
+}
+
+function labelProgram(program) {
+  return program.charAt(0).toUpperCase() + program.slice(1);
+}
+
 function renderRunResultWindow(system, run, runResult = null) {
-  const success = run.status === 'escaped' && run.hasPayload;
+  const resultStatus = runResult?.status ?? run.status;
+  const lootTokens = runResult?.lootTokens ?? run.lootTokens ?? 0;
+  const success = resultStatus === 'escaped' && (run.hasPayload || lootTokens > 0);
   const status = success ? 'success' : 'critical';
   const operator = runResult?.operator ?? 'usr@sh';
   const securedNodes = runResult?.securedNodes ?? Object.values(run.nodeStates).filter((state) => state !== 'unknown').length;
   const nodeCount = runResult?.nodeCount ?? system.nodes.length;
   const score = runResult?.score ?? 0;
   const reward = runResult?.reward ?? 0;
-  const lootTokens = runResult?.lootTokens ?? run.lootTokens ?? 0;
   const command = success
     ? `[${operator}]> run_complete.sh --status success --user validated`
     : `[${operator}]> run_complete.sh --status critical --data_purge_in_progress`;

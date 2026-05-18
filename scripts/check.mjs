@@ -396,7 +396,7 @@ const nodeVisitHtml = renderNodeMap(projectSystemForRun(iceSystem, movedIntoIce)
   recommendedProgram: 'spike',
   autoDismiss: false,
 });
-if (!nodeVisitHtml.includes('node-diorama') || !nodeVisitHtml.includes('Centinela') || !nodeVisitHtml.includes('Spike')) throw new Error('Node visits should render a tactical diorama with ICE and recommendation');
+if (!nodeVisitHtml.includes('node-diorama') || !nodeVisitHtml.includes('Centinela') || !nodeVisitHtml.includes('Recomendado: Spike') || nodeVisitHtml.includes('TIPO')) throw new Error('Node visits should render a compact tactical diorama with ICE and a concise recommendation hint');
 if (!renderDeckTrace(upgradedDeckResult.profile, createInitialRunState(iceSystem, upgradedDeckResult.profile), 'Scan mejorado.').includes('deck-memory')) throw new Error('Deck trace should show segmented memory');
 const finishedDeckTraceHtml = renderDeckTrace(upgradedDeckResult.profile, { ...createInitialRunState(iceSystem, upgradedDeckResult.profile), status: 'escaped', lootTokens: 3, deckCash: 99 }, 'Run limpia.');
 if (!finishedDeckTraceHtml.includes('RUN 0') || !finishedDeckTraceHtml.includes('CTA') || !finishedDeckTraceHtml.includes('0/5')) throw new Error('Finished runs should empty deck cash and memory in the deck trace');

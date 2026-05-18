@@ -14,7 +14,10 @@ export function renderHud(system, run, finished = false, player = null) {
   const identity = normalizeHudIdentity(player);
   return `<header class="hud-top">
       <div class="runner-id runner-id--${escapeHtml(identity.avatar)}" aria-label="Runner activo">
-        <span class="runner-id__avatar">${escapeHtml(avatarGlyphs[identity.avatar] ?? 'GH')}</span>
+        <span class="runner-id__avatar">
+          <img src="${assetPaths.avatars[identity.avatar] ?? assetPaths.avatars.ghost}" alt="" loading="lazy" />
+          <b>${escapeHtml(avatarGlyphs[identity.avatar] ?? 'GH')}</b>
+        </span>
         <span class="runner-id__text">
           <b>${escapeHtml(identity.shadowName)}</b>
           <small>${escapeHtml(system.alias)}</small>

@@ -531,6 +531,7 @@ button:focus-visible {
   align-items: center;
 }
 .runner-id__avatar {
+  position: relative;
   width: 34px;
   height: 34px;
   display: grid;
@@ -545,6 +546,26 @@ button:focus-visible {
   letter-spacing: .06em;
   box-shadow: 0 0 14px rgba(51, 255, 204, .2);
   clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 7px 100%, 0 calc(100% - 7px));
+}
+.runner-id__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: .92;
+}
+.runner-id__avatar b {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  display: grid;
+  place-items: center;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  color: var(--surface);
+  background: var(--cyan);
+  font-size: .46rem;
+  line-height: 1;
 }
 .runner-id__text {
   min-width: 0;
@@ -695,22 +716,27 @@ button:focus-visible {
 }
 .node-diorama {
   position: absolute;
-  inset: 12px;
+  right: 8px;
+  bottom: 8px;
+  left: 8px;
   z-index: 8;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto;
-  gap: 8px;
+  grid-template-columns: 66px minmax(0, 1fr) minmax(72px, .25fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+  min-height: 34%;
+  max-height: 42%;
   min-width: 0;
-  padding: 12px;
+  padding: 8px;
   overflow: hidden;
   color: var(--text);
   border: 1px solid color-mix(in srgb, var(--danger-color) 82%, var(--cyan));
   background:
-    radial-gradient(circle at 72% 18%, color-mix(in srgb, var(--danger-color) 28%, transparent), transparent 34%),
-    linear-gradient(135deg, rgba(4, 12, 16, .92), rgba(5, 3, 12, .86));
-  box-shadow: inset 0 0 34px color-mix(in srgb, var(--danger-color) 24%, transparent), 0 0 24px var(--danger-glow);
+    linear-gradient(90deg, rgba(4, 12, 16, .96), rgba(5, 3, 12, .9));
+  box-shadow: inset 0 0 22px color-mix(in srgb, var(--danger-color) 18%, transparent), 0 0 18px var(--danger-glow);
   text-shadow: 0 0 10px rgba(51, 255, 204, .24);
-  animation: nodeDioramaIn .28s ease-out both;
+  animation: nodeDioramaIn .22s cubic-bezier(.16, 1, .3, 1) both;
 }
 .node-diorama::before,
 .node-diorama::after {
@@ -719,124 +745,119 @@ button:focus-visible {
   pointer-events: none;
 }
 .node-diorama::before {
-  inset: 7px;
+  inset: 5px;
   border: 1px solid color-mix(in srgb, var(--cyan) 24%, transparent);
-  box-shadow: inset 0 0 18px rgba(51, 255, 204, .08);
+  box-shadow: inset 0 0 12px rgba(51, 255, 204, .06);
 }
 .node-diorama::after {
   inset: 0;
   background:
     linear-gradient(90deg, transparent 0 46%, color-mix(in srgb, var(--danger-color) 28%, transparent) 50%, transparent 54%),
     repeating-linear-gradient(0deg, rgba(255, 255, 255, .05) 0 1px, transparent 1px 5px);
-  opacity: .18;
+  opacity: .12;
   mix-blend-mode: screen;
 }
 .node-diorama__grid {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: .22;
+  opacity: .12;
   background-image:
     linear-gradient(color-mix(in srgb, var(--cyan) 18%, transparent) 1px, transparent 1px),
     linear-gradient(90deg, color-mix(in srgb, var(--cyan) 12%, transparent) 1px, transparent 1px);
   background-size: 18px 18px;
   mask-image: radial-gradient(circle at 64% 40%, #000 0 42%, transparent 78%);
 }
+.node-diorama__icon,
+.node-diorama__main,
 .node-diorama__header,
-.node-diorama__core,
-.node-diorama__meters,
-.node-diorama__whisper {
+.node-diorama__hint,
+.node-diorama__ice {
   position: relative;
   z-index: 1;
+}
+.node-diorama__icon {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+}
+.node-diorama__icon img {
+  width: min(56px, 100%);
+  height: min(56px, 100%);
+  object-fit: contain;
+  image-rendering: auto;
+  opacity: .95;
+}
+.node-diorama__main {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 7px;
+  align-content: center;
 }
 .node-diorama__header strong {
   display: block;
   margin-top: 2px;
   color: var(--text-strong);
-  font-size: clamp(1.05rem, 4.6vw, 1.7rem);
+  font-size: clamp(.9rem, 3.6vw, 1.18rem);
   line-height: 1;
   text-transform: uppercase;
 }
 .node-diorama__header span {
   display: block;
-  margin-top: 4px;
+  margin-top: 2px;
   color: color-mix(in srgb, var(--danger-color) 66%, var(--text));
-  font-size: clamp(.58rem, 2.4vw, .72rem);
+  font-size: clamp(.5rem, 2.1vw, .62rem);
   font-weight: 900;
 }
-.node-diorama__core {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 8px;
-  min-height: 0;
-}
-.node-diorama__core > div {
+.node-diorama__hint {
+  margin: 0;
   min-width: 0;
-  padding: 9px;
-  border: 1px solid color-mix(in srgb, var(--danger-color) 28%, transparent);
-  background: rgba(0, 0, 0, .28);
+  color: var(--yellow);
+  font-size: clamp(.6rem, 2.45vw, .78rem);
+  font-style: italic;
+  font-weight: 800;
+  line-height: 1.28;
 }
-.node-diorama__core span,
-.node-diorama__meter span {
+.node-diorama__hint span,
+.node-diorama__hint b {
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.node-diorama__hint b { margin-top: 2px; }
+.node-diorama__ice {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  gap: 2px;
+  align-items: end;
+  min-width: 0;
+  padding-left: 8px;
+  text-align: right;
+}
+.node-diorama__ice:not(.node-diorama__ice--active) {
+  opacity: .72;
+}
+.node-diorama__ice img {
+  justify-self: end;
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  opacity: .92;
+}
+.node-diorama__ice span {
   color: var(--muted);
-  font-size: .52rem;
+  font-size: .48rem;
   font-weight: 900;
   letter-spacing: .12em;
 }
-.node-diorama__core b {
-  display: block;
-  margin-top: 4px;
+.node-diorama__ice b {
+  overflow: hidden;
   color: var(--yellow);
-  font-size: clamp(.76rem, 3vw, .98rem);
-  text-transform: uppercase;
-}
-.node-diorama__core small {
-  display: -webkit-box;
-  margin-top: 5px;
-  overflow: hidden;
-  color: var(--text);
-  font-size: clamp(.58rem, 2.4vw, .72rem);
-  line-height: 1.25;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-}
-.node-diorama__meters {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 7px;
-}
-.node-diorama__meter {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 4px 6px;
-  align-items: center;
-}
-.node-diorama__meter i {
-  grid-column: 1 / -1;
-  height: 6px;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, .12);
-  background: rgba(255, 255, 255, .05);
-}
-.node-diorama__meter i::before {
-  content: "";
-  display: block;
-  width: var(--node-meter);
-  height: 100%;
-  background: linear-gradient(90deg, var(--cyan), var(--yellow), var(--danger-color));
-  box-shadow: 0 0 12px color-mix(in srgb, var(--danger-color) 42%, transparent);
-}
-.node-diorama__meter b {
-  color: var(--text-strong);
-  font-size: .62rem;
-}
-.node-diorama__whisper {
-  margin: 0;
-  overflow: hidden;
-  color: color-mix(in srgb, var(--cyan) 72%, var(--text));
-  font-size: clamp(.58rem, 2.5vw, .74rem);
+  font-size: clamp(.58rem, 2.3vw, .76rem);
   text-overflow: ellipsis;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 .node-diorama__stamp {
@@ -857,19 +878,24 @@ button:focus-visible {
 }
 .node-diorama--resolved .node-diorama__stamp { color: var(--cyan); }
 .node-diorama--failed .node-diorama__stamp { color: var(--red); }
-@media (max-width: 640px), (max-height: 720px) {
+@media (max-width: 640px) {
   .node-diorama {
-    inset: 8px;
+    right: 6px;
+    bottom: 6px;
+    left: 6px;
+    grid-template-columns: 48px minmax(0, 1fr) minmax(58px, .25fr);
     gap: 6px;
-    padding: 9px;
+    padding: 6px;
+    min-height: 34%;
   }
-  .node-diorama__core {
-    grid-template-columns: 1fr;
-    gap: 6px;
+  .node-diorama__icon img {
+    width: 40px;
+    height: 40px;
   }
-  .node-diorama__core > div { padding: 7px; }
-  .node-diorama__core small { -webkit-line-clamp: 2; }
-  .node-diorama__meters { gap: 5px; }
+  .node-diorama__ice { padding-left: 5px; }
+  .node-diorama__ice img { width: 24px; height: 24px; }
+  .node-diorama__hint span,
+  .node-diorama__hint b { white-space: normal; }
 }
 .node-map--result {
   flex-basis: 255px;
@@ -1013,7 +1039,10 @@ button:focus-visible {
 .node--core circle { stroke: var(--magenta); stroke-width: 1; }
 .node text { fill: var(--node-text); font-size: 2.4px; text-anchor: middle; font-weight: 800; }
 .node .event-marker { fill: var(--yellow); font-size: 2.05px; letter-spacing: 0; text-shadow: 0 0 5px rgba(248, 214, 109, .86); }
-.node .ice-marker { font-size: 4px; text-anchor: middle; }
+.node .ice-marker {
+  opacity: .92;
+  filter: drop-shadow(0 0 4px rgba(248, 214, 109, .55));
+}
 
 .scanner-toggle { position: relative; z-index: 1; min-height: 38px; color: var(--text); border: 1px solid var(--danger-border); background: var(--panel); text-transform: uppercase; letter-spacing: .08em; }
 .scanner-targets { display: grid; gap: 8px; }
@@ -1031,7 +1060,7 @@ button:focus-visible {
 .scanner-targets button.is-active { border-color: var(--cyan); color: var(--cyan); box-shadow: 0 0 14px rgba(51,255,204,.26); }
 
 .program-dock { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
-.program-dock button { min-height: 48px; padding: 6px 5px; text-align: center; }
+.program-dock button { position: relative; min-height: 48px; padding: 6px 5px; text-align: center; }
 .program-dock strong { display: block; color: var(--yellow); font-size: .72rem; }
 .program-dock--inactive button {
   opacity: .36;
@@ -1044,15 +1073,17 @@ button:focus-visible {
   box-shadow: inset 0 0 18px color-mix(in srgb, var(--danger-color) 14%, transparent), 0 0 18px color-mix(in srgb, var(--danger-color) 22%, transparent);
 }
 .program-dock button.is-recommended::after {
-  content: "RECOM.";
+  content: "REC";
   position: absolute;
   top: 3px;
   right: 4px;
-  color: var(--cyan);
+  color: var(--surface);
+  background: var(--yellow);
+  padding: 2px 4px;
   font-size: .45rem;
   font-weight: 900;
   letter-spacing: .08em;
-  text-shadow: 0 0 6px rgba(51, 255, 204, .55);
+  text-shadow: none;
 }
 
 

@@ -39,8 +39,9 @@ const MAP_DRAG_THRESHOLD_PX = 12;
 const MAP_LOG_MESSAGE_MS = 5200;
 const DISCONNECT_GLITCH_MS = 2000;
 const DECK_COUNTER_ANIMATION_MS = 1000;
-const NODE_VISIT_FOCUS_MS = 1800;
-const NODE_VISIT_RESOLVE_MS = 800;
+const MAP_FOCUS_ANIMATION_MS = 680;
+const NODE_VISIT_FOCUS_MS = 420;
+const NODE_VISIT_RESOLVE_MS = 1800;
 const DEBUG_LOG_LIMIT = 90;
 const DEBUG_LOG_STORAGE_KEY = 'shadowHack.debugLog';
 const EXPANDED_SCAN_RADIUS = 1500;
@@ -84,6 +85,7 @@ const appState = {
   runSessionId: 0,
   deckAnimation: null,
   deckAnimationFrame: null,
+  mapViewAnimationFrame: null,
 };
 const cloudSync = createCloudSyncController({
   onDeckLoaded(profile) {
@@ -129,6 +131,7 @@ async function startRun(place) {
   appState.mapPinch = null;
   appState.mapGestureMoved = false;
   appState.ignoreNextNodeClick = false;
+  stopMapViewAnimation();
   clearNodeVisit(false);
   stopDisconnectGlitch();
   syncAudioState();
@@ -645,7 +648,7 @@ function maybeStartNodeVisit(action, previousRun, nextRun) {
     autoDismiss,
     stamp: null,
   };
-  setMapView(getFocusedNodeMapView(node));
+  animateMapViewTo(getFocusedNodeMapView(node), MAP_FOCUS_ANIMATION_MS);
   debugLog('nodeVisit:start', {
     visitId,
     nodeId: node.id,
@@ -728,7 +731,7 @@ function clearNodeVisit(restoreView = true) {
     previousMapView,
   });
   appState.nodeVisit = null;
-  if (restoreView && previousMapView) setMapView(previousMapView);
+  if (restoreView && previousMapView) animateMapViewTo(previousMapView, MAP_FOCUS_ANIMATION_MS);
 }
 
 function stopNodeVisitTimer() {
@@ -753,7 +756,7 @@ function getFocusedNodeMapView(node) {
   const size = node.kind === 'core' ? 30 : 34;
   return clampMapView({
     x: node.x - size / 2,
-    y: node.y + 20 - size / 2,
+    y: node.y + 20 - size * 0.42,
     width: size,
     height: size,
   });
@@ -1100,11 +1103,61 @@ function zoomMapFromView(factor, anchorX, anchorY, view = appState.mapView) {
 }
 
 function setMapView(view) {
+  stopMapViewAnimation();
+  applyMapView(view);
+}
+
+function applyMapView(view) {
   appState.mapView = clampMapView(view);
   const surface = root?.querySelector('[data-map-surface]');
   if (!surface) return;
   const { x, y, width, height } = appState.mapView;
   surface.setAttribute('viewBox', `${x} ${y} ${width} ${height}`);
+}
+
+function animateMapViewTo(view, duration = MAP_FOCUS_ANIMATION_MS) {
+  stopMapViewAnimation();
+  const reducedMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  if (reducedMotion || duration <= 0) {
+    applyMapView(view);
+    return;
+  }
+
+  const from = { ...appState.mapView };
+  const to = clampMapView(view);
+  const startedAt = performance.now();
+
+  const tick = (now) => {
+    const progress = clamp((now - startedAt) / duration, 0, 1);
+    const eased = easeInOutCubic(progress);
+    applyMapView({
+      x: lerp(from.x, to.x, eased),
+      y: lerp(from.y, to.y, eased),
+      width: lerp(from.width, to.width, eased),
+      height: lerp(from.height, to.height, eased),
+    });
+    if (progress < 1) {
+      appState.mapViewAnimationFrame = requestAnimationFrame(tick);
+      return;
+    }
+    appState.mapViewAnimationFrame = null;
+  };
+
+  appState.mapViewAnimationFrame = requestAnimationFrame(tick);
+}
+
+function stopMapViewAnimation() {
+  if (!appState.mapViewAnimationFrame) return;
+  cancelAnimationFrame(appState.mapViewAnimationFrame);
+  appState.mapViewAnimationFrame = null;
+}
+
+function easeInOutCubic(value) {
+  return value < 0.5 ? 4 * value ** 3 : 1 - ((-2 * value + 2) ** 3) / 2;
+}
+
+function lerp(from, to, progress) {
+  return from + (to - from) * progress;
 }
 
 function clampMapView(view) {
