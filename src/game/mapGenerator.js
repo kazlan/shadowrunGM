@@ -10,6 +10,10 @@ const templateRanges = {
   secure: [16, 19],
 };
 const DATA_CORE_MIN_EXIT_DISTANCE = 3;
+const LAYOUT_ATTEMPTS = 64;
+const MIN_NODE_CENTER_DISTANCE = 13;
+const MIN_CORE_CENTER_DISTANCE = 16;
+const SEGMENT_EPSILON = 0.001;
 const minimumIceByTemplate = {
   small: 1,
   standard: 2,
@@ -61,40 +65,44 @@ function buildTopology(template, targetCount, archetype, rng) {
 }
 
 function buildStarTopology(template, targetCount, archetype, rng) {
+  let lastTopology = null;
+  for (let attempt = 0; attempt < LAYOUT_ATTEMPTS; attempt += 1) {
+    const topology = buildStarTopologyAttempt(template, targetCount, archetype, rng);
+    lastTopology = topology;
+    if (isReadableLayout(topology.nodes, topology.edges)) return finalizeNodeIds(topology.nodes, topology.edges);
+  }
+
+  const reason = lastTopology ? ` overlap=${hasNodeOverlap(lastTopology.nodes)} cross=${hasCrossingEdges(lastTopology.edges, lastTopology.nodes)}` : '';
+  throw new Error(`Unable to generate a readable host map layout${reason}`);
+}
+
+function buildStarTopologyAttempt(template, targetCount, archetype, rng) {
   const nodes = [];
   const edges = [];
-  const usedAngles = [];
-  const rotation = rng.nextInt(0, 359);
-  const clockwise = rng.nextFloat() < 0.5 ? 1 : -1;
-  const spread = template === 'secure' ? 42 : template === 'standard' ? 52 : 64;
-  const dataBranchCount = template === 'secure' ? 2 : template === 'standard' || archetype.dataBias >= 4 ? 2 : 1;
+  const mirrorX = rng.nextFloat() < 0.5;
+  const mirrorY = rng.nextFloat() < 0.5;
+  const place = (x, y) => ({
+    x: mirrorX ? 100 - x : x,
+    y: mirrorY ? 100 - y : y,
+  });
 
-  const addNode = (zone, kind, radius, angle, radiusJitter = 0) => {
-    const point = polarPoint(radius + rng.nextInt(-radiusJitter, radiusJitter), angle + rng.nextInt(-5, 5));
+  const addNode = (zone, kind, x, y) => {
+    const point = place(x, y);
     const index = nodes.length;
     nodes.push(node(zone, kind, point.x, point.y));
-    usedAngles.push(angle);
     return index;
   };
   const connect = (from, to) => edges.push(edge(from, to));
-  const angleAt = (offset) => normalizeAngle(rotation + clockwise * offset);
 
-  const entryAngle = angleAt(180 + rng.nextInt(-20, 20));
-  const exitAngle = angleAt(rng.nextInt(-28, 28));
-  const coreAngle = angleAt(80 + rng.nextInt(-18, 18));
-  const dataAngles = [angleAt(-spread + rng.nextInt(-12, 12)), angleAt(spread + rng.nextInt(-12, 12))];
-  const decoyAngle = angleAt(130 + rng.nextInt(-18, 18));
-  const monitorAngle = angleAt(-130 + rng.nextInt(-18, 18));
-
-  const entry = addNode('entry', 'entry', 43, entryAngle, 2);
-  const entryControl = addNode('entryControl', rng.pick(['camera', 'firewall']), 30, entryAngle, 3);
-  const hub = addNode('hub', 'firewall', 13, angleAt(160), 2);
-  const coreGate = addNode('coreGate', 'firewall', 8, coreAngle, 1);
-  const core = addNode('core', 'core', 0, coreAngle, 0);
-  const exitGate = addNode('exitGate', rng.pick(['camera', 'firewall']), 29, exitAngle, 3);
-  const exitNode = addNode('exit', 'exit', 43, exitAngle, 2);
-  const primaryDataGate = addNode('dataGateA', rng.pick(['firewall', 'camera']), 26, dataAngles[0], 3);
-  const primaryData = addNode('dataA', 'database', 39, dataAngles[0], 2);
+  const entry = addNode('entry', 'entry', 6, 50);
+  const entryControl = addNode('entryControl', rng.pick(['camera', 'firewall']), 22, 50);
+  const hub = addNode('hub', 'firewall', 40, 50);
+  const coreGate = addNode('coreGate', 'firewall', 58, 50);
+  const core = addNode('core', 'core', 76, 50);
+  const exitGate = addNode('exitGate', rng.pick(['camera', 'firewall']), 58, 78);
+  const exitNode = addNode('exit', 'exit', 76, 78);
+  const primaryDataGate = addNode('dataGateA', rng.pick(['firewall', 'camera']), 58, 22);
+  const primaryData = addNode('dataA', 'database', 76, 22);
 
   connect(entry, entryControl);
   connect(entryControl, hub);
@@ -106,61 +114,57 @@ function buildStarTopology(template, targetCount, archetype, rng) {
   connect(primaryDataGate, primaryData);
 
   if (targetCount >= 10) {
-    const decoyGate = addNode('decoyGate', rng.pick(['camera', 'data']), 28, decoyAngle, 3);
+    const decoyGate = addNode('decoyGate', rng.pick(['camera', 'data']), 24, 22);
     connect(entryControl, decoyGate);
     if (targetCount >= 11) {
-      const decoy = addNode('decoy', 'data', 39, decoyAngle, 2);
+      const decoy = addNode('decoy', 'data', 8, 22);
       connect(decoyGate, decoy);
     }
   }
 
-  if (targetCount >= 12 && dataBranchCount > 1) {
-    const secondaryDataGate = addNode('dataGateB', rng.pick(['firewall', 'camera']), 25, dataAngles[1], 3);
+  if (targetCount >= 12 && (template === 'secure' || template === 'standard' || archetype.dataBias >= 4)) {
+    const secondaryDataGate = addNode('dataGateB', rng.pick(['firewall', 'camera']), 58, 92);
     const secondaryDataKind = archetype.dataBias >= 4 ? 'database' : rng.pick(['database', 'data']);
-    const secondaryData = addNode('dataB', secondaryDataKind, 38, dataAngles[1], 2);
+    const secondaryData = addNode('dataB', secondaryDataKind, 76, 92);
     connect(hub, secondaryDataGate);
     connect(secondaryDataGate, secondaryData);
-    if (rng.nextFloat() < 0.7) connect(primaryDataGate, secondaryDataGate);
+    if (rng.nextFloat() < 0.7) safeConnect(edges, nodes, primaryDataGate, secondaryDataGate);
   }
 
   if (targetCount >= 14) {
-    const monitor = addNode('monitor', 'camera', 32, monitorAngle, 3);
+    const monitor = addNode('monitor', 'camera', 24, 78);
     connect(entryControl, monitor);
-    connect(monitor, hub);
+    safeConnect(edges, nodes, monitor, hub);
   }
 
   if (targetCount >= 15) {
-    const relayAngle = leastCrowdedAngle(usedAngles, rng);
-    const relay = addNode('relay', rng.pick(['firewall', 'camera']), 22, relayAngle, 3);
+    const relay = addNode('relay', rng.pick(['firewall', 'camera']), 40, 22);
     connect(hub, relay);
-    connect(relay, coreGate);
+    safeConnect(edges, nodes, relay, coreGate);
   }
 
   if (targetCount >= 16) {
-    const snareAngle = angleAt(35 + rng.nextInt(-15, 15));
-    const snare = addNode('snare', 'firewall', 33, snareAngle, 3);
+    const snare = addNode('snare', 'firewall', 94, 78);
     connect(exitGate, snare);
-    connect(snare, hub);
+    safeConnect(edges, nodes, snare, hub);
   }
 
   if (targetCount >= 17) {
-    const vaultAngle = angleAt(-92 + rng.nextInt(-16, 16));
-    const vaultGate = addNode('vaultGate', 'firewall', 24, vaultAngle, 3);
-    const vault = addNode('vaultMirror', 'database', 36, vaultAngle, 2);
+    const vaultGate = addNode('vaultGate', 'firewall', 40, 92);
+    const vault = addNode('vaultMirror', 'database', 22, 92);
     connect(hub, vaultGate);
     connect(vaultGate, vault);
-    connect(vaultGate, coreGate);
+    safeConnect(edges, nodes, vaultGate, coreGate);
   }
 
   if (targetCount >= 19) {
-    const outerExitAngle = angleAt(115 + rng.nextInt(-18, 18));
-    const outerExit = addNode('outerExit', 'exit', 43, outerExitAngle, 2);
-    connect(entryControl, outerExit);
+    const outerExit = addNode('outerExit', 'exit', 6, 78);
+    safeConnect(edges, nodes, entryControl, outerExit);
   }
 
   addStarCrossLinks(edges, nodes, template, rng);
 
-  return finalizeNodeIds(nodes, edges);
+  return { nodes, edges };
 }
 
 function addStarCrossLinks(edges, nodes, template, rng) {
@@ -181,35 +185,82 @@ function addStarCrossLinks(edges, nodes, template, rng) {
     const right = nodes.findIndex((candidate) => candidate.zone === rightZone);
     if (left === -1 || right === -1) continue;
     if (rng.nextFloat() > 0.62) continue;
-    edges.push(edge(left, right));
+    if (!safeConnect(edges, nodes, left, right)) continue;
     added += 1;
   }
 }
 
-function polarPoint(radius, angleDegrees) {
-  const radians = (angleDegrees * Math.PI) / 180;
-  return {
-    x: 50 + Math.cos(radians) * radius,
-    y: 50 + Math.sin(radians) * radius,
-  };
+function safeConnect(edges, nodes, from, to) {
+  const candidate = edge(from, to);
+  if (!isReadableEdge(candidate, edges, nodes)) return false;
+  edges.push(candidate);
+  return true;
 }
 
-function normalizeAngle(angle) {
-  return ((angle % 360) + 360) % 360;
+function isReadableLayout(nodes, edges) {
+  return !hasNodeOverlap(nodes) && edges.every((edgeData, index) => isReadableEdge(edgeData, edges.slice(0, index), nodes));
 }
 
-function leastCrowdedAngle(angles, rng) {
-  const candidates = [0, 45, 90, 135, 180, 225, 270, 315].map((angle) => angle + rng.nextInt(-12, 12));
-  return candidates.sort((left, right) => nearestAngleDistance(right, angles) - nearestAngleDistance(left, angles))[0];
+function hasNodeOverlap(nodes) {
+  for (let leftIndex = 0; leftIndex < nodes.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < nodes.length; rightIndex += 1) {
+      const left = nodes[leftIndex];
+      const right = nodes[rightIndex];
+      const minimumDistance = left.kind === 'core' || right.kind === 'core' ? MIN_CORE_CENTER_DISTANCE : MIN_NODE_CENTER_DISTANCE;
+      if (Math.hypot(left.x - right.x, left.y - right.y) < minimumDistance) return true;
+    }
+  }
+  return false;
 }
 
-function nearestAngleDistance(angle, angles) {
-  return Math.min(...angles.map((candidate) => angleDistance(angle, candidate)));
+function isReadableEdge(candidate, edges, nodes) {
+  return !edges.some((edgeData) => edgesCross(candidate, edgeData, nodes));
 }
 
-function angleDistance(left, right) {
-  const diff = Math.abs(normalizeAngle(left) - normalizeAngle(right));
-  return Math.min(diff, 360 - diff);
+function edgesCross(leftEdge, rightEdge, nodes) {
+  if (sharesEndpoint(leftEdge, rightEdge)) return false;
+  const leftFrom = getLayoutNode(nodes, leftEdge.from);
+  const leftTo = getLayoutNode(nodes, leftEdge.to);
+  const rightFrom = getLayoutNode(nodes, rightEdge.from);
+  const rightTo = getLayoutNode(nodes, rightEdge.to);
+  if (!leftFrom || !leftTo || !rightFrom || !rightTo) return false;
+  return segmentsIntersect(leftFrom, leftTo, rightFrom, rightTo);
+}
+
+function segmentsIntersect(a, b, c, d) {
+  const abC = orientation(a, b, c);
+  const abD = orientation(a, b, d);
+  const cdA = orientation(c, d, a);
+  const cdB = orientation(c, d, b);
+
+  if (Math.abs(abC) < SEGMENT_EPSILON && onSegment(a, c, b)) return true;
+  if (Math.abs(abD) < SEGMENT_EPSILON && onSegment(a, d, b)) return true;
+  if (Math.abs(cdA) < SEGMENT_EPSILON && onSegment(c, a, d)) return true;
+  if (Math.abs(cdB) < SEGMENT_EPSILON && onSegment(c, b, d)) return true;
+
+  return (abC > 0) !== (abD > 0) && (cdA > 0) !== (cdB > 0);
+}
+
+function orientation(a, b, c) {
+  return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+}
+
+function onSegment(a, b, c) {
+  return b.x <= Math.max(a.x, c.x) + SEGMENT_EPSILON
+    && b.x + SEGMENT_EPSILON >= Math.min(a.x, c.x)
+    && b.y <= Math.max(a.y, c.y) + SEGMENT_EPSILON
+    && b.y + SEGMENT_EPSILON >= Math.min(a.y, c.y);
+}
+
+function sharesEndpoint(leftEdge, rightEdge) {
+  return leftEdge.from === rightEdge.from
+    || leftEdge.from === rightEdge.to
+    || leftEdge.to === rightEdge.from
+    || leftEdge.to === rightEdge.to;
+}
+
+function getLayoutNode(nodes, nodeId) {
+  return nodes[Number.parseInt(String(nodeId).replace('n-', ''), 10)] ?? null;
 }
 
 function node(zone, kind, x, y) {
@@ -237,8 +288,8 @@ function assignNodeSystems(nodes, distances, archetype, effectiveSecurity, templ
       kind,
       event: pickNodeEvent(kind, distance, archetype, rng),
       state: candidate.id === 'n-0' ? 'visited' : distance <= 1 ? 'scanned' : 'unknown',
-      x: clamp(candidate.x + rng.nextInt(-3, 3), 6, 94),
-      y: clamp(candidate.y + rng.nextInt(-3, 3), 8, 92),
+      x: clamp(candidate.x, 4, 96),
+      y: clamp(candidate.y, 4, 96),
       risk,
       zone: candidate.zone,
     };
@@ -343,6 +394,8 @@ function calculateDistances(edges, entryNodeId) {
 }
 
 function validateHostTopology(nodes, edges, entryNodeId, coreNodeId) {
+  if (hasNodeOverlap(nodes)) throw new Error('Generated host map nodes overlap');
+  if (hasCrossingEdges(edges, nodes)) throw new Error('Generated host map routes cross');
   const distances = calculateDistances(edges, entryNodeId);
   if (distances[coreNodeId] === undefined || distances[coreNodeId] < CORE_MIN_DISTANCE) {
     throw new Error('Generated host core is too close or unreachable');
@@ -370,6 +423,15 @@ function validateHostTopology(nodes, edges, entryNodeId, coreNodeId) {
       }
     }
   }
+}
+
+function hasCrossingEdges(edges, nodes) {
+  for (let leftIndex = 0; leftIndex < edges.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < edges.length; rightIndex += 1) {
+      if (edgesCross(edges[leftIndex], edges[rightIndex], nodes)) return true;
+    }
+  }
+  return false;
 }
 
 function connectedIds(edges, nodeId) {

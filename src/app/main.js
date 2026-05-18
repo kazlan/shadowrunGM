@@ -31,9 +31,12 @@ const root = document.querySelector('#root');
 const audioDirector = createAudioDirector();
 const overpassProvider = createOverpassProvider();
 const demoNearbyProvider = createDemoNearbyProvider();
-const DEFAULT_MAP_VIEW = { x: 0, y: 0, width: 100, height: 100 };
+const DEFAULT_MAP_VIEW = { x: -12, y: 12, width: 124, height: 124 };
+const DEFAULT_MAP_BOUNDS = { ...DEFAULT_MAP_VIEW };
+const MAP_GRAPH_OFFSET_Y = 20;
+const MAP_VIEW_PADDING = 18;
+const MAP_LABEL_PADDING = 6;
 const MIN_MAP_SIZE = 32;
-const MAX_MAP_SIZE = 100;
 const MAP_DRAG_THRESHOLD_PX = 12;
 const MAP_LOG_MESSAGE_MS = 5200;
 const MAP_REVEAL_MS = 1000;
@@ -74,6 +77,7 @@ const appState = {
   isScannerOpen: false,
   isRunLogOpen: false,
   mapView: { ...DEFAULT_MAP_VIEW },
+  mapBounds: { ...DEFAULT_MAP_BOUNDS },
   mapPointer: null,
   mapPointers: new Map(),
   mapPinch: null,
@@ -129,7 +133,8 @@ async function startRun(place) {
   appState.currentProgress = getHostProgress(appState.system.seedId);
   appState.recentProgress = listRecentProgress();
   appState.lastRecordedStatus = null;
-  appState.mapView = { ...DEFAULT_MAP_VIEW };
+  appState.mapBounds = getMapBounds(appState.system);
+  appState.mapView = getInitialMapView(appState.mapBounds);
   appState.mapPointer = null;
   appState.mapPointers.clear();
   appState.mapPinch = null;
@@ -1111,8 +1116,10 @@ function zoomMapAtPoint(factor, clientX, clientY, sourceView = appState.mapView)
 }
 
 function zoomMapFromView(factor, anchorX, anchorY, view = appState.mapView) {
-  const width = clamp(view.width * factor, MIN_MAP_SIZE, MAX_MAP_SIZE);
-  const height = clamp(view.height * factor, MIN_MAP_SIZE, MAX_MAP_SIZE);
+  const minWidth = Math.min(MIN_MAP_SIZE, appState.mapBounds.width);
+  const minHeight = Math.min(MIN_MAP_SIZE, appState.mapBounds.height);
+  const width = clamp(view.width * factor, minWidth, appState.mapBounds.width);
+  const height = clamp(view.height * factor, minHeight, appState.mapBounds.height);
   const x = anchorX - ((anchorX - view.x) / view.width) * width;
   const y = anchorY - ((anchorY - view.y) / view.height) * height;
   setMapView({ x, y, width, height });
@@ -1177,14 +1184,37 @@ function lerp(from, to, progress) {
 }
 
 function clampMapView(view) {
-  const width = clamp(view.width, MIN_MAP_SIZE, MAX_MAP_SIZE);
-  const height = clamp(view.height, MIN_MAP_SIZE, MAX_MAP_SIZE);
+  const bounds = appState.mapBounds ?? DEFAULT_MAP_BOUNDS;
+  const minWidth = Math.min(MIN_MAP_SIZE, bounds.width);
+  const minHeight = Math.min(MIN_MAP_SIZE, bounds.height);
+  const width = clamp(view.width, minWidth, bounds.width);
+  const height = clamp(view.height, minHeight, bounds.height);
   return {
-    x: clamp(view.x, 0, 100 - width),
-    y: clamp(view.y, 0, 100 - height),
+    x: clamp(view.x, bounds.x, bounds.x + bounds.width - width),
+    y: clamp(view.y, bounds.y, bounds.y + bounds.height - height),
     width,
     height,
   };
+}
+
+function getMapBounds(system) {
+  if (!system?.nodes?.length) return { ...DEFAULT_MAP_BOUNDS };
+  const xs = system.nodes.map((node) => node.x);
+  const ys = system.nodes.map((node) => node.y + MAP_GRAPH_OFFSET_Y);
+  const minX = Math.min(...xs) - MAP_VIEW_PADDING;
+  const maxX = Math.max(...xs) + MAP_VIEW_PADDING;
+  const minY = Math.min(...ys) - MAP_VIEW_PADDING;
+  const maxY = Math.max(...ys) + MAP_VIEW_PADDING + MAP_LABEL_PADDING;
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(MIN_MAP_SIZE, maxX - minX),
+    height: Math.max(MIN_MAP_SIZE, maxY - minY),
+  };
+}
+
+function getInitialMapView(bounds) {
+  return { ...bounds };
 }
 
 function clamp(value, min, max) {

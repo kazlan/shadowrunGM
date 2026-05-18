@@ -598,8 +598,8 @@ button:focus-visible {
 .node-map {
   position: relative;
   z-index: 1;
-  flex: 1 1 300px;
-  min-height: 220px;
+  flex: 1.35 1 340px;
+  min-height: 260px;
   margin: 0;
   overflow: hidden;
   border: 1px solid var(--danger-border);
@@ -3193,7 +3193,7 @@ button:focus-visible {
   .program-card__body strong { font-size: .58rem; }
   .program-card__body small { display: none; }
   .program-card__rec { top: 4px; right: 4px; font-size: .38rem; }
-  .node-map { flex-basis: 230px; min-height: 180px; }
+  .node-map { flex-basis: 260px; min-height: 220px; }
   .node-map__meters { top: 6px; right: 6px; width: min(116px, 48vw); gap: 3px; }
   .node-map-meter { grid-template-columns: 38px minmax(30px, 1fr) auto; gap: 4px; }
   .node-map-meter span { font-size: .42rem; }
@@ -3241,7 +3241,7 @@ button:focus-visible {
   .deck-parts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .deck-software-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .deck-workbench__status span { display: none; }
-  .node-map { flex-basis: 170px; min-height: 140px; }
+  .node-map { flex-basis: 220px; min-height: 190px; }
   .help-panel,
   .overlay-panel { max-height: 92dvh; }
   .help-panel__header,
