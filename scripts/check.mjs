@@ -391,12 +391,12 @@ const mapMessageHtml = renderNodeMap(projectSystemForRun(iceSystem, killedIceRun
 if (!mapMessageHtml.includes('node-map__message') || !mapMessageHtml.includes('Ultima traza visible')) throw new Error('Node map should surface the latest log message');
 const nodeVisitHtml = renderNodeMap(projectSystemForRun(iceSystem, movedIntoIce), movedIntoIce, undefined, null, null, true, {
   nodeId: 'n-1',
+  fromNodeId: 'n-0',
   phase: 'focus',
-  previousMapView: { x: 0, y: 0, width: 100, height: 100 },
   recommendedProgram: 'spike',
   autoDismiss: false,
 });
-if (!nodeVisitHtml.includes('node-diorama') || !nodeVisitHtml.includes('Centinela') || !nodeVisitHtml.includes('Recomendado: Spike') || nodeVisitHtml.includes('TIPO')) throw new Error('Node visits should render a compact tactical diorama with ICE and a concise recommendation hint');
+if (!nodeVisitHtml.includes('node-focus-hud') || !nodeVisitHtml.includes('route--focus') || !nodeVisitHtml.includes('Centinela') || !nodeVisitHtml.includes('REC: Spike') || nodeVisitHtml.includes('TIPO')) throw new Error('Node visits should render a non-modal tactical focus HUD with ICE and a concise recommendation hint');
 if (!renderDeckTrace(upgradedDeckResult.profile, createInitialRunState(iceSystem, upgradedDeckResult.profile), 'Scan mejorado.').includes('deck-memory')) throw new Error('Deck trace should show segmented memory');
 const finishedDeckTraceHtml = renderDeckTrace(upgradedDeckResult.profile, { ...createInitialRunState(iceSystem, upgradedDeckResult.profile), status: 'escaped', lootTokens: 3, deckCash: 99 }, 'Run limpia.');
 if (!finishedDeckTraceHtml.includes('RUN 0') || !finishedDeckTraceHtml.includes('CTA') || !finishedDeckTraceHtml.includes('0/5')) throw new Error('Finished runs should empty deck cash and memory in the deck trace');
@@ -411,7 +411,8 @@ if (!hudHtml.includes('data-action="toggleSettings"') || !hudHtml.includes('sett
 if (hudHtml.includes('data-action="toggleMusic"') || hudHtml.includes('data-action="toggleSfx"')) throw new Error('Audio controls should live inside settings, not the main HUD');
 if (!renderHud(iceSystem, { ...jackOutRun, selectedProgram: 'scan', disabledPrograms: [] }, true).includes('disabled')) throw new Error('Finished runs should disable jack-out controls');
 if (!renderProgramDock({ ...jackOutRun, selectedProgram: 'scan', disabledPrograms: [] }, true).includes('program-dock--inactive')) throw new Error('Finished runs should fade and disable program controls');
-if (!renderProgramDock({ ...jackOutRun, selectedProgram: 'scan', disabledPrograms: [] }, false, 'spike').includes('is-recommended')) throw new Error('Program dock should mark the recommended node visit program');
+const cyberProgramDockHtml = renderProgramDock({ ...jackOutRun, selectedProgram: 'scan', disabledPrograms: [] }, false, 'spike', upgradedDeckResult.profile);
+if (!cyberProgramDockHtml.includes('is-recommended') || !cyberProgramDockHtml.includes('program-card__frame') || !cyberProgramDockHtml.includes('LVL')) throw new Error('Program dock should render cyberdeck cards with levels and mark the recommended node visit program');
 const settingsHtml = renderSettingsOverlay(true, { music: true, sfx: false, musicVolume: 0.42, sfxVolume: 0.18 }, 'workbench-light');
 if (!settingsHtml.includes('settings-audio') || !settingsHtml.includes('data-audio-volume="music"') || !settingsHtml.includes('value="42"')) throw new Error('Settings overlay should render real music volume controls');
 if (!settingsHtml.includes('data-action="toggleMusic"') || !settingsHtml.includes('data-action="openHelp"')) throw new Error('Settings overlay should contain audio toggles and a help button');

@@ -37,10 +37,11 @@ const MIN_MAP_SIZE = 32;
 const MAX_MAP_SIZE = 100;
 const MAP_DRAG_THRESHOLD_PX = 12;
 const MAP_LOG_MESSAGE_MS = 5200;
+const MAP_REVEAL_MS = 1000;
 const DISCONNECT_GLITCH_MS = 2000;
 const DECK_COUNTER_ANIMATION_MS = 1000;
 const MAP_FOCUS_ANIMATION_MS = 680;
-const NODE_VISIT_FOCUS_MS = 420;
+const NODE_VISIT_EMPTY_MS = 460;
 const NODE_VISIT_RESOLVE_MS = 1800;
 const DEBUG_LOG_LIMIT = 90;
 const DEBUG_LOG_STORAGE_KEY = 'shadowHack.debugLog';
@@ -61,6 +62,7 @@ const appState = {
   cloud: null,
   theme: applyTheme(loadThemePreference()),
   mapLogMessage: null,
+  mapReveal: null,
   lastMapLogLength: 0,
   completion: null,
   runResult: null,
@@ -121,6 +123,7 @@ async function startRun(place) {
   appState.isDeckOpen = false;
   appState.run = createInitialRunState(appState.system, appState.deckProfile);
   appState.lastMapLogLength = 0;
+  appState.mapReveal = null;
   updateMapLogMessage(true);
   appState.currentProgress = getHostProgress(appState.system.seedId);
   appState.recentProgress = listRecentProgress();
@@ -132,7 +135,7 @@ async function startRun(place) {
   appState.mapGestureMoved = false;
   appState.ignoreNextNodeClick = false;
   stopMapViewAnimation();
-  clearNodeVisit(false);
+  clearNodeVisit();
   stopDisconnectGlitch();
   syncAudioState();
   debugLog('startRun:ready', {
@@ -155,6 +158,7 @@ function dispatch(action) {
     previous: summarizeRun(previousRun),
     next: summarizeRun(appState.run),
   });
+  syncMapReveal(previousRun, appState.run);
   startExtractAnimation(action, previousRun, appState.run);
   syncNodeVisit(action, previousRun, appState.run);
   if (previousStatus !== 'dumped' && appState.run.status === 'dumped') {
@@ -190,8 +194,8 @@ function render() {
     <div class="scanline"></div>
     <div class="crt-vignette"></div>
     ${renderHud(runtimeSystem, appState.run, finished, appState.deckProfile.player)}
-    ${renderNodeMap(runtimeSystem, appState.run, appState.mapView, getVisibleMapLogMessage(), appState.runResult, resultVisible, appState.nodeVisit)}
-    ${renderProgramDock(appState.run, finished, appState.nodeVisit?.recommendedProgram)}
+    ${renderNodeMap(runtimeSystem, appState.run, appState.mapView, getVisibleMapLogMessage(), appState.runResult, resultVisible, appState.nodeVisit, getVisibleMapReveal())}
+    ${renderProgramDock(appState.run, finished, appState.nodeVisit?.recommendedProgram, appState.deckProfile)}
     ${postRunPanelVisible ? renderPostRunScannerPanel(appState.runResult, appState.completion, appState.deckProfile, appState.postRunRebooted) : renderRunLog(appState.run)}
     ${renderDeckTrace(appState.deckProfile, appState.run, appState.deckMessage, getDeckTraceView())}
     ${renderProgressPanel(appState.currentProgress, appState.recentProgress)}
@@ -328,7 +332,6 @@ function bindEvents() {
   root.querySelectorAll('[data-node-id]').forEach((node) => {
     node.addEventListener('click', () => {
       if (isRunFinished(appState.run)) return;
-      if (appState.nodeVisit) return;
       if (appState.ignoreNextNodeClick) {
         appState.ignoreNextNodeClick = false;
         return;
@@ -339,7 +342,6 @@ function bindEvents() {
 
   root.querySelectorAll('[data-map-action]').forEach((button) => {
     button.addEventListener('click', () => {
-      if (appState.nodeVisit) return;
       const action = button.dataset.mapAction;
       if (action === 'zoomIn') zoomMap(0.72);
       if (action === 'zoomOut') zoomMap(1.28);
@@ -592,9 +594,47 @@ function getVisibleMapLogMessage() {
   return appState.mapLogMessage;
 }
 
+function syncMapReveal(previousRun, nextRun) {
+  if (!appState.system) return;
+  const nodeIds = Object.entries(nextRun.nodeStates)
+    .filter(([nodeId, state]) => state !== NODE_RUNTIME_STATE.UNKNOWN
+      && (previousRun.nodeStates[nodeId] ?? NODE_RUNTIME_STATE.UNKNOWN) === NODE_RUNTIME_STATE.UNKNOWN)
+    .map(([nodeId]) => nodeId);
+
+  if (nodeIds.length === 0) return;
+
+  const nodeIdSet = new Set(nodeIds);
+  const edgeKeys = appState.system.edges
+    .filter((edge) => nodeIdSet.has(edge.from) || nodeIdSet.has(edge.to))
+    .filter((edge) => nextRun.nodeStates[edge.from] !== NODE_RUNTIME_STATE.UNKNOWN
+      && nextRun.nodeStates[edge.to] !== NODE_RUNTIME_STATE.UNKNOWN)
+    .map(getMapEdgeKey);
+
+  appState.mapReveal = {
+    nodeIds,
+    edgeKeys,
+    expiresAt: Date.now() + MAP_REVEAL_MS,
+  };
+  debugLog('mapReveal:sync', { nodeIds, edgeKeys });
+}
+
+function getVisibleMapReveal() {
+  if (!appState.mapReveal) return null;
+  if (Date.now() > appState.mapReveal.expiresAt) return null;
+  return appState.mapReveal;
+}
+
+function getMapEdgeKey(edge) {
+  return [edge.from, edge.to].sort().join(':');
+}
+
 function syncNodeVisit(action, previousRun, nextRun) {
   if (action.type === 'move') {
-    maybeStartNodeVisit(action, previousRun, nextRun);
+    const startedVisit = maybeStartNodeVisit(action, previousRun, nextRun);
+    const moved = action.nodeId
+      && action.nodeId === nextRun.currentNodeId
+      && previousRun.currentNodeId !== nextRun.currentNodeId;
+    if (!startedVisit && moved && appState.nodeVisit) clearNodeVisit();
     return;
   }
 
@@ -603,13 +643,13 @@ function syncNodeVisit(action, previousRun, nextRun) {
 
   const node = getSystemNode(appState.nodeVisit.nodeId);
   if (!node) {
-    clearNodeVisit(true);
+    clearNodeVisit();
     return;
   }
 
   const resolution = getNodeVisitResolutionLabel(node, previousRun, nextRun);
   if (resolution) {
-    finishNodeVisit(resolution, true);
+    finishNodeVisit(resolution);
     return;
   }
 
@@ -624,13 +664,13 @@ function syncNodeVisit(action, previousRun, nextRun) {
 }
 
 function maybeStartNodeVisit(action, previousRun, nextRun) {
-  if (!action.nodeId || action.nodeId !== nextRun.currentNodeId) return;
-  if (isRunFinished(nextRun)) return;
+  if (!action.nodeId || action.nodeId !== nextRun.currentNodeId) return false;
+  if (isRunFinished(nextRun)) return false;
   const previousState = previousRun.nodeStates[action.nodeId] ?? NODE_RUNTIME_STATE.UNKNOWN;
-  if ([NODE_RUNTIME_STATE.VISITED, NODE_RUNTIME_STATE.COMPROMISED].includes(previousState)) return;
+  if ([NODE_RUNTIME_STATE.VISITED, NODE_RUNTIME_STATE.COMPROMISED].includes(previousState)) return false;
 
   const node = getSystemNode(action.nodeId);
-  if (!node) return;
+  if (!node) return false;
 
   stopNodeVisitTimer();
   const visitId = `${appState.runSessionId}:${appState.nodeVisitSequence + 1}`;
@@ -641,48 +681,43 @@ function maybeStartNodeVisit(action, previousRun, nextRun) {
     visitId,
     runSessionId: appState.runSessionId,
     nodeId: node.id,
-    phase: 'intro',
-    previousMapView: { ...appState.mapView },
+    fromNodeId: previousRun.currentNodeId,
+    phase: 'focus',
     startedAt: Date.now(),
     recommendedProgram,
     autoDismiss,
     stamp: null,
   };
-  animateMapViewTo(getFocusedNodeMapView(node), MAP_FOCUS_ANIMATION_MS);
   debugLog('nodeVisit:start', {
     visitId,
     nodeId: node.id,
+    fromNodeId: previousRun.currentNodeId,
     nodeKind: node.kind,
     previousState,
     recommendedProgram,
     autoDismiss,
-    focusedMapView: appState.mapView,
   });
-  scheduleNodeVisitFocus(autoDismiss, visitId);
+  if (autoDismiss) {
+    scheduleNodeVisitAutoClear(visitId);
+    return true;
+  }
+  render();
+  return true;
 }
 
-function scheduleNodeVisitFocus(autoDismiss, visitId) {
+function scheduleNodeVisitAutoClear(visitId) {
   stopNodeVisitTimer();
   appState.nodeVisitTimer = globalThis.setTimeout(() => {
     appState.nodeVisitTimer = null;
-    if (!isActiveNodeVisit(visitId) || appState.nodeVisit.phase !== 'intro') {
-      debugLog('nodeVisit:focusIgnored', { visitId, activeVisitId: appState.nodeVisit?.visitId ?? null });
-      return;
-    }
-    appState.nodeVisit = { ...appState.nodeVisit, phase: 'focus' };
-    debugLog('nodeVisit:focus', { visitId, autoDismiss });
-    if (autoDismiss) {
-      finishNodeVisit('CLEARED', true, visitId);
-      return;
-    }
-    render();
-  }, getMotionDuration(NODE_VISIT_FOCUS_MS));
+    if (!isActiveNodeVisit(visitId) || appState.nodeVisit.phase !== 'focus') return;
+    finishNodeVisit('CLEARED', visitId);
+  }, getMotionDuration(NODE_VISIT_EMPTY_MS));
 }
 
-function finishNodeVisit(stamp, restoreView, visitId = appState.nodeVisit?.visitId) {
+function finishNodeVisit(stamp, visitId = appState.nodeVisit?.visitId) {
   if (!isActiveNodeVisit(visitId)) return;
   stopNodeVisitTimer();
-  debugLog('nodeVisit:finish', { visitId, stamp, restoreView });
+  debugLog('nodeVisit:finish', { visitId, stamp });
   appState.nodeVisit = {
     ...appState.nodeVisit,
     phase: 'resolved',
@@ -694,7 +729,7 @@ function finishNodeVisit(stamp, restoreView, visitId = appState.nodeVisit?.visit
       debugLog('nodeVisit:clearIgnored', { visitId, activeVisitId: appState.nodeVisit?.visitId ?? null });
       return;
     }
-    clearNodeVisit(restoreView);
+    clearNodeVisit();
     render();
   }, getMotionDuration(NODE_VISIT_RESOLVE_MS));
   render();
@@ -713,7 +748,7 @@ function failNodeVisit(clearAfter = false, visitId = appState.nodeVisit?.visitId
     appState.nodeVisitTimer = null;
     if (!isActiveNodeVisit(visitId) || appState.nodeVisit.phase !== 'failed') return;
     if (clearAfter) {
-      clearNodeVisit(true);
+      clearNodeVisit();
       render();
       return;
     }
@@ -722,16 +757,12 @@ function failNodeVisit(clearAfter = false, visitId = appState.nodeVisit?.visitId
   }, getMotionDuration(NODE_VISIT_RESOLVE_MS));
 }
 
-function clearNodeVisit(restoreView = true) {
+function clearNodeVisit() {
   stopNodeVisitTimer();
-  const previousMapView = appState.nodeVisit?.previousMapView;
   debugLog('nodeVisit:clear', {
     visitId: appState.nodeVisit?.visitId ?? null,
-    restoreView,
-    previousMapView,
   });
   appState.nodeVisit = null;
-  if (restoreView && previousMapView) animateMapViewTo(previousMapView, MAP_FOCUS_ANIMATION_MS);
 }
 
 function stopNodeVisitTimer() {
@@ -750,16 +781,6 @@ function isActiveNodeVisit(visitId) {
 
 function getSystemNode(nodeId) {
   return appState.system?.nodes.find((node) => node.id === nodeId);
-}
-
-function getFocusedNodeMapView(node) {
-  const size = node.kind === 'core' ? 30 : 34;
-  return clampMapView({
-    x: node.x - size / 2,
-    y: node.y + 20 - size * 0.42,
-    width: size,
-    height: size,
-  });
 }
 
 function getRecommendedProgram(node, run) {
@@ -872,6 +893,7 @@ function summarizeNodeVisit(nodeVisit) {
     visitId: nodeVisit.visitId,
     runSessionId: nodeVisit.runSessionId,
     nodeId: nodeVisit.nodeId,
+    fromNodeId: nodeVisit.fromNodeId,
     phase: nodeVisit.phase,
     recommendedProgram: nodeVisit.recommendedProgram,
     autoDismiss: nodeVisit.autoDismiss,
@@ -884,13 +906,11 @@ function bindNodeMapEvents() {
   if (!surface) return;
 
   surface.addEventListener('wheel', (event) => {
-    if (appState.nodeVisit) return;
     event.preventDefault();
     zoomMapAtPoint(event.deltaY > 0 ? 1.16 : 0.86, event.clientX, event.clientY);
   }, { passive: false });
 
   surface.addEventListener('pointerdown', (event) => {
-    if (appState.nodeVisit) return;
     if (event.button !== 0) return;
     if (event.target.closest?.('[data-node-id]')) return;
 
