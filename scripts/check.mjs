@@ -45,6 +45,7 @@ const requiredFiles = [
   'src/game/systemView.js',
   'src/game/runState.js',
   'src/game/runEngine.js',
+  'src/ui/renderProgress.js',
   'src/world/progressStore.js',
   'src/world/deckStore.js',
   'src/game/runScoring.js',
@@ -226,6 +227,7 @@ const { getFirebaseStatus } = await import('../src/firebase/firebaseClient.js');
 const { cloudPaths } = await import('../src/firebase/cloudPersistence.js');
 const { mergeDeckProfiles } = await import('../src/firebase/cloudSync.js');
 const { createOverpassProvider } = await import('../src/world/overpassProvider.js');
+const { renderProgressPanel } = await import('../src/ui/renderProgress.js');
 const { renderCompletionScreen } = await import('../src/ui/renderCompletionScreen.js');
 const { addHostBookmark, avatarCatalog, awardRunCredits, createDefaultDeckProfile, getBookmarkCapacity, getStorageCapacity, updatePlayerProfile, upgradeDeckProfile } = await import('../src/world/deckStore.js');
 
@@ -478,6 +480,8 @@ try {
   if (fetchDescriptor) Object.defineProperty(globalThis, 'fetch', fetchDescriptor);
   else delete globalThis.fetch;
 }
+
+renderProgressPanel({ valueTier: 'B', companyValue: 60, completedRuns: 2, bestScore: 140 }, []);
 
 const eventSystem = {
   seedId: 'event-check',
