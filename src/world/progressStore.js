@@ -55,6 +55,16 @@ export function recordRunResult(system, run, score) {
   return progress[system.seedId];
 }
 
+export function getPlayerProgressStats() {
+  const entries = Object.values(loadProgress());
+  return {
+    hostsDominated: entries.filter((entry) => (Number(entry.completedRuns) || 0) > 0).length,
+    totalRuns: entries.reduce((sum, entry) => sum + (Number(entry.attempts) || 0), 0),
+    completedRuns: entries.reduce((sum, entry) => sum + (Number(entry.completedRuns) || 0), 0),
+    bestScore: entries.reduce((best, entry) => Math.max(best, Number(entry.bestScore) || 0), 0),
+  };
+}
+
 export function listRecentProgress(limit = 5) {
   return Object.values(loadProgress())
     .sort((left, right) => String(right.lastPlayedAt ?? right.discoveredAt).localeCompare(String(left.lastPlayedAt ?? left.discoveredAt)))

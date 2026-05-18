@@ -479,9 +479,9 @@ if (killedIceRun.status !== 'exploring') throw new Error('Successful spike shoul
 if (!killedIceRun.neutralizedIce.includes('n-1')) throw new Error('Successful spike should mark ICE as neutralized');
 renderNodeMap(projectSystemForRun(iceSystem, killedIceRun), killedIceRun);
 const finishedMapHtml = renderNodeMap(projectSystemForRun(jackOutSystem, jackOutRun), jackOutRun, undefined, null, { score: 55, reward: 12, lootTokens: 0, operator: 'usr@sh' });
-if (!finishedMapHtml.includes('run_complete.sh') || !finishedMapHtml.includes('node-map--result')) throw new Error('Finished runs should render completion terminal inside the node window');
+if (!finishedMapHtml.includes('cerrar_run') || !finishedMapHtml.includes('node-map--result') || !finishedMapHtml.includes('VENTANA DE MAPA CERRADA')) throw new Error('Finished runs should render a closed-map completion terminal inside the node window');
 const cleanedSuccessMapHtml = renderNodeMap(projectSystemForRun(jackOutSystem, { ...jackOutRun, hasPayload: false, lootTokens: 0 }), { ...jackOutRun, hasPayload: false, lootTokens: 0 }, undefined, null, { status: 'escaped', score: 55, reward: 12, lootTokens: 2, operator: 'usr@sh' });
-if (!cleanedSuccessMapHtml.includes('--status success') || cleanedSuccessMapHtml.includes('CRITICAL FALLBACK')) throw new Error('Successful cleaned runs should still render the success terminal from the run result snapshot');
+if (!cleanedSuccessMapHtml.includes('EXTRACCIÓN CONFIRMADA') || cleanedSuccessMapHtml.includes('CONEXIÓN CORTADA')) throw new Error('Successful cleaned runs should still render the success terminal from the run result snapshot');
 const mapMessageHtml = renderNodeMap(projectSystemForRun(iceSystem, killedIceRun), killedIceRun, undefined, { key: 'check', text: 'Ultima traza visible' });
 if (!mapMessageHtml.includes('node-map__message') || !mapMessageHtml.includes('node-map__log-button') || !mapMessageHtml.includes('Ultima traza visible')) throw new Error('Node map should surface the latest log message and log button');
 const nodeVisitHtml = renderNodeMap(projectSystemForRun(iceSystem, movedIntoIce), movedIntoIce, undefined, null, null, true, {
