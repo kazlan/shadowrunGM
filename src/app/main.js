@@ -341,15 +341,6 @@ function bindEvents() {
     });
   });
 
-  root.querySelectorAll('[data-map-action]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const action = button.dataset.mapAction;
-      if (action === 'zoomIn') zoomMap(0.72);
-      if (action === 'zoomOut') zoomMap(1.28);
-      if (action === 'reset') setMapView({ ...DEFAULT_MAP_VIEW });
-    });
-  });
-
   root.querySelectorAll('[data-deck-upgrade]').forEach((button) => {
     button.addEventListener('click', () => {
       const [category, key] = button.dataset.deckUpgrade.split(':');
@@ -1105,20 +1096,6 @@ function scannerResultMessage(successLabel, realCount, sandboxCount, expandedLab
     return `${successLabel}. ${realCount} objetivos OSM encontrados${expandedLabel}; +${sandboxCount} sandbox de relleno.`;
   }
   return `${successLabel}. ${realCount} objetivos OSM encontrados${expandedLabel}.`;
-}
-
-function zoomMap(factor, originEvent) {
-  if (originEvent) {
-    zoomMapAtPoint(factor, originEvent.clientX, originEvent.clientY);
-    return;
-  }
-
-  zoomMapAtCenter(factor);
-}
-
-function zoomMapAtCenter(factor) {
-  const view = appState.mapView;
-  zoomMapFromView(factor, view.x + view.width / 2, view.y + view.height / 2, view);
 }
 
 function zoomMapAtPoint(factor, clientX, clientY, sourceView = appState.mapView) {
