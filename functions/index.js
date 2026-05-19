@@ -30,10 +30,11 @@ export const getNearbyTargets = onRequest({
 
   try {
     await enforceRateLimit(req);
+    const geoapifyApiKey = String(secretValue(GEOAPIFY_API_KEY) || process.env.GEOAPIFY_API_KEY || '').trim();
     const result = await resolveNearbyTargets({
       db,
       fetchImpl: fetch,
-      geoapifyApiKey: secretValue(GEOAPIFY_API_KEY) || process.env.GEOAPIFY_API_KEY || '',
+      geoapifyApiKey,
       input: req.body ?? {},
     });
     res.status(200).json(result);
@@ -83,6 +84,7 @@ function allowedOrigins() {
     'http://127.0.0.1:4174',
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+    'https://shadowhack.vercel.app',
     ...configured,
   ]);
 }

@@ -24,7 +24,7 @@ const nodeGlyph = {
   exit: '↑',
 };
 
-export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, height: 100 }, mapMessage = null, runResult = null, showResult = true, nodeVisit = null, mapReveal = null, player = null, runLogOpen = false, previousMeters = null) {
+export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, height: 100 }, mapMessage = null, runResult = null, showResult = true, nodeVisit = null, mapReveal = null, player = null, runLogOpen = false, previousMeters = null, extractionView = null) {
   if (showResult && (run.status === 'escaped' || run.status === 'dumped')) {
     return renderRunResultWindow(system, run, runResult, player, runLogOpen);
   }
@@ -51,7 +51,7 @@ export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, h
       <strong class="fx-glitch" data-text="${escapeHtml(system.alias)}">${escapeHtml(system.alias)}</strong>
       <small>${escapeHtml(system.company.name)} · Seg ${system.effectiveSecurity ?? system.archetype.security}</small>
     </div>
-    ${renderMapMeters(run, previousMeters)}
+    ${renderMapMeters(run, previousMeters, extractionView)}
     ${renderMapActions(run, false, player)}
     ${renderMapMessage(mapMessage)}
     ${renderRunLogDialog(runLogOpen, run)}
@@ -76,11 +76,12 @@ export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, h
   </section>`;
 }
 
-function renderMapMeters(run, previousMeters = null) {
+function renderMapMeters(run, previousMeters = null, extractionView = null) {
   return `<aside class="node-map__meters" aria-label="Estado de la run">
     ${renderMapMeter('ALERTA', run.alert, run.maxAlert, 'alert', previousMeters)}
     ${renderMapMeter('TRAZA', run.trace, run.maxTrace, 'trace', previousMeters)}
     ${renderMapMeter('SHELL', run.integrity, run.maxIntegrity, 'integrity', previousMeters)}
+    ${renderExtractionMeter(run, previousMeters, extractionView)}
   </aside>`;
 }
 
@@ -97,6 +98,30 @@ function renderMapMeter(label, value, max, kind, previousMeters = null) {
     <span class="node-map-meter__icon" aria-hidden="true">${escapeHtml(icon)}</span>
     <i style="--meter:${percent}%; --meter-ratio:${formatNumber(ratio)}; --meter-from-ratio:${formatNumber(previousRatio)}"></i>
     <strong>${value}/${max}</strong>
+  </div>`;
+}
+
+function renderExtractionMeter(run, previousMeters = null, extractionView = null) {
+  const maxLoot = Math.max(0, Math.round(extractionView?.maxLoot ?? run.maxLootTokens ?? 0));
+  if (!maxLoot) return '';
+
+  const loot = Math.min(maxLoot, Math.max(0, Number(extractionView?.loot ?? run.lootTokens ?? 0)));
+  const roundedLoot = Math.round(loot);
+  const previousLoot = Number.isFinite(previousMeters?.extractionValue)
+    ? Math.min(maxLoot, Math.max(0, previousMeters.extractionValue))
+    : loot;
+  const ratio = clampRatio(loot / maxLoot);
+  const previousRatio = clampRatio(previousLoot / maxLoot);
+  const slots = Array.from({ length: maxLoot }, (_, index) => {
+    const fill = clampRatio(loot - index);
+    const previousFill = clampRatio(previousLoot - index);
+    const filledClass = fill >= 1 ? ' is-filled' : fill > 0 ? ' is-partial' : '';
+    return `<span class="node-map-extraction__slot${filledClass}" style="--slot-fill:${formatNumber(fill)}; --slot-from:${formatNumber(previousFill)}"></span>`;
+  }).join('');
+
+  return `<div class="node-map-extraction" aria-label="Extracción ${roundedLoot} de ${maxLoot}" data-meter-kind="extraction" data-meter-ratio="${formatNumber(ratio)}" data-meter-value="${formatNumber(loot)}" data-meter-max="${maxLoot}">
+    <span class="node-map-extraction__icon" aria-hidden="true">¤</span>
+    <em aria-hidden="true" style="--extract-slots:${maxLoot}; --meter-ratio:${formatNumber(ratio)}; --meter-from-ratio:${formatNumber(previousRatio)}">${slots}</em>
   </div>`;
 }
 

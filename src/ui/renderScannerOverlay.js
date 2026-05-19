@@ -17,15 +17,18 @@ export function renderScannerOverlay({ isOpen, places, selectedPlace, locationMe
     )
     .join('');
   const bookmarkButtons = bookmarks.length > 0
-    ? bookmarks.map((bookmark, index) => `<button data-bookmark-index="${index}" type="button">
-        ${renderSourceIcon(bookmark)}
-        <span class="scanner-target__body">
-          <strong>${escapeHtml(bookmark.hostAlias)}</strong>
-          <span>${escapeHtml(bookmark.name)} · Proxy remoto</span>
-          ${renderAddress(bookmark)}
-        </span>
-        <small class="scanner-source scanner-source--${sourceKind(bookmark)}">${sourceLabel(bookmark)}</small>
-      </button>`).join('')
+    ? bookmarks.map((bookmark, index) => `<article class="scanner-bookmark-card">
+        <button class="scanner-bookmark-card__launch" data-bookmark-index="${index}" type="button">
+          ${renderSourceIcon(bookmark)}
+          <span class="scanner-target__body">
+            <strong>${escapeHtml(bookmark.hostAlias)}</strong>
+            <span>${escapeHtml(bookmark.name)} · Proxy remoto</span>
+            ${renderAddress(bookmark)}
+          </span>
+          <small class="scanner-source scanner-source--${sourceKind(bookmark)}">${sourceLabel(bookmark)}</small>
+        </button>
+        <button class="scanner-bookmark-card__destroy" data-bookmark-destroy="${escapeHtml(bookmark.seedId)}" type="button" title="Destroy bookmark ${escapeHtml(bookmark.hostAlias)}" aria-label="Destroy bookmark ${escapeHtml(bookmark.hostAlias)}">×</button>
+      </article>`).join('')
     : '<p class="scanner-empty">Sin bookmarks guardados.</p>';
 
   return `<aside class="scanner-overlay" role="dialog" aria-modal="true" aria-labelledby="scanner-title">

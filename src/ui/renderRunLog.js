@@ -24,37 +24,18 @@ export function renderPostRunScannerPanel(runResult, completion, deckProfile) {
   const success = runResult?.status === 'escaped';
   const stateClass = success ? 'is-success' : 'is-danger';
   const summary = runResult
-    ? `${runResult.hostAlias} · ${runResult.score} pts · ${runResult.reward} cred · ${runResult.lootTokens} token(s)`
+    ? `${runResult.hostAlias} · ${runResult.score} pts · ¤${runResult.reward} · ${runResult.lootTokens} token(s)`
     : 'Run cerrada. Scanner listo para nuevo objetivo.';
 
   return `<section class="post-run-panel ${stateClass}" aria-label="Objetivos y scanner">
-    <div>
-      <p class="eyebrow">Estado</p>
-      <strong>Objetivos / scanner</strong>
-    </div>
     <div class="post-run-panel__body">
       <p>${escapeHtml(summary)}</p>
-      <div class="post-run-panel__actions">
+      <div class="post-run-panel__actions" aria-label="Siguiente acción">
         <button class="post-run-panel__log" data-action="toggleRunLog" type="button">Ver log</button>
-        ${renderScannerReady(completion, deckProfile)}
+        <button class="post-run-panel__area" data-action="toggleDeck" type="button">Area 0</button>
       </div>
     </div>
   </section>`;
-}
-
-function renderScannerReady(completion, deckProfile) {
-  return `${renderBookmarkAction(completion, deckProfile)}
-    <button class="scanner-toggle" data-action="toggleScanner" type="button">Abrir scanner</button>`;
-}
-
-function renderBookmarkAction(completion, deckProfile) {
-  if (!completion) return '';
-  if (completion.bookmarkDecision === 'saved') return '<p class="post-run-panel__note">Host guardado en bookmarks.</p>';
-  if (completion.bookmarkDecision === 'skipped') return '';
-  if (!completion.canBookmark) {
-    return `<p class="post-run-panel__note">Bookmarks llenos (${deckProfile.bookmarks.length}/${completion.bookmarkCapacity}).</p>`;
-  }
-  return '<button class="post-run-panel__save" data-action="saveBookmark" type="button">Guardar host</button>';
 }
 
 function statusLabel(status) {

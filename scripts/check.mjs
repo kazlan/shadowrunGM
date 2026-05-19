@@ -112,6 +112,7 @@ const functionsSource = await readFile('functions/src/targetSearch.js', 'utf8');
 if (!functionsSource.includes('placesCache') || !functionsSource.includes('fetchGeoapifyPlaces') || !functionsSource.includes('createCacheKey')) throw new Error('Targets backend should cache zones and include Geoapify fallback');
 const functionsIndexSource = await readFile('functions/index.js', 'utf8');
 if (!functionsIndexSource.includes('defineSecret') || !functionsIndexSource.includes('GEOAPIFY_API_KEY') || functionsIndexSource.includes('f9d6')) throw new Error('Geoapify key should be a backend secret, never committed');
+if (!functionsIndexSource.includes('https://shadowhack.vercel.app')) throw new Error('Targets backend CORS should allow the production Vercel origin by default');
 const themeSource = await readFile('src/styles/theme.css', 'utf8');
 if (!themeSource.includes('--scrollbar-thumb') || !themeSource.includes('::-webkit-scrollbar-thumb') || !themeSource.includes('scrollbar-color')) throw new Error('Theme CSS should style scrollbars consistently');
 if (!themeSource.includes('--button-crt-line') || !themeSource.includes('datastreamSlide') || !themeSource.includes('button:focus-visible')) throw new Error('Theme CSS should keep Cybercore-inspired micro styles available');
@@ -261,7 +262,7 @@ const { getFirebaseStatus } = await import('../src/firebase/firebaseClient.js');
 const { cloudPaths } = await import('../src/firebase/cloudPersistence.js');
 const { mergeDeckProfiles } = await import('../src/firebase/cloudSync.js');
 const { createOverpassProvider } = await import('../src/world/overpassProvider.js');
-const { addHostBookmark, avatarCatalog, awardRunCredits, createDefaultDeckProfile, getBookmarkCapacity, getStorageCapacity, updatePlayerProfile, upgradeDeckProfile } = await import('../src/world/deckStore.js');
+const { addHostBookmark, avatarCatalog, awardRunCredits, createDefaultDeckProfile, getBookmarkCapacity, getStorageCapacity, removeHostBookmark, updatePlayerProfile, upgradeDeckProfile } = await import('../src/world/deckStore.js');
 
 const jackOutPlace = demoPlaces[0];
 const jackOutSeed = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
@@ -352,16 +353,18 @@ const upgradedBookmarkResult = upgradeDeckProfile(richDeck, 'hardware', 'bookmar
 if (!upgradedBookmarkResult.changed || getBookmarkCapacity(upgradedBookmarkResult.profile) <= getBookmarkCapacity(defaultDeck)) throw new Error('Bookmark upgrades should increase saved host capacity');
 const bookmarkResult = addHostBookmark(defaultDeck, jackOutSystem);
 if (!bookmarkResult.changed || bookmarkResult.profile.bookmarks.length !== 1) throw new Error('Successful hosts should be bookmarkable');
+const removedBookmarkResult = removeHostBookmark(bookmarkResult.profile, jackOutSystem.seedId);
+if (!removedBookmarkResult.changed || removedBookmarkResult.profile.bookmarks.length !== 0) throw new Error('Scanner bookmarks should be destroyable');
 const rewardResult = awardRunCredits(defaultDeck, jackOutSystem, jackOutRun, scoreRun(jackOutSystem, jackOutRun));
 if (rewardResult.reward <= 0 || rewardResult.profile.credits <= 0) throw new Error('Completed runs should award deck upgrade credits');
 const postRunResult = { status: 'escaped', hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3 };
 const postRunChoiceHtml = renderPostRunScannerPanel(postRunResult, { hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3, canBookmark: true, bookmarkCapacity: 3, bookmarkDecision: null }, defaultDeck);
-if (!postRunChoiceHtml.includes('Guardar host') || !postRunChoiceHtml.includes('Abrir scanner') || postRunChoiceHtml.includes('Reboot deck') || postRunChoiceHtml.includes('No guardar') || postRunChoiceHtml.includes('skipBookmark')) {
-  throw new Error('Post-run scanner panel should only offer save host and scanner');
+if (!postRunChoiceHtml.includes('Ver log') || !postRunChoiceHtml.includes('Area 0') || !postRunChoiceHtml.includes('post-run-panel__area') || !postRunChoiceHtml.includes('data-action="toggleDeck"') || !postRunChoiceHtml.includes('1234 pts') || !postRunChoiceHtml.includes(`¤${rewardResult.reward}`) || postRunChoiceHtml.includes('Guardar host') || postRunChoiceHtml.includes('Abrir scanner') || postRunChoiceHtml.includes('Objetivos / scanner') || postRunChoiceHtml.includes('Reboot deck') || postRunChoiceHtml.includes('No guardar') || postRunChoiceHtml.includes('skipBookmark')) {
+  throw new Error('Post-run scanner panel should keep the run summary above log and Area 0 workbench actions');
 }
 const savedPostRunHtml = renderPostRunScannerPanel(postRunResult, { hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3, canBookmark: false, bookmarkCapacity: 3, bookmarkDecision: 'saved' }, defaultDeck);
-if (!savedPostRunHtml.includes('Host guardado') || savedPostRunHtml.includes('Guardar host') || !savedPostRunHtml.includes('Abrir scanner')) {
-  throw new Error('Saved hosts should show confirmation and leave only scanner available');
+if (!savedPostRunHtml.includes('Ver log') || !savedPostRunHtml.includes('Area 0') || !savedPostRunHtml.includes('data-action="toggleDeck"') || !savedPostRunHtml.includes('1234 pts') || savedPostRunHtml.includes('Host guardado') || savedPostRunHtml.includes('Guardar host') || savedPostRunHtml.includes('Abrir scanner')) {
+  throw new Error('Saved post-run panel should keep summary plus log and Area 0 actions');
 }
 if (themeSource.includes('node-diorama') || themeSource.includes('completion-card') || themeSource.includes('completion-shell')) {
   throw new Error('Legacy extract completion windows should not remain in the active stylesheet');
@@ -566,14 +569,19 @@ if (!runLogDialogHtml.includes('run-log-dialog') || !runLogDialogHtml.includes('
 const mapLogOpenHtml = renderNodeMap(projectSystemForRun(iceSystem, killedIceRun), killedIceRun, undefined, null, null, true, null, null, null, true);
 if (!mapLogOpenHtml.includes('run-log-dialog') || !mapLogOpenHtml.includes('node-map__log-button')) throw new Error('Node map should open the run log as a contextual terminal window near the log button');
 const postRunPanelHtml = renderPostRunScannerPanel({ ...jackOutRun, hostAlias: 'ICE CHECK', score: 10, reward: 1, lootTokens: 0 }, null, upgradedDeckResult.profile);
-if (!postRunPanelHtml.includes('data-action="toggleRunLog"') || !postRunPanelHtml.includes('Ver log')) throw new Error('Post-run panel should keep the previous run log accessible before the next host starts');
+if (!postRunPanelHtml.includes('data-action="toggleRunLog"') || !postRunPanelHtml.includes('Ver log') || !postRunPanelHtml.includes('data-action="toggleDeck"') || !postRunPanelHtml.includes('Area 0') || postRunPanelHtml.includes('data-action="toggleScanner"') || !themeSource.includes('areaZeroBorderTrace')) throw new Error('Post-run panel should offer log plus animated Area 0 workbench handoff');
 const deckOverlayHtml = renderDeckOverlay(true, upgradedDeckResult.profile, 'Scan mejorado.');
-if (!deckOverlayHtml.includes('Software cargado') || !deckOverlayHtml.includes('cred en cuenta')) throw new Error('Deck overlay should render loaded software and player account credits');
-if (!deckOverlayHtml.includes('deck-software-grid')) throw new Error('Deck software should render as a card grid');
+if (!deckOverlayHtml.includes('Área 0') || deckOverlayHtml.includes('Banco de trabajo') || deckOverlayHtml.includes('overlay-close') || !deckOverlayHtml.includes('deck-workbench__balance') || !deckOverlayHtml.includes('<b>¤</b>') || !deckOverlayHtml.includes('Scanner de objetivos') || !deckOverlayHtml.includes('deck-workbench__radar') || !deckOverlayHtml.includes('data-action="toggleScanner"')) throw new Error('Area 0 overlay should render balance, radar scanner CTA, and no close button');
+if (!deckOverlayHtml.includes('Software cargado') || deckOverlayHtml.includes('cred en cuenta')) throw new Error('Deck overlay should render loaded software and use currency prefix instead of cred labels');
+if (!deckOverlayHtml.includes('deck-software-grid') || !deckOverlayHtml.includes('deck-workbench__section')) throw new Error('Deck software should render as a spacious workbench card grid');
 if (!deckOverlayHtml.includes('/assets/stats/stat-pulse.svg')) throw new Error('Deck stats should use custom SVG icons');
+if (!themeSource.includes('.deck-workbench {') || !themeSource.includes('height: 100dvh') || !themeSource.includes('width: 100%') || !themeSource.includes('overflow-y: auto') || !themeSource.includes('gap: 20px') || !themeSource.includes('.deck-workbench__scanner-button:hover')) throw new Error('Workbench overlay should cover the viewport and give each area breathing room');
+if (mainSource.includes('renderDeckTrace(appState.deckProfile')) throw new Error('Deck trace panel should not render in the active play shell');
 const mapActionHtml = renderNodeMap(projectSystemForRun(iceSystem, createInitialRunState(iceSystem)), createInitialRunState(iceSystem));
 if (!mapActionHtml.includes('node-map__actions') || !mapActionHtml.includes('data-action="toggleSettings"') || !mapActionHtml.includes('node-map__avatar-settings')) throw new Error('Node map should expose settings avatar next to jack-out');
-if (!mapActionHtml.includes('node-map__meters') || !mapActionHtml.includes('ALERTA') || !mapActionHtml.includes('node-map-meter__icon') || !mapActionHtml.includes('data-meter-ratio') || !themeSource.includes('.node-map__actions') || !themeSource.includes('top: 10px') || !themeSource.includes('grid-template-columns: repeat(3, minmax(0, 1fr))') || !themeSource.includes('grid-template-areas: "icon bar"') || !themeSource.includes('mapMeterFillProgress')) throw new Error('Node map should keep actions top-right and render pressure meters as a bottom icon row with animated bar values');
+if (!mapActionHtml.includes('node-map__meters') || !mapActionHtml.includes('ALERTA') || !mapActionHtml.includes('node-map-meter__icon') || !mapActionHtml.includes('data-meter-ratio') || !mapActionHtml.includes('node-map-extraction') || !mapActionHtml.includes('aria-label="Extracción 0 de') || !mapActionHtml.includes('node-map-extraction__slot') || mapActionHtml.includes('<strong>EXTR') || !themeSource.includes('.node-map__actions') || !themeSource.includes('top: 10px') || !themeSource.includes('grid-template-columns: repeat(3, minmax(0, 1fr))') || !themeSource.includes('grid-template-areas: "icon bar"') || !themeSource.includes('mapMeterFillProgress') || !themeSource.includes('.node-map-extraction') || !themeSource.includes('extractionSlotFill')) throw new Error('Node map should keep actions top-right and render pressure meters plus icon-only segmented extraction capacity');
+const animatedMapCargoHtml = renderNodeMap(projectSystemForRun(iceSystem, createInitialRunState(iceSystem, upgradedDeckResult.profile)), createInitialRunState(iceSystem, upgradedDeckResult.profile), undefined, null, null, true, null, null, null, false, { extractionValue: 0 }, { phase: 'extract', maxLoot: 5, loot: 2 });
+if (!animatedMapCargoHtml.includes('aria-label="Extracción 2 de 5"') || !animatedMapCargoHtml.includes('--slot-fill:1') || !animatedMapCargoHtml.includes('--slot-from:0') || animatedMapCargoHtml.includes('<strong>EXTR')) throw new Error('Node map extraction capacity should animate segmented cargo changes without visible text');
 if (mapActionHtml.includes('data-action="toggleMusic"') || mapActionHtml.includes('data-action="toggleSfx"')) throw new Error('Audio controls should live inside settings, not the main HUD');
 const finishedActionMapHtml = renderNodeMap(projectSystemForRun(iceSystem, { ...jackOutRun, selectedProgram: 'scan', disabledPrograms: [] }), { ...jackOutRun, selectedProgram: 'scan', disabledPrograms: [] }, undefined, null, null, true);
 if (finishedActionMapHtml.includes('node-map__actions') || finishedActionMapHtml.includes('node-map__jack-out')) throw new Error('Finished maps should remove the active top-right action stack');
@@ -617,6 +625,9 @@ const scannerHtml = renderScannerOverlay({
 if (!scannerHtml.includes('/assets/ui/source-world.svg') || !scannerHtml.includes('/assets/ui/source-sandbox.svg')) throw new Error('Scanner should identify real world and sandbox host sources');
 if (!scannerHtml.includes('Mundo real') || !scannerHtml.includes('Geoapify') || !scannerHtml.includes('Sandbox') || !scannerHtml.includes('Calle Real 1')) throw new Error('Scanner should show source labels and real-world anchor data when available');
 if (!scannerHtml.includes('Proxy remoto')) throw new Error('Scanner bookmarks should be labelled as proxy scans');
+if (!scannerHtml.includes('scanner-bookmark-card') || !scannerHtml.includes('data-bookmark-destroy') || !scannerHtml.includes('Destroy')) throw new Error('Scanner bookmarks should expose a destroy action');
+if (!themeSource.includes('.scanner-panel {') || !themeSource.includes('height: 100dvh') || !themeSource.includes('.scanner-targets button {') || !themeSource.includes('min-height: 72px')) throw new Error('Scanner local should use an enlarged full-window overlay with larger targets');
+if (!themeSource.includes('.scanner-targets:not(.scanner-targets--bookmarks)') || !themeSource.includes('.scanner-targets--bookmarks') || !themeSource.includes('grid-template-columns: repeat(2, minmax(0, 1fr))') || !themeSource.includes('.scanner-bookmark-card__destroy')) throw new Error('Scanner should use two columns for detected objectives and destroy buttons for bookmarks');
 
 const fetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
 try {

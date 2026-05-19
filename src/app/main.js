@@ -11,7 +11,7 @@ import { projectSystemForRun } from '../game/systemView.js';
 import { getGeolocationPermissionState, requestCurrentPosition } from '../location/locationService.js';
 import { registerServiceWorker } from '../pwa/registerServiceWorker.js';
 import { getDangerTheme } from '../ui/dangerTheme.js';
-import { renderDeckOverlay, renderDeckTrace } from '../ui/renderDeckPanel.js';
+import { renderDeckOverlay } from '../ui/renderDeckPanel.js';
 import { renderHelpOverlay, renderSettingsOverlay } from '../ui/renderHelpOverlay.js';
 import { renderHud, renderProgramDock } from '../ui/renderHud.js';
 import { renderLandingPage } from '../ui/renderLandingPage.js';
@@ -24,7 +24,7 @@ import { hashCompany } from '../world/companySeed.js';
 import { valueCompany } from '../world/companyValuation.js';
 import { createOverpassProvider } from '../world/overpassProvider.js';
 import { createDemoNearbyProvider, demoPlaces, searchNearbyPlaces } from '../world/placeProvider.js';
-import { addHostBookmark, awardRunCredits, getBookmarkCapacity, loadDeckProfile, updatePlayerProfile, upgradeDeckProfile } from '../world/deckStore.js';
+import { addHostBookmark, awardRunCredits, getBookmarkCapacity, loadDeckProfile, removeHostBookmark, updatePlayerProfile, upgradeDeckProfile } from '../world/deckStore.js';
 import { getHostProgress, getPlayerProgressStats, listRecentProgress, recordRunResult } from '../world/progressStore.js';
 
 const root = document.querySelector('#root');
@@ -210,10 +210,9 @@ function render() {
     <div class="scanline"></div>
     <div class="crt-vignette"></div>
     ${renderHud(runtimeSystem, appState.run, finished, appState.deckProfile.player)}
-    ${renderNodeMap(runtimeSystem, appState.run, appState.mapView, getVisibleMapLogMessage(), appState.runResult, resultVisible, appState.nodeVisit, getVisibleMapReveal(), appState.deckProfile.player, appState.isRunLogOpen, previousMapMeters)}
+    ${renderNodeMap(runtimeSystem, appState.run, appState.mapView, getVisibleMapLogMessage(), appState.runResult, resultVisible, appState.nodeVisit, getVisibleMapReveal(), appState.deckProfile.player, appState.isRunLogOpen, previousMapMeters, getDeckTraceView())}
     ${renderProgramDock(appState.run, finished, appState.nodeVisit?.recommendedProgram, appState.deckProfile)}
     ${postRunPanelVisible ? renderPostRunScannerPanel(appState.runResult, appState.completion, appState.deckProfile) : ''}
-    ${renderDeckTrace(appState.deckProfile, appState.run, appState.deckMessage, getDeckTraceView())}
     ${renderDeckOverlay(appState.isDeckOpen, appState.deckProfile, appState.deckMessage)}
     ${renderSettingsOverlay(appState.isSettingsOpen, audioDirector.getState(), appState.theme, appState.cloud, appState.deckProfile)}
     ${renderHelpOverlay(appState.isHelpOpen, appState.helpTab)}
@@ -234,10 +233,15 @@ function render() {
 function readVisibleMapMeters() {
   if (!root) return null;
   const meters = {};
-  root.querySelectorAll('.node-map-meter[data-meter-kind]').forEach((meter) => {
+  root.querySelectorAll('.node-map-meter[data-meter-kind], .node-map-extraction[data-meter-kind]').forEach((meter) => {
     const kind = meter.dataset.meterKind;
     const ratio = Number(meter.dataset.meterRatio);
-    if (kind && Number.isFinite(ratio)) meters[kind] = Math.max(0, Math.min(1, ratio));
+    if (!kind || !Number.isFinite(ratio)) return;
+    meters[kind] = Math.max(0, Math.min(1, ratio));
+    const value = Number(meter.dataset.meterValue);
+    const max = Number(meter.dataset.meterMax);
+    if (Number.isFinite(value)) meters[`${kind}Value`] = Math.max(0, value);
+    if (Number.isFinite(max)) meters[`${kind}Max`] = Math.max(0, max);
   });
   return Object.keys(meters).length > 0 ? meters : null;
 }
@@ -357,6 +361,12 @@ function bindEvents() {
       if (!bookmark) return;
       void audioDirector.play('scanner');
       void scanFromBookmark(bookmark);
+    });
+  });
+
+  root.querySelectorAll('[data-bookmark-destroy]').forEach((button) => {
+    button.addEventListener('click', () => {
+      destroyBookmark(button.dataset.bookmarkDestroy);
     });
   });
 
@@ -1529,7 +1539,7 @@ function syncRunResult() {
   appState.deckProfile = reward.profile;
   const lootTokens = appState.run.lootTokens ?? 0;
   const runCash = appState.run.deckCash ?? 0;
-  appState.deckMessage = reward.reward > 0 ? `+${reward.reward} cred transferidos a la cuenta. Deck limpio.` : 'Deck limpio.';
+  appState.deckMessage = reward.reward > 0 ? `+¤${reward.reward} transferidos a la cuenta. Deck limpio.` : 'Deck limpio.';
   appState.recentProgress = listRecentProgress();
   void syncProgressEntry(appState.currentProgress);
   appState.lastRecordedStatus = appState.run.status;
@@ -1622,6 +1632,21 @@ function saveCompletionBookmark() {
   render();
 }
 
+function destroyBookmark(seedId) {
+  if (!seedId) return;
+  const result = removeHostBookmark(appState.deckProfile, seedId);
+  appState.deckProfile = result.profile;
+  if (result.changed) {
+    appState.locationMessage = `Bookmark destruido: ${result.bookmark.hostAlias}.`;
+    void syncDeckProfile();
+    void audioDirector.play('spike');
+  } else {
+    appState.locationMessage = 'Bookmark no encontrado.';
+    void audioDirector.play('selectProgram');
+  }
+  render();
+}
+
 function findBookmarkBySeed(profile, seedId) {
   return profile?.bookmarks?.find((bookmark) => bookmark.seedId === seedId) ?? null;
 }
@@ -1676,8 +1701,8 @@ function skipCompletionBookmark(shouldRender = true) {
 }
 
 function deckUpgradeMessage(result, category, key) {
-  if (result.changed) return `${key.toUpperCase()} mejorado por ${result.cost} cred.`;
-  if (result.reason === 'credits') return 'Cred insuficiente para esa mejora.';
+  if (result.changed) return `${key.toUpperCase()} mejorado por ¤${result.cost}.`;
+  if (result.reason === 'credits') return '¤ insuficientes para esa mejora.';
   if (result.reason === 'max') return 'Mejora ya al maximo.';
   return category === 'stat' ? 'Atributo no disponible.' : 'Programa no disponible.';
 }

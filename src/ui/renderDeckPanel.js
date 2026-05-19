@@ -73,30 +73,37 @@ export function renderDeckOverlay(isOpen, deckProfile, upgradeMessage = '') {
     <section class="overlay-panel deck-workbench">
       <div class="overlay-panel__header">
         <div>
-          <p class="eyebrow">Banco de trabajo</p>
+          <p class="eyebrow">Área 0</p>
           <h2 id="deck-title">Deck L${deckLevel}</h2>
         </div>
-        <button class="overlay-close" data-action="closeDeck" type="button" aria-label="Cerrar deck">×</button>
+        <div class="deck-workbench__balance" aria-label="Saldo en cuenta">
+          <span>Saldo</span>
+          <strong><b>¤</b>${deckProfile.credits}</strong>
+        </div>
       </div>
       <div class="overlay-panel__content deck-workbench__content">
-        <div class="deck-workbench__status">
-          <strong>${deckProfile.credits} cred en cuenta</strong>
-          <span>${deckProfile.totalEarned} cred ingresados · +${deckProfile.lastReward ?? 0} ultima run</span>
+        <div class="deck-workbench__scanner">
+          ${renderRadarIcon()}
+          <div>
+            <strong>Scanner de objetivos</strong>
+            <span>Localiza nuevos hosts, bookmarks y zonas cercanas antes del siguiente jack-in.</span>
+          </div>
+          <button class="deck-workbench__scanner-button" data-action="toggleScanner" type="button" title="Abrir scanner de objetivos">Scanner de objetivos</button>
           ${upgradeMessage ? `<p>${escapeHtml(upgradeMessage)}</p>` : ''}
         </div>
-        <div>
+        <div class="deck-workbench__section">
           <h3>Piezas</h3>
           <div class="deck-parts">${parts}</div>
         </div>
-        <div>
+        <div class="deck-workbench__section">
           <h3>Hardware</h3>
           <div class="deck-upgrade-list">${hardware}${bookmarkHardware}</div>
         </div>
-        <div>
+        <div class="deck-workbench__section">
           <h3>Stats del chasis</h3>
           <div class="deck-upgrade-list">${stats}</div>
         </div>
-        <div>
+        <div class="deck-workbench__section">
           <h3>Software cargado</h3>
           <div class="deck-software-grid">${programUpgrades}</div>
         </div>
@@ -109,7 +116,7 @@ function renderUpgradeRow(category, key, label, level, description, credits) {
   const maxed = level >= 5;
   const cost = maxed ? 0 : getUpgradeCost(category, level);
   const affordable = credits >= cost;
-  const state = maxed ? 'MAX' : `${cost} cred`;
+  const state = maxed ? 'MAX' : `¤${cost}`;
 
   return `<article class="deck-upgrade">
     <div>
@@ -124,7 +131,7 @@ function renderStatCard(stat, level, credits) {
   const maxed = level >= 5;
   const cost = maxed ? 0 : getUpgradeCost('stat', level);
   const affordable = credits >= cost;
-  const state = maxed ? 'MAX' : `${cost} cred`;
+  const state = maxed ? 'MAX' : `¤${cost}`;
 
   return `<article class="deck-stat-card" title="${escapeHtml(stat.description)}">
     <img src="${assetPaths.stats[stat.kind]}" alt="" loading="lazy" />
@@ -138,7 +145,7 @@ function renderSoftwareCard(program, level, credits) {
   const maxed = level >= 5;
   const cost = maxed ? 0 : getUpgradeCost('program', level);
   const affordable = credits >= cost;
-  const state = maxed ? 'MAX' : `${cost}`;
+  const state = maxed ? 'MAX' : `¤${cost}`;
 
   return `<article class="deck-software-card" title="${escapeHtml(program.description)}">
     <img src="${assetPaths.programs[program.kind]}" alt="" loading="lazy" />
@@ -146,4 +153,19 @@ function renderSoftwareCard(program, level, credits) {
     <span>L${level}</span>
     <button data-deck-upgrade="program:${program.kind}" type="button" ${maxed || !affordable ? 'disabled' : ''}>${escapeHtml(state)}</button>
   </article>`;
+}
+
+function renderRadarIcon() {
+  return `<span class="deck-workbench__radar" aria-hidden="true">
+    <svg viewBox="0 0 64 64" focusable="false">
+      <circle cx="32" cy="32" r="24"></circle>
+      <circle cx="32" cy="32" r="14"></circle>
+      <path d="M32 8v8M32 48v8M8 32h8M48 32h8"></path>
+      <path d="M32 32l18-10"></path>
+      <path d="M32 32l-8 16"></path>
+      <circle cx="32" cy="32" r="3"></circle>
+      <circle cx="50" cy="22" r="2.5"></circle>
+      <circle cx="24" cy="48" r="2.2"></circle>
+    </svg>
+  </span>`;
 }

@@ -194,6 +194,18 @@ export function addHostBookmark(profile, system) {
   return { profile: saveDeckProfile(nextProfile), changed: true, bookmark };
 }
 
+export function removeHostBookmark(profile, seedId) {
+  const normalized = normalizeDeckProfile(profile);
+  const bookmark = normalized.bookmarks.find((candidate) => candidate.seedId === seedId);
+  if (!bookmark) return { profile: normalized, changed: false, reason: 'missing' };
+
+  const nextProfile = normalizeDeckProfile({
+    ...normalized,
+    bookmarks: normalized.bookmarks.filter((candidate) => candidate.seedId !== seedId),
+  });
+  return { profile: saveDeckProfile(nextProfile), changed: true, bookmark };
+}
+
 function calculateRunCredits(system, run, score) {
   const tierBonus = { S: 90, A: 70, B: 50, C: 35, D: 25 }[system.valuation?.tier] ?? 30;
   const payloadBonus = run.hasPayload ? 45 : 0;
