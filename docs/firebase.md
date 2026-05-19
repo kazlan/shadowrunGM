@@ -108,7 +108,26 @@ npm run firebase -- functions:secrets:set GEOAPIFY_API_KEY --project nexus-f20f5
 npm run firebase -- deploy --only functions,firestore --project nexus-f20f5
 ```
 
-Tras desplegar `getNearbyTargets`, completar `VITE_TARGETS_ENDPOINT` con la URL HTTPS de la Function. En local, si esa variable está vacía, el scanner conserva el flujo directo Overpass -> sandbox.
+Antes de desplegar Functions por primera vez, comprobar que la API de Cloud Functions está activa en `nexus-f20f5`. Si `functions:list` devuelve `SERVICE_DISABLED`, activar Cloud Functions API y reintentar:
+
+```bash
+npm run firebase -- functions:list --project nexus-f20f5
+```
+
+Tras desplegar `getNearbyTargets`, completar `VITE_TARGETS_ENDPOINT` con la URL HTTPS de la Function. En Vercel producción:
+
+```bash
+vercel env add VITE_TARGETS_ENDPOINT production
+vercel --prod
+```
+
+URL esperada para `nexus-f20f5`:
+
+```text
+https://europe-southwest1-nexus-f20f5.cloudfunctions.net/getNearbyTargets
+```
+
+En local, si esa variable está vacía, el scanner conserva el flujo directo Overpass -> sandbox.
 
 Si el deploy falla indicando que `serviceusage.googleapis.com` esta deshabilitada, activar la **Service Usage API** en Google Cloud para `nexus-f20f5` y reintentar el comando de deploy.
 
