@@ -96,8 +96,10 @@ const authSource = await readFile('src/firebase/authClient.js', 'utf8');
 if (authSource.includes('signInWithPopup') || !authSource.includes('signInWithRedirect') || !authSource.includes('linkWithRedirect') || !authSource.includes('getRedirectResult')) {
   throw new Error('Google auth should use redirect flow and support guest-to-Google linking');
 }
+const mapGeneratorSource = await readFile('src/game/mapGenerator.js', 'utf8');
 if (!mainSource.includes('mapPointers: new Map()') || !mainSource.includes('startMapPinch') || !mainSource.includes('zoomMapAtPoint')) throw new Error('Node map should keep pinch zoom support wired into pointer handling');
-if (!mainSource.includes('mapBounds') || !mainSource.includes('getMapBounds') || !mainSource.includes('MAP_GRAPH_OFFSET_Y')) throw new Error('Node map should derive its gesture bounds from the generated graph');
+if (!mainSource.includes('mapBounds') || !mainSource.includes('getMapBounds') || !mainSource.includes('MAP_GRAPH_OFFSET_Y') || !mainSource.includes('scheduleOpeningMapFit') || !mainSource.includes('getSafeOpeningMapView') || !mainSource.includes('MAP_FIT_CHROME_GAP_PX')) throw new Error('Node map should derive its gesture bounds and animated opening fit from the generated graph and map chrome');
+if (!mapGeneratorSource.includes('spreadLayout(nodes, template)') || !mapGeneratorSource.includes('LAYOUT_CANVAS_CENTER')) throw new Error('Generated maps should spread node layouts to use the map box space');
 const scanLocalBody = mainSource.match(/async function scanLocalTargets\(\) \{[\s\S]*?\n\}/)?.[0] ?? '';
 if (scanLocalBody.includes('startRun(') || !scanLocalBody.includes('appState.isScannerOpen = true;')) throw new Error('Local scanner should keep the target picker open instead of auto-starting a run');
 const locationSource = await readFile('src/location/locationService.js', 'utf8');
@@ -107,12 +109,20 @@ if (!overpassSource.includes('nwr["name"]["tourism"]') || !overpassSource.includ
 if (!mainSource.includes('VALENCIA_TEST_POSITION') || !mainSource.includes('MIN_SCANNER_TARGETS') || !mainSource.includes('fillWithSandboxTargets')) throw new Error('Local scanner should use Valencia in local testing and fill short OSM result sets with sandbox targets');
 if (!mainSource.includes('VITE_TARGETS_ENDPOINT') || !mainSource.includes('searchBackendTargets') || !mainSource.includes('searchOverpassPlaces')) throw new Error('Scanner should try the targets backend before falling back to direct Overpass');
 if (!mainSource.includes('scheduleTargetPrefetchForRun') || !mainSource.includes('SCANNER_PREFETCH_LIMIT')) throw new Error('Scanner should prefetch a small number of target zones during runs');
-if (!mainSource.includes('ensureBookmarkZoneCached') || !mainSource.includes('SCANNER_BOOKMARK_PREFETCH_LIMIT')) throw new Error('Saving a bookmark should warm the targets cache for that bookmark zone');
+if (!mainSource.includes('ensureBookmarkZoneCached') || !mainSource.includes('SCANNER_BOOKMARK_PREFETCH_LIMIT')) throw new Error('Awarding a bookmark should warm the targets cache for that bookmark zone');
+if (!mainSource.includes('hasConqueredCpu') || !mainSource.includes('addHostBookmark(appState.deckProfile, appState.system)') || mainSource.includes("action === 'saveBookmark'") || mainSource.includes("action === 'skipBookmark'")) {
+  throw new Error('Bookmarks should be awarded automatically from conquered CPU success, never by post-run buttons');
+}
 const functionsSource = await readFile('functions/src/targetSearch.js', 'utf8');
 if (!functionsSource.includes('placesCache') || !functionsSource.includes('fetchGeoapifyPlaces') || !functionsSource.includes('createCacheKey')) throw new Error('Targets backend should cache zones and include Geoapify fallback');
 const functionsIndexSource = await readFile('functions/index.js', 'utf8');
 if (!functionsIndexSource.includes('defineSecret') || !functionsIndexSource.includes('GEOAPIFY_API_KEY') || functionsIndexSource.includes('f9d6')) throw new Error('Geoapify key should be a backend secret, never committed');
 if (!functionsIndexSource.includes('https://shadowhack.vercel.app')) throw new Error('Targets backend CORS should allow the production Vercel origin by default');
+const readmeSource = await readFile('README.md', 'utf8');
+const gameDesignSource = await readFile('docs/game-design.md', 'utf8');
+if (!readmeSource.includes('concede bookmarks al conquistar la CPU') || !gameDesignSource.includes('conquistar la CPU') || !gameDesignSource.includes('no se elige al final de la run')) {
+  throw new Error('Docs should describe automatic CPU conquest bookmarks');
+}
 const themeSource = await readFile('src/styles/theme.css', 'utf8');
 if (!themeSource.includes('--scrollbar-thumb') || !themeSource.includes('::-webkit-scrollbar-thumb') || !themeSource.includes('scrollbar-color')) throw new Error('Theme CSS should style scrollbars consistently');
 if (!themeSource.includes('--button-crt-line') || !themeSource.includes('datastreamSlide') || !themeSource.includes('button:focus-visible')) throw new Error('Theme CSS should keep Cybercore-inspired micro styles available');
@@ -358,13 +368,13 @@ if (!removedBookmarkResult.changed || removedBookmarkResult.profile.bookmarks.le
 const rewardResult = awardRunCredits(defaultDeck, jackOutSystem, jackOutRun, scoreRun(jackOutSystem, jackOutRun));
 if (rewardResult.reward <= 0 || rewardResult.profile.credits <= 0) throw new Error('Completed runs should award deck upgrade credits');
 const postRunResult = { status: 'escaped', hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3 };
-const postRunChoiceHtml = renderPostRunScannerPanel(postRunResult, { hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3, canBookmark: true, bookmarkCapacity: 3, bookmarkDecision: null }, defaultDeck);
-if (!postRunChoiceHtml.includes('Ver log') || !postRunChoiceHtml.includes('Area 0') || !postRunChoiceHtml.includes('post-run-panel__area') || !postRunChoiceHtml.includes('data-action="toggleDeck"') || !postRunChoiceHtml.includes('1234 pts') || !postRunChoiceHtml.includes(`¤${rewardResult.reward}`) || postRunChoiceHtml.includes('Guardar host') || postRunChoiceHtml.includes('Abrir scanner') || postRunChoiceHtml.includes('Objetivos / scanner') || postRunChoiceHtml.includes('Reboot deck') || postRunChoiceHtml.includes('No guardar') || postRunChoiceHtml.includes('skipBookmark')) {
-  throw new Error('Post-run scanner panel should keep the run summary above log and Area 0 workbench actions');
+const postRunChoiceHtml = renderPostRunScannerPanel(postRunResult, { hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3, cpuConquered: true, bookmarkCapacity: 3, bookmarkCount: 1, bookmarkStatus: 'saved', bookmarkHostAlias: jackOutSystem.alias }, defaultDeck);
+if (!postRunChoiceHtml.includes('Ver log') || !postRunChoiceHtml.includes('Area 0') || !postRunChoiceHtml.includes('post-run-panel__area') || !postRunChoiceHtml.includes('data-action="toggleDeck"') || !postRunChoiceHtml.includes('1234 pts') || !postRunChoiceHtml.includes(`¤${rewardResult.reward}`) || !postRunChoiceHtml.includes('CPU conquistada') || !postRunChoiceHtml.includes('bookmark') || postRunChoiceHtml.includes('Guardar host') || postRunChoiceHtml.includes('Abrir scanner') || postRunChoiceHtml.includes('Objetivos / scanner') || postRunChoiceHtml.includes('Reboot deck') || postRunChoiceHtml.includes('No guardar') || postRunChoiceHtml.includes('skipBookmark') || postRunChoiceHtml.includes('saveBookmark')) {
+  throw new Error('Post-run scanner panel should keep the run summary plus automatic CPU bookmark status above log and Area 0 actions');
 }
-const savedPostRunHtml = renderPostRunScannerPanel(postRunResult, { hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3, canBookmark: false, bookmarkCapacity: 3, bookmarkDecision: 'saved' }, defaultDeck);
-if (!savedPostRunHtml.includes('Ver log') || !savedPostRunHtml.includes('Area 0') || !savedPostRunHtml.includes('data-action="toggleDeck"') || !savedPostRunHtml.includes('1234 pts') || savedPostRunHtml.includes('Host guardado') || savedPostRunHtml.includes('Guardar host') || savedPostRunHtml.includes('Abrir scanner')) {
-  throw new Error('Saved post-run panel should keep summary plus log and Area 0 actions');
+const savedPostRunHtml = renderPostRunScannerPanel(postRunResult, { hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3, cpuConquered: false, bookmarkCapacity: 3, bookmarkCount: 0, bookmarkStatus: 'none' }, defaultDeck);
+if (!savedPostRunHtml.includes('Ver log') || !savedPostRunHtml.includes('Area 0') || !savedPostRunHtml.includes('data-action="toggleDeck"') || !savedPostRunHtml.includes('1234 pts') || !savedPostRunHtml.includes('CPU no conquistada') || savedPostRunHtml.includes('Host guardado') || savedPostRunHtml.includes('Guardar host') || savedPostRunHtml.includes('Abrir scanner')) {
+  throw new Error('Non-CPU post-run panel should explain that no bookmark was generated and keep summary plus log and Area 0 actions');
 }
 if (themeSource.includes('node-diorama') || themeSource.includes('completion-card') || themeSource.includes('completion-shell')) {
   throw new Error('Legacy extract completion windows should not remain in the active stylesheet');
@@ -389,6 +399,12 @@ function assertStructuredHost(system) {
 
 
 function assertReadableMapGeometry(system) {
+  const xs = system.nodes.map((node) => node.x);
+  const ys = system.nodes.map((node) => node.y);
+  if (Math.max(...xs) - Math.min(...xs) < 68 || Math.max(...ys) - Math.min(...ys) < 68) {
+    throw new Error('Generated host map should use the available map space horizontally and vertically');
+  }
+
   for (let leftIndex = 0; leftIndex < system.nodes.length; leftIndex += 1) {
     for (let rightIndex = leftIndex + 1; rightIndex < system.nodes.length; rightIndex += 1) {
       const left = system.nodes[leftIndex];

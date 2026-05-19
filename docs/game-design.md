@@ -92,9 +92,9 @@ Efectos actuales:
 - **Lens + Scan/Extract**: permite leer más mapa y extraer con menos ruido.
 - **Shell + Shield**: sube integridad base y extiende protección.
 - **Memoria**: define cuántos tokens de loot caben en el deck durante la run. Si se llena, hay que salir o mejorar almacenamiento.
-- **Bookmarks**: empiezan con tres slots. Guardar un host permite escanear objetivos desde su ubicación y moverse por el mundo real de host en host.
+- **Bookmarks**: empiezan con tres slots. Un bookmark se registra automáticamente al conquistar la CPU del host y salir con éxito; no se elige al final de la run. Si la capacidad está llena, la conquista se conserva en progreso, pero no se añade un nuevo proxy.
 
-El radio de scanner se calcula desde el deck y escala con **Lens**. El scanner local usa la ubicación del jugador; el scanner remoto de bookmarks usa la ubicación guardada del host.
+El radio de scanner se calcula desde el deck y escala con **Lens**. El scanner local usa la ubicación del jugador; el scanner remoto de bookmarks usa la ubicación guardada del host. Al crear un bookmark, el backend intenta precalentar la cache de objetivos de esa zona para que el siguiente scanner remoto responda con menos latencia.
 
 La música usa un motor WebAudio adaptativo: stems cortos de alta calidad se mezclan por capas con crossfades, filtros y stingers según alerta, traza, ICE y extracción. Los efectos siguen siendo WebAudio procedural para responder al instante.
 
@@ -121,6 +121,8 @@ La progresión debe conservar una tensión clara: un deck mejor permite asumir h
 
 La primera run offline separa el host determinista del estado mutable de partida. El host conserva nodos, conexiones, riesgos y defensas; la run conserva nodo actual, nodos descubiertos, defensas neutralizadas, eventos resueltos, alerta, traza, integridad, payload y log de acciones. El deck se conserva aparte como progresión local persistente.
 
+El mapa se abre con un encuadre calculado desde el grafo generado y desde la UI visible: header, acciones, mensajes y medidores se tratan como zonas seguras para que el host no nazca oculto bajo el HUD. La topología puede estirarse dentro de una caja estable por plantilla (`small`, `standard`, `secure`) para aprovechar mejor el espacio vertical sin romper las reglas de distancia mínima entre nodos, core y salidas.
+
 Acciones disponibles en el MVP:
 
 - **Scan**: revela nodos conectados al nodo actual.
@@ -133,7 +135,7 @@ Acciones disponibles en el MVP:
 
 Eventos de nodo implementados:
 
-- **Archivo/Núcleo**: Extract asegura payload y compromete el nodo.
+- **Archivo/Núcleo**: Extract asegura payload y compromete el nodo. Conquistar el Núcleo/CPU y escapar con éxito concede el bookmark del host.
 - **Puerta**: Spike resuelve el control y revela rutas conectadas.
 - **Cámara**: al entrar sube alerta; Ghost la resuelve sin coste de shell.
 - **Señuelo**: Scan lo limpia; Extract precipitado sube alerta y traza sin payload.

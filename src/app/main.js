@@ -36,6 +36,12 @@ const DEFAULT_MAP_BOUNDS = { ...DEFAULT_MAP_VIEW };
 const MAP_GRAPH_OFFSET_Y = 20;
 const MAP_VIEW_PADDING = 22;
 const MAP_LABEL_PADDING = 8;
+const MAP_GRAPH_SIDE_PADDING = 12;
+const MAP_GRAPH_TOP_PADDING = 12;
+const MAP_GRAPH_BOTTOM_PADDING = 14;
+const MAP_FIT_SIDE_SAFE_PX = 10;
+const MAP_FIT_CHROME_GAP_PX = 10;
+const MAP_OPEN_OVERVIEW_SCALE = 1.14;
 const MIN_MAP_SIZE = 32;
 const MAP_DRAG_THRESHOLD_PX = 12;
 const MAP_LOG_MESSAGE_MS = 5200;
@@ -43,6 +49,7 @@ const MAP_REVEAL_MS = 1000;
 const DISCONNECT_GLITCH_MS = 2000;
 const DECK_COUNTER_ANIMATION_MS = 1000;
 const MAP_FOCUS_ANIMATION_MS = 680;
+const MAP_OPEN_ANIMATION_MS = 1080;
 const NODE_VISIT_EMPTY_MS = 460;
 const NODE_VISIT_RESOLVE_MS = 1800;
 const DEBUG_LOG_LIMIT = 90;
@@ -140,8 +147,9 @@ async function startRun(place) {
   appState.currentProgress = getHostProgress(appState.system.seedId);
   appState.recentProgress = listRecentProgress();
   appState.lastRecordedStatus = null;
-  appState.mapBounds = getMapBounds(appState.system);
-  appState.mapView = getInitialMapView(appState.mapBounds);
+  const graphMapBounds = getMapBounds(appState.system);
+  appState.mapView = getInitialMapView(graphMapBounds);
+  appState.mapBounds = expandBoundsToContainView(graphMapBounds, appState.mapView);
   appState.mapPointer = null;
   appState.mapPointers.clear();
   appState.mapPinch = null;
@@ -158,6 +166,7 @@ async function startRun(place) {
   });
   scheduleTargetPrefetchForRun(place);
   render();
+  scheduleOpeningMapFit(appState.runSessionId);
 }
 
 function dispatch(action) {
@@ -447,8 +456,6 @@ function bindEvents() {
       const action = button.dataset.action;
       if (action === 'jackOut') dispatch({ type: 'jackOut' });
       if (action === 'scanLocal') void scanLocalTargets();
-      if (action === 'saveBookmark') saveCompletionBookmark();
-      if (action === 'skipBookmark') skipCompletionBookmark();
       if (action === 'toggleMusic') void toggleMusic();
       if (action === 'toggleSfx') void toggleSfx();
       if (action === 'signInGuest') void signInGuestCloud();
@@ -1394,6 +1401,87 @@ function animateMapViewTo(view, duration = MAP_FOCUS_ANIMATION_MS) {
   appState.mapViewAnimationFrame = requestAnimationFrame(tick);
 }
 
+function scheduleOpeningMapFit(runSessionId) {
+  const schedule = globalThis.requestAnimationFrame ?? ((callback) => globalThis.setTimeout(() => callback(performance.now()), 0));
+  schedule(() => {
+    if (runSessionId !== appState.runSessionId || !appState.system || !appState.run || isRunFinished(appState.run)) return;
+    const targetView = getSafeOpeningMapView(appState.system);
+    if (!targetView) return;
+    appState.mapBounds = expandBoundsToContainView(appState.mapBounds, targetView);
+    animateMapViewTo(targetView, MAP_OPEN_ANIMATION_MS);
+  });
+}
+
+function getSafeOpeningMapView(system) {
+  const surface = root?.querySelector('[data-map-surface]');
+  const mapElement = root?.querySelector('.node-map');
+  if (!surface || !mapElement) return null;
+
+  const rect = surface.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return null;
+
+  const graphBounds = getMapGraphContentBounds(system);
+  const safeInsets = getMapSafeInsets(mapElement, rect);
+  const usableWidth = Math.max(1, rect.width - safeInsets.left - safeInsets.right);
+  const usableHeight = Math.max(1, rect.height - safeInsets.top - safeInsets.bottom);
+  const scale = Math.max(graphBounds.width / usableWidth, graphBounds.height / usableHeight);
+  const width = Math.max(MIN_MAP_SIZE, rect.width * scale);
+  const height = Math.max(MIN_MAP_SIZE, rect.height * scale);
+  const safeCenterX = safeInsets.left + usableWidth / 2;
+  const safeCenterY = safeInsets.top + usableHeight / 2;
+
+  return {
+    x: graphBounds.x + graphBounds.width / 2 - (safeCenterX / rect.width) * width,
+    y: graphBounds.y + graphBounds.height / 2 - (safeCenterY / rect.height) * height,
+    width,
+    height,
+  };
+}
+
+function getMapSafeInsets(mapElement, rect) {
+  const topInset = ['.node-map__heading', '.node-map__actions', '.node-map__message']
+    .map((selector) => getElementBottomInset(mapElement, selector))
+    .filter((value) => Number.isFinite(value))
+    .reduce((max, value) => Math.max(max, value), 0);
+  const bottomInset = getElementTopInset(mapElement, '.node-map__meters');
+
+  return {
+    left: MAP_FIT_SIDE_SAFE_PX,
+    right: MAP_FIT_SIDE_SAFE_PX,
+    top: Math.min(rect.height * 0.34, Math.max(0, topInset + MAP_FIT_CHROME_GAP_PX)),
+    bottom: Math.min(rect.height * 0.3, Math.max(0, bottomInset + MAP_FIT_CHROME_GAP_PX)),
+  };
+}
+
+function getElementBottomInset(container, selector) {
+  const element = container.querySelector(selector);
+  if (!element) return 0;
+  const containerRect = container.getBoundingClientRect();
+  const elementRect = element.getBoundingClientRect();
+  return Math.max(0, elementRect.bottom - containerRect.top);
+}
+
+function getElementTopInset(container, selector) {
+  const element = container.querySelector(selector);
+  if (!element) return 0;
+  const containerRect = container.getBoundingClientRect();
+  const elementRect = element.getBoundingClientRect();
+  return Math.max(0, containerRect.bottom - elementRect.top);
+}
+
+function expandBoundsToContainView(bounds, view) {
+  const minX = Math.min(bounds.x, view.x);
+  const minY = Math.min(bounds.y, view.y);
+  const maxX = Math.max(bounds.x + bounds.width, view.x + view.width);
+  const maxY = Math.max(bounds.y + bounds.height, view.y + view.height);
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(MIN_MAP_SIZE, maxX - minX),
+    height: Math.max(MIN_MAP_SIZE, maxY - minY),
+  };
+}
+
 function stopMapViewAnimation() {
   if (!appState.mapViewAnimationFrame) return;
   cancelAnimationFrame(appState.mapViewAnimationFrame);
@@ -1438,8 +1526,35 @@ function getMapBounds(system) {
   };
 }
 
+function getMapGraphContentBounds(system) {
+  if (!system?.nodes?.length) return { ...DEFAULT_MAP_BOUNDS };
+  const xs = system.nodes.map((node) => node.x);
+  const ys = system.nodes.map((node) => node.y + MAP_GRAPH_OFFSET_Y);
+  const minX = Math.min(...xs) - MAP_GRAPH_SIDE_PADDING;
+  const maxX = Math.max(...xs) + MAP_GRAPH_SIDE_PADDING;
+  const minY = Math.min(...ys) - MAP_GRAPH_TOP_PADDING;
+  const maxY = Math.max(...ys) + MAP_GRAPH_BOTTOM_PADDING;
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(MIN_MAP_SIZE, maxX - minX),
+    height: Math.max(MIN_MAP_SIZE, maxY - minY),
+  };
+}
+
 function getInitialMapView(bounds) {
-  return { ...bounds };
+  return expandViewFromCenter(bounds, MAP_OPEN_OVERVIEW_SCALE);
+}
+
+function expandViewFromCenter(view, factor) {
+  const width = Math.max(MIN_MAP_SIZE, view.width * factor);
+  const height = Math.max(MIN_MAP_SIZE, view.height * factor);
+  return {
+    x: view.x + (view.width - width) / 2,
+    y: view.y + (view.height - height) / 2,
+    width,
+    height,
+  };
 }
 
 function clamp(value, min, max) {
@@ -1539,7 +1654,17 @@ function syncRunResult() {
   appState.deckProfile = reward.profile;
   const lootTokens = appState.run.lootTokens ?? 0;
   const runCash = appState.run.deckCash ?? 0;
-  appState.deckMessage = reward.reward > 0 ? `+¤${reward.reward} transferidos a la cuenta. Deck limpio.` : 'Deck limpio.';
+  const cpuConquered = hasConqueredCpu(appState.system, appState.run);
+  const bookmarkCapacity = getBookmarkCapacity(appState.deckProfile);
+  let bookmarkResult = null;
+  let cachedBookmark = null;
+  if (appState.run.status === 'escaped' && cpuConquered) {
+    bookmarkResult = addHostBookmark(appState.deckProfile, appState.system);
+    appState.deckProfile = bookmarkResult.profile;
+    cachedBookmark = bookmarkResult.bookmark ?? findBookmarkBySeed(appState.deckProfile, appState.system.seedId);
+    if (bookmarkResult.changed) ensureBookmarkZoneCached(cachedBookmark);
+  }
+  appState.deckMessage = completionDeckMessage(reward.reward, bookmarkResult);
   appState.recentProgress = listRecentProgress();
   void syncProgressEntry(appState.currentProgress);
   appState.lastRecordedStatus = appState.run.status;
@@ -1569,19 +1694,21 @@ function syncRunResult() {
     totalRuns: playerStats.totalRuns,
     completedRuns: playerStats.completedRuns,
     bestScore: playerStats.bestScore,
+    cpuConquered,
+    bookmarkStatus: bookmarkResult?.changed ? 'saved' : bookmarkResult?.reason ?? (cpuConquered ? 'pending' : 'none'),
   };
-  if (appState.run.status === 'escaped' && appState.run.hasPayload) {
-    const bookmarkCapacity = getBookmarkCapacity(appState.deckProfile);
+  if (appState.run.status === 'escaped') {
     appState.completion = {
       hostAlias: appState.system.alias,
       seedId: appState.system.seedId,
-      system: appState.system,
       reward: reward.reward,
       score,
       lootTokens,
+      cpuConquered,
       bookmarkCapacity,
-      canBookmark: appState.deckProfile.bookmarks.length < bookmarkCapacity,
-      bookmarkDecision: null,
+      bookmarkCount: appState.deckProfile.bookmarks.length,
+      bookmarkStatus: bookmarkResult?.changed ? 'saved' : bookmarkResult?.reason ?? (cpuConquered ? 'pending' : 'none'),
+      bookmarkHostAlias: cachedBookmark?.hostAlias ?? appState.system.alias,
     };
   } else {
     appState.completion = null;
@@ -1605,6 +1732,20 @@ function syncRunResult() {
   void syncDeckProfile();
 }
 
+function hasConqueredCpu(system, run) {
+  const coreNodeId = system?.coreNodeId ?? system?.nodes?.find((node) => node.kind === 'core')?.id;
+  return Boolean(coreNodeId && run?.nodeStates?.[coreNodeId] === NODE_RUNTIME_STATE.COMPROMISED);
+}
+
+function completionDeckMessage(reward, bookmarkResult) {
+  const base = reward > 0 ? `+¤${reward} transferidos a la cuenta. Deck limpio.` : 'Deck limpio.';
+  if (!bookmarkResult) return base;
+  if (bookmarkResult.changed) return `${base} Bookmark de CPU registrado.`;
+  if (bookmarkResult.reason === 'exists') return `${base} Bookmark de CPU ya disponible.`;
+  if (bookmarkResult.reason === 'full') return `${base} Memoria de bookmarks llena.`;
+  return base;
+}
+
 function clearFinishedRunCargo(run) {
   return {
     ...run,
@@ -1612,24 +1753,6 @@ function clearFinishedRunCargo(run) {
     lootTokens: 0,
     deckCash: 0,
   };
-}
-
-function saveCompletionBookmark() {
-  if (!appState.completion?.system) return;
-  const result = addHostBookmark(appState.deckProfile, appState.completion.system);
-  appState.deckProfile = result.profile;
-  const cachedBookmark = result.bookmark ?? findBookmarkBySeed(appState.deckProfile, appState.completion.system.seedId);
-  appState.completion = {
-    ...appState.completion,
-    bookmarkDecision: result.changed || result.reason === 'exists' ? 'saved' : 'skipped',
-    canBookmark: false,
-  };
-  if (result.changed) {
-    void syncDeckProfile();
-    ensureBookmarkZoneCached(cachedBookmark);
-  }
-  void audioDirector.play(result.changed ? 'success' : 'failure');
-  render();
 }
 
 function destroyBookmark(seedId) {
@@ -1692,12 +1815,6 @@ function updateRunnerIdentity(patch) {
   void audioDirector.play('selectProgram');
   void syncDeckProfile();
   render();
-}
-
-function skipCompletionBookmark(shouldRender = true) {
-  if (!appState.completion) return;
-  appState.completion = { ...appState.completion, bookmarkDecision: 'skipped' };
-  if (shouldRender) render();
 }
 
 function deckUpgradeMessage(result, category, key) {

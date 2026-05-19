@@ -13,6 +13,14 @@ const DATA_CORE_MIN_EXIT_DISTANCE = 3;
 const LAYOUT_ATTEMPTS = 64;
 const MIN_NODE_CENTER_DISTANCE = 13;
 const MIN_CORE_CENTER_DISTANCE = 16;
+const LAYOUT_CANVAS_CENTER = 50;
+const LAYOUT_CANVAS_MIN = 6;
+const LAYOUT_CANVAS_MAX = 94;
+const layoutTargetSpan = {
+  small: { x: 74, y: 76 },
+  standard: { x: 82, y: 82 },
+  secure: { x: 86, y: 86 },
+};
 const SEGMENT_EPSILON = 0.001;
 const minimumIceByTemplate = {
   small: 1,
@@ -168,6 +176,7 @@ function buildStarTopologyAttempt(template, targetCount, archetype, rng) {
   }
 
   addStarCrossLinks(edges, nodes, template, rng);
+  spreadLayout(nodes, template);
 
   return { nodes, edges };
 }
@@ -212,6 +221,40 @@ function safeConnect(edges, nodes, from, to) {
   if (!isReadableEdge(candidate, edges, nodes)) return false;
   edges.push(candidate);
   return true;
+}
+
+function spreadLayout(nodes, template) {
+  const target = layoutTargetSpan[template] ?? layoutTargetSpan.standard;
+  spreadLayoutAxis(nodes, 'x', target.x);
+  spreadLayoutAxis(nodes, 'y', target.y);
+}
+
+function spreadLayoutAxis(nodes, axis, targetSpan) {
+  if (nodes.length < 2) return;
+  const values = nodes.map((candidate) => candidate[axis]);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min;
+  if (span <= 0 || span >= targetSpan) {
+    recenterLayoutAxis(nodes, axis);
+    return;
+  }
+
+  const center = (min + max) / 2;
+  const safeSpan = Math.min(targetSpan, LAYOUT_CANVAS_MAX - LAYOUT_CANVAS_MIN);
+  const scale = safeSpan / span;
+  for (const candidate of nodes) {
+    candidate[axis] = clamp(LAYOUT_CANVAS_CENTER + (candidate[axis] - center) * scale, LAYOUT_CANVAS_MIN, LAYOUT_CANVAS_MAX);
+  }
+}
+
+function recenterLayoutAxis(nodes, axis) {
+  const values = nodes.map((candidate) => candidate[axis]);
+  const center = (Math.min(...values) + Math.max(...values)) / 2;
+  const offset = LAYOUT_CANVAS_CENTER - center;
+  for (const candidate of nodes) {
+    candidate[axis] = clamp(candidate[axis] + offset, LAYOUT_CANVAS_MIN, LAYOUT_CANVAS_MAX);
+  }
 }
 
 function isReadableLayout(nodes, edges) {

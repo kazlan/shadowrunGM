@@ -84,7 +84,7 @@ const programUpgradeHelp = [
 
 const hardwareUpgradeHelp = [
   ['Memoria', 'Más payload por run', 'Capacidad = 3 + Memoria x2. L1 guarda 5 tokens; L5 guarda 13. Si el buffer se llena, Extract aborta aunque el nodo tenga loot.'],
-  ['Bookmarks', 'Más hosts guardados', 'Capacidad = 2 + Bookmarks. Sirve para conservar objetivos interesantes y volver luego con un deck más fuerte.'],
+  ['Bookmarks', 'Más hosts guardados', 'Capacidad = 2 + Bookmarks. La CPU conquistada se convierte en proxy si logras salir con éxito.'],
   ['Deck L', 'Lectura de progreso', 'El nivel del deck sube con atributos y programas. Ahora mismo no da un bonus oculto: los efectos reales vienen de cada mejora concreta.'],
 ];
 
@@ -349,7 +349,7 @@ function renderStatsHelp() {
     <h3>Hardware</h3>
     <div class="help-grid help-grid--three">
       ${renderCard('Storage', 'Capacidad de loot = 3 + Storage x2. Si se llena, Extract aborta hasta salir o mejorar memoria.')}
-      ${renderCard('Bookmarks', 'Hosts guardados = 2 + nivel de Bookmarks. Si se llena, no aparece Guardar host.')}
+      ${renderCard('Bookmarks', 'Hosts guardados = 2 + nivel de Bookmarks. Se registran al conquistar la CPU y salir con éxito.')}
       ${renderCard('Costes', 'Subir stat cuesta 130 x nivel siguiente; hardware 120 x nivel siguiente; programa 90 x nivel siguiente.')}
     </div>
   </div>`;
