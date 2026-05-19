@@ -1478,6 +1478,60 @@ button:focus-visible {
   padding: 0 9px;
   font-size: .62rem;
 }
+.jack-out.node-map__jack-out--safe {
+  isolation: isolate;
+  overflow: hidden;
+  color: var(--cyan);
+  border-color: var(--cyan);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--cyan) 12%, transparent), transparent 46%),
+    color-mix(in srgb, var(--surface-strong) 86%, transparent);
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--cyan) 34%, transparent),
+    inset 0 0 14px color-mix(in srgb, var(--cyan) 12%, transparent);
+}
+.jack-out.node-map__jack-out--safe::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: 0;
+  pointer-events: none;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(90deg, transparent, var(--cyan), transparent) top left / 44% 1px no-repeat,
+    linear-gradient(180deg, transparent, var(--cyan), transparent) top right / 1px 44% no-repeat,
+    linear-gradient(270deg, transparent, var(--cyan), transparent) bottom right / 44% 1px no-repeat,
+    linear-gradient(0deg, transparent, var(--cyan), transparent) bottom left / 1px 44% no-repeat;
+  filter: drop-shadow(0 0 6px var(--cyan));
+  opacity: .95;
+  animation: jackOutSafeTrace 1.18s linear infinite;
+}
+.jack-out.node-map__jack-out--safe:hover,
+.jack-out.node-map__jack-out--safe:focus-visible {
+  color: var(--yellow);
+  border-color: var(--yellow);
+  box-shadow:
+    0 0 16px color-mix(in srgb, var(--yellow) 32%, transparent),
+    inset 0 0 16px color-mix(in srgb, var(--yellow) 12%, transparent);
+}
+.jack-out.node-map__jack-out--safe:hover::after,
+.jack-out.node-map__jack-out--safe:focus-visible::after {
+  background:
+    linear-gradient(90deg, transparent, var(--yellow), transparent) top left / 44% 1px no-repeat,
+    linear-gradient(180deg, transparent, var(--yellow), transparent) top right / 1px 44% no-repeat,
+    linear-gradient(270deg, transparent, var(--yellow), transparent) bottom right / 44% 1px no-repeat,
+    linear-gradient(0deg, transparent, var(--yellow), transparent) bottom left / 1px 44% no-repeat;
+  filter: drop-shadow(0 0 6px var(--yellow));
+}
+
+@keyframes jackOutSafeTrace {
+  0% {
+    background-position: -44% 0, 100% -44%, 144% 100%, 0 144%;
+  }
+  100% {
+    background-position: 144% 0, 100% 144%, -44% 100%, 0 -44%;
+  }
+}
 
 .node-map__avatar-settings {
   position: relative;
@@ -1722,6 +1776,7 @@ button:focus-visible {
 .program-dock .program-card {
   --program-accent: var(--cyan);
   position: relative;
+  isolation: isolate;
   min-height: 76px;
   display: grid;
   grid-template-rows: 32px auto 5px;
@@ -1771,8 +1826,7 @@ button:focus-visible {
 }
 .program-card__icon,
 .program-card__body,
-.program-card__pips,
-.program-card__rec {
+.program-card__pips {
   position: relative;
   z-index: 1;
 }
@@ -1836,19 +1890,6 @@ button:focus-visible {
   background: var(--program-accent);
   box-shadow: 0 0 7px var(--program-accent);
 }
-.program-card__rec {
-  position: absolute;
-  top: 5px;
-  right: 6px;
-  padding: 2px 4px;
-  color: #05100d;
-  background: var(--yellow);
-  font-size: .44rem;
-  font-weight: 900;
-  letter-spacing: .08em;
-  line-height: 1;
-  text-shadow: none;
-}
 .program-dock--inactive button {
   opacity: .36;
   filter: grayscale(.32);
@@ -1863,7 +1904,39 @@ button:focus-visible {
   opacity: .94;
 }
 .program-dock .program-card.is-recommended {
-  box-shadow: none;
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--program-accent) 32%, transparent),
+    inset 0 0 12px color-mix(in srgb, var(--program-accent) 10%, transparent);
+}
+.program-dock .program-card.is-recommended::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, transparent, var(--program-accent), transparent) top left / 44% 1px no-repeat,
+    linear-gradient(180deg, transparent, var(--program-accent), transparent) top right / 1px 44% no-repeat,
+    linear-gradient(270deg, transparent, var(--program-accent), transparent) bottom right / 44% 1px no-repeat,
+    linear-gradient(0deg, transparent, var(--program-accent), transparent) bottom left / 1px 44% no-repeat;
+  filter:
+    drop-shadow(0 0 6px var(--program-accent))
+    drop-shadow(0 0 calc(var(--danger-level) * 9px) var(--danger-color));
+  opacity: .94;
+  animation: programRecommendedTrace 1.16s linear infinite;
+}
+.program-dock .program-card.is-recommended .program-card__frame-outer,
+.program-dock .program-card.is-recommended .program-card__frame-cut {
+  stroke: color-mix(in srgb, var(--program-accent) 82%, var(--yellow) 18%);
+  opacity: 1;
+}
+@keyframes programRecommendedTrace {
+  0% {
+    background-position: -44% 0, 100% -44%, 144% 100%, 0 144%;
+  }
+  100% {
+    background-position: 144% 0, 100% 144%, -44% 100%, 0 -44%;
+  }
 }
 .program-dock .program-card:disabled {
   opacity: .42;
@@ -3911,6 +3984,8 @@ body.is-landing-page .landing-play h2 {
   .node--current .node__frame--aura,
   .node-map-meter i::before,
   .node-map-extraction__slot::before,
+  .node-map__jack-out--safe::after,
+  .program-dock .program-card.is-recommended::after,
   .app-shell--disconnect-glitch .fx-glitch::before,
   .app-shell--disconnect-glitch .fx-glitch::after,
   :where(.run-log, .post-run-panel, .result-message)::after,
@@ -3943,7 +4018,6 @@ body.is-landing-page .landing-play h2 {
   .program-card__icon img { width: 14px; height: 14px; }
   .program-card__body strong { font-size: .58rem; }
   .program-card__body small { display: none; }
-  .program-card__rec { top: 4px; right: 4px; font-size: .38rem; }
   .node-map { flex-basis: 260px; min-height: 220px; }
   .node-map__heading { max-width: calc(100% - 172px); }
   .node-map__meters { right: 6px; bottom: 4px; left: 6px; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 0; }

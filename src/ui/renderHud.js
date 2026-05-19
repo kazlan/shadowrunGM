@@ -36,7 +36,6 @@ export function renderProgramDock(run, finished = false, recommendedProgram = nu
           <small>LVL ${level} // ${escapeHtml(status)}</small>
         </span>
         <span class="program-card__pips" aria-label="${escapeHtml(`Nivel ${level} de 5`)}">${renderProgramPips(level)}</span>
-        ${recommended ? '<span class="program-card__rec">REC</span>' : ''}
       </button>`;
     })
     .join('');
