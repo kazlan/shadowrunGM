@@ -23,23 +23,13 @@ const DEFAULT_HARDWARE = {
 
 const DEFAULT_PLAYER = {
   shadowName: 'NEON GHOST',
-  avatar: 'ghost',
+  avatar: 'runner01',
 };
 
-const legacyAvatarCatalog = [
-  { key: 'ghost', label: 'Ghost', glyph: 'GH' },
-  { key: 'spark', label: 'Spark', glyph: 'SP' },
-  { key: 'cipher', label: 'Cipher', glyph: 'CI' },
-  { key: 'vector', label: 'Vector', glyph: 'VX' },
-  { key: 'null', label: 'Null', glyph: 'N0' },
-];
-
-const runnerAvatarCatalog = Array.from({ length: 36 }, (_, index) => {
+export const avatarCatalog = Array.from({ length: 36 }, (_, index) => {
   const id = String(index + 1).padStart(2, '0');
   return { key: `runner${id}`, label: `Runner ${id}`, glyph: id };
 });
-
-export const avatarCatalog = [...legacyAvatarCatalog, ...runnerAvatarCatalog];
 
 export const deckStatCatalog = {
   pulse: { kind: 'pulse', label: 'Pulse', description: 'Potencia ofensiva para Spike y ruptura de puertas.' },

@@ -53,11 +53,6 @@ export const assetPaths = {
     exit: `${BASE}/nodes-png/node-exit.png`,
   },
   avatars: {
-    ghost: `${BASE}/avatars/avatar-ghost.png`,
-    spark: `${BASE}/avatars/avatar-spark.png`,
-    cipher: `${BASE}/avatars/avatar-cipher.png`,
-    vector: `${BASE}/avatars/avatar-vector.png`,
-    null: `${BASE}/avatars/avatar-null.png`,
     ...runnerAvatarPaths,
   },
   stats: {

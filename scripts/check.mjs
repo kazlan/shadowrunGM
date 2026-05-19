@@ -107,6 +107,7 @@ if (!overpassSource.includes('nwr["name"]["tourism"]') || !overpassSource.includ
 if (!mainSource.includes('VALENCIA_TEST_POSITION') || !mainSource.includes('MIN_SCANNER_TARGETS') || !mainSource.includes('fillWithSandboxTargets')) throw new Error('Local scanner should use Valencia in local testing and fill short OSM result sets with sandbox targets');
 if (!mainSource.includes('VITE_TARGETS_ENDPOINT') || !mainSource.includes('searchBackendTargets') || !mainSource.includes('searchOverpassPlaces')) throw new Error('Scanner should try the targets backend before falling back to direct Overpass');
 if (!mainSource.includes('scheduleTargetPrefetchForRun') || !mainSource.includes('SCANNER_PREFETCH_LIMIT')) throw new Error('Scanner should prefetch a small number of target zones during runs');
+if (!mainSource.includes('ensureBookmarkZoneCached') || !mainSource.includes('SCANNER_BOOKMARK_PREFETCH_LIMIT')) throw new Error('Saving a bookmark should warm the targets cache for that bookmark zone');
 const functionsSource = await readFile('functions/src/targetSearch.js', 'utf8');
 if (!functionsSource.includes('placesCache') || !functionsSource.includes('fetchGeoapifyPlaces') || !functionsSource.includes('createCacheKey')) throw new Error('Targets backend should cache zones and include Geoapify fallback');
 const functionsIndexSource = await readFile('functions/index.js', 'utf8');
@@ -311,15 +312,17 @@ const jackOutRun = reduceRun(jackOutSystem, createInitialRunState(jackOutSystem)
 if (jackOutRun.status !== 'escaped') throw new Error('Jack-out from entry should escape instead of crashing');
 if (!Number.isFinite(scoreRun(jackOutSystem, jackOutRun))) throw new Error('Jack-out run score should be finite');
 const defaultDeck = createDefaultDeckProfile();
-if (defaultDeck.player.shadowName !== 'NEON GHOST' || avatarCatalog.length < 40 || !assetPaths.avatars.runner36) throw new Error('Default deck should include runner identity and avatar presets');
-const identityDeck = updatePlayerProfile(defaultDeck, { shadowName: 'HEX MANTA', avatar: 'cipher' });
-if (identityDeck.player.shadowName !== 'HEX MANTA' || identityDeck.player.avatar !== 'cipher') throw new Error('Runner identity updates should persist through deck normalization');
+if (defaultDeck.player.shadowName !== 'NEON GHOST' || defaultDeck.player.avatar !== 'runner01' || avatarCatalog.length !== 36 || !assetPaths.avatars.runner36 || assetPaths.avatars.ghost) throw new Error('Default deck should include only the runner PNG avatar presets');
+const legacyAvatarDeck = updatePlayerProfile(defaultDeck, { avatar: 'cipher' });
+if (legacyAvatarDeck.player.avatar !== 'runner01') throw new Error('Legacy imported avatars should migrate to a runner avatar');
+const identityDeck = updatePlayerProfile(defaultDeck, { shadowName: 'HEX MANTA', avatar: 'runner17' });
+if (identityDeck.player.shadowName !== 'HEX MANTA' || identityDeck.player.avatar !== 'runner17') throw new Error('Runner identity updates should persist through deck normalization');
 const identityMapHtml = renderNodeMap(projectSystemForRun(jackOutSystem, createInitialRunState(jackOutSystem, identityDeck)), createInitialRunState(jackOutSystem, identityDeck), undefined, null, null, false, null, null, identityDeck.player);
-if (!identityMapHtml.includes('HEX MANTA') || !identityMapHtml.includes('data-action="toggleSettings"') || !identityMapHtml.includes('/assets/avatars/avatar-cipher.png')) {
+if (!identityMapHtml.includes('HEX MANTA') || !identityMapHtml.includes('data-action="toggleSettings"') || !identityMapHtml.includes('/assets/avatars/avatar-runner-17.png')) {
   throw new Error('Node map should render runner identity as the settings avatar control');
 }
 const identitySettingsHtml = renderSettingsOverlay(true, {}, 'black', null, identityDeck);
-if (!identitySettingsHtml.includes('data-shadow-name-input') || !identitySettingsHtml.includes('data-avatar-option="cipher"')) {
+if (!identitySettingsHtml.includes('data-shadow-name-input') || !identitySettingsHtml.includes('data-avatar-option="runner17"')) {
   throw new Error('Settings should expose runner identity editing');
 }
 if (!identitySettingsHtml.includes('/assets/avatars/avatar-runner-01.png') || !themeSource.includes('overflow-x: auto')) {

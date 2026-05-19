@@ -403,7 +403,7 @@ function formatViewBox(view) {
 
 function renderMapActions(run, finished = false, player = null) {
   const identity = normalizeMapIdentity(player);
-  const avatar = assetPaths.avatars[identity.avatar] ?? assetPaths.avatars.ghost;
+  const avatar = assetPaths.avatars[identity.avatar] ?? assetPaths.avatars.runner01;
 
   return `<div class="node-map__actions" aria-label="Acciones de la run">
     ${renderMapLogButton(run)}
@@ -415,7 +415,7 @@ function renderMapActions(run, finished = false, player = null) {
 }
 
 function normalizeMapIdentity(player) {
-  const avatar = assetPaths.avatars[player?.avatar] ? player.avatar : 'ghost';
+  const avatar = assetPaths.avatars[player?.avatar] ? player.avatar : 'runner01';
   return {
     shadowName: String(player?.shadowName || 'NEON GHOST').slice(0, 24),
     avatar,

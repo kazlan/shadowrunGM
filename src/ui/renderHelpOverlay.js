@@ -69,7 +69,7 @@ export function renderSettingsOverlay(isOpen, audioState = {}, activeTheme = 'bl
 }
 
 function renderIdentityControl(deckProfile) {
-  const player = deckProfile?.player ?? { shadowName: 'NEON GHOST', avatar: 'ghost' };
+  const player = deckProfile?.player ?? { shadowName: 'NEON GHOST', avatar: 'runner01' };
   const avatars = avatarCatalog
     .map((avatar) => `<button class="${avatar.key === player.avatar ? 'is-active' : ''}" data-avatar-option="${escapeHtml(avatar.key)}" type="button" aria-pressed="${avatar.key === player.avatar ? 'true' : 'false'}" title="${escapeHtml(avatar.label)}">
       <img src="${escapeHtml(avatarImagePath(avatar.key))}" alt="" loading="lazy" />
@@ -93,7 +93,7 @@ function renderCloudControl(cloudState, deckProfile) {
   const state = cloudState ?? { configured: false, status: 'disabled', message: 'Firebase no configurado.' };
   const connected = Boolean(state.user);
   const disabled = !state.configured || state.status === 'authenticating';
-  const player = deckProfile?.player ?? { shadowName: 'NEON GHOST', avatar: 'ghost' };
+  const player = deckProfile?.player ?? { shadowName: 'NEON GHOST', avatar: 'runner01' };
   const avatar = avatarCatalog.find((candidate) => candidate.key === player.avatar) ?? avatarCatalog[0];
   const accountLabel = connected ? cloudAccountLabel(state.user) : 'Modo local';
   const status = cloudStatusLabel(state);
@@ -113,7 +113,7 @@ function renderCloudControl(cloudState, deckProfile) {
 }
 
 function avatarImagePath(key) {
-  return assetPaths.avatars[key] ?? assetPaths.avatars.ghost;
+  return assetPaths.avatars[key] ?? assetPaths.avatars.runner01;
 }
 
 function renderSignedOutCloudActions(disabled) {

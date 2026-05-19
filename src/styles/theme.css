@@ -614,10 +614,6 @@ button:focus-visible {
   letter-spacing: .12em;
   text-transform: uppercase;
 }
-.runner-id--spark .runner-id__avatar { border-color: rgba(248, 214, 109, .58); box-shadow: 0 0 14px rgba(248, 214, 109, .2); }
-.runner-id--cipher .runner-id__avatar { border-color: rgba(104, 155, 255, .58); box-shadow: 0 0 14px rgba(104, 155, 255, .2); }
-.runner-id--vector .runner-id__avatar { border-color: rgba(255, 61, 242, .58); box-shadow: 0 0 14px rgba(255, 61, 242, .2); }
-.runner-id--null .runner-id__avatar { border-color: rgba(255, 61, 110, .58); box-shadow: 0 0 14px rgba(255, 61, 110, .2); }
 .alert-meter { min-width: 86px; padding: 10px; border: 1px solid rgba(255, 61, 110, .45); background: rgba(255, 61, 110, .12); text-align: right; box-shadow: 0 0 18px rgba(255, 61, 110, .18); }
 .alert-meter span { display: block; color: var(--red); font-size: .64rem; letter-spacing: .14em; }
 .alert-meter strong { color: var(--text-strong); font-size: 1.2rem; }

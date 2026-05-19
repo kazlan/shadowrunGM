@@ -200,8 +200,8 @@ function mergeBookmarks(localBookmarks, remoteBookmarks) {
 }
 
 function mergePlayerProfiles(localPlayer, remotePlayer) {
-  const localHasCustomIdentity = localPlayer.shadowName !== 'NEON GHOST' || localPlayer.avatar !== 'ghost';
-  const remoteHasCustomIdentity = remotePlayer.shadowName !== 'NEON GHOST' || remotePlayer.avatar !== 'ghost';
+  const localHasCustomIdentity = localPlayer.shadowName !== 'NEON GHOST' || localPlayer.avatar !== 'runner01';
+  const remoteHasCustomIdentity = remotePlayer.shadowName !== 'NEON GHOST' || remotePlayer.avatar !== 'runner01';
   if (localHasCustomIdentity) return localPlayer;
   if (remoteHasCustomIdentity) return remotePlayer;
   return remotePlayer;
