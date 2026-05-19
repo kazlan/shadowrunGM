@@ -62,9 +62,11 @@ function renderAddress(target) {
 }
 
 function sourceKind(target) {
-  return target.provider === 'osm' ? 'world' : 'sandbox';
+  return target.provider === 'osm' || target.provider === 'geoapify' ? 'world' : 'sandbox';
 }
 
 function sourceLabel(target) {
-  return target.provider === 'osm' ? 'Mundo real' : 'Sandbox';
+  if (target.provider === 'osm') return 'Mundo real';
+  if (target.provider === 'geoapify') return 'Geoapify';
+  return 'Sandbox';
 }

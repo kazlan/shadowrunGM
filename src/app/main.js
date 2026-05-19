@@ -49,6 +49,10 @@ const DEBUG_LOG_LIMIT = 90;
 const DEBUG_LOG_STORAGE_KEY = 'shadowHack.debugLog';
 const EXPANDED_SCAN_RADIUS = 1500;
 const MIN_SCANNER_TARGETS = 4;
+const SCANNER_BACKEND_LIMIT = 10;
+const SCANNER_PREFETCH_LIMIT = 3;
+const SCANNER_BOOKMARK_PREFETCH_LIMIT = 1;
+const targetsEndpoint = import.meta.env?.VITE_TARGETS_ENDPOINT ?? '';
 const VALENCIA_TEST_POSITION = { lat: 39.4699, lon: -0.3763 };
 const PLAY_ROUTE = '/play';
 const appState = {
@@ -92,6 +96,11 @@ const appState = {
   deckAnimation: null,
   deckAnimationFrame: null,
   mapViewAnimationFrame: null,
+  targetPrefetchKeys: new Set(),
+  targetPrefetchQueue: [],
+  targetPrefetchRunning: false,
+  targetPrefetchCount: 0,
+  bookmarkPrefetchKeys: new Set(),
 };
 const cloudSync = createCloudSyncController({
   onDeckLoaded(profile) {
@@ -149,6 +158,7 @@ async function startRun(place) {
     entryNodeId: appState.system.entryNodeId,
     nodeCount: appState.system.nodes.length,
   });
+  scheduleTargetPrefetchForRun(place);
   render();
 }
 
@@ -1099,15 +1109,81 @@ async function scanFromBookmark(bookmark) {
   render();
 }
 
+function scheduleTargetPrefetchForRun(place) {
+  appState.targetPrefetchKeys.clear();
+  appState.targetPrefetchQueue = [];
+  appState.targetPrefetchRunning = false;
+  appState.targetPrefetchCount = 0;
+  if (!targetsEndpoint) return;
+
+  const radius = getScanRadius();
+  enqueueTargetPrefetch(place, radius, 'host actual', { force: false });
+  for (const bookmark of appState.deckProfile.bookmarks.slice(0, 2)) {
+    enqueueTargetPrefetch(bookmark, radius, `bookmark ${bookmark.hostAlias}`, { force: false });
+  }
+  void drainTargetPrefetchQueue(appState.runSessionId);
+}
+
+function ensureBookmarkZoneCached(bookmark) {
+  if (!targetsEndpoint || !bookmark) return;
+  const radius = getScanRadius();
+  const key = targetPrefetchKey(bookmark, radius);
+  if (appState.bookmarkPrefetchKeys.has(key)) return;
+  const queued = enqueueTargetPrefetch(bookmark, radius, `bookmark guardado ${bookmark.hostAlias}`, { force: true });
+  if (!queued) return;
+  appState.bookmarkPrefetchKeys.add(key);
+  void drainTargetPrefetchQueue(appState.runSessionId);
+}
+
+function enqueueTargetPrefetch(target, radius, label, options = {}) {
+  if (!Number.isFinite(target?.lat) || !Number.isFinite(target?.lon)) return false;
+  const limit = options.force ? SCANNER_PREFETCH_LIMIT + SCANNER_BOOKMARK_PREFETCH_LIMIT : SCANNER_PREFETCH_LIMIT;
+  if (appState.targetPrefetchCount + appState.targetPrefetchQueue.length >= limit) return false;
+  const key = targetPrefetchKey(target, radius);
+  if (!options.force && appState.targetPrefetchKeys.has(key)) return false;
+  appState.targetPrefetchKeys.add(key);
+  appState.targetPrefetchQueue.push({
+    label,
+    position: { lat: target.lat, lon: target.lon },
+    radius,
+  });
+  return true;
+}
+
+async function drainTargetPrefetchQueue(sessionId) {
+  if (appState.targetPrefetchRunning || appState.targetPrefetchQueue.length === 0) return;
+  const next = appState.targetPrefetchQueue.shift();
+  appState.targetPrefetchRunning = true;
+  appState.targetPrefetchCount += 1;
+  try {
+    const result = await searchBackendTargets(next.position, next.radius);
+    debugLog('scanner:prefetchReady', {
+      label: next.label,
+      source: result.source,
+      cacheState: result.cacheState,
+      count: result.places.length,
+    });
+  } catch (error) {
+    debugLog('scanner:prefetchFailed', { label: next.label, message: error.message });
+  } finally {
+    if (sessionId !== appState.runSessionId) return;
+    appState.targetPrefetchRunning = false;
+    void drainTargetPrefetchQueue(sessionId);
+  }
+}
+
+function targetPrefetchKey(target, radius) {
+  return `${Math.round(target.lat * 2000)}:${Math.round(target.lon * 2000)}:${radius}`;
+}
+
 async function scanFromPosition(position, successLabel) {
   const radius = getScanRadius();
   try {
     const realScan = await searchRealPlaces(position, radius);
     appState.places = await fillWithSandboxTargets(realScan.places, position, radius);
-    const expandedLabel = realScan.radius > radius ? ` tras ampliar a ${realScan.radius}m` : ` en ${radius}m`;
     const realCount = realScan.places.length;
     const sandboxCount = appState.places.length - realCount;
-    appState.locationMessage = scannerResultMessage(successLabel, realCount, sandboxCount, expandedLabel);
+    appState.locationMessage = scannerResultMessage(successLabel, realScan, sandboxCount, radius);
   } catch (providerError) {
     console.warn('Overpass unavailable, using demo nearby provider', providerError);
     appState.places = await fillWithSandboxTargets([], position, radius);
@@ -1119,10 +1195,69 @@ async function scanFromPosition(position, successLabel) {
 }
 
 async function searchRealPlaces(position, radius) {
+  if (targetsEndpoint) {
+    try {
+      return await searchBackendTargets(position, radius);
+    } catch (error) {
+      console.warn('Targets backend unavailable, falling back to direct Overpass', error);
+      debugLog('scanner:backendFallback', { message: error.message });
+    }
+  }
+  return searchOverpassPlaces(position, radius);
+}
+
+async function searchOverpassPlaces(position, radius) {
   const places = await searchNearbyPlaces(overpassProvider, position, radius);
-  if (places.length >= MIN_SCANNER_TARGETS || radius >= EXPANDED_SCAN_RADIUS) return { places, radius };
+  if (places.length >= MIN_SCANNER_TARGETS || radius >= EXPANDED_SCAN_RADIUS) {
+    return {
+      places,
+      radius,
+      source: 'overpass',
+      cacheState: 'live',
+      providerHealth: { overpass: places.length > 0 ? 'ok' : 'partial', geoapify: 'not_configured' },
+    };
+  }
   const expandedPlaces = await searchNearbyPlaces(overpassProvider, position, EXPANDED_SCAN_RADIUS);
-  return { places: mergePlaces(places, expandedPlaces), radius: EXPANDED_SCAN_RADIUS };
+  return {
+    places: mergePlaces(places, expandedPlaces),
+    radius: EXPANDED_SCAN_RADIUS,
+    source: 'overpass',
+    cacheState: 'live',
+    providerHealth: { overpass: expandedPlaces.length > 0 ? 'ok' : 'partial', geoapify: 'not_configured' },
+  };
+}
+
+async function searchBackendTargets(position, radius) {
+  const response = await fetch(targetsEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      lat: position.lat,
+      lon: position.lon,
+      radius,
+      limit: SCANNER_BACKEND_LIMIT,
+      minTargets: MIN_SCANNER_TARGETS,
+    }),
+  });
+  if (!response.ok) throw new Error(`backend HTTP ${response.status}`);
+  const payload = await response.json();
+  const places = Array.isArray(payload.places)
+    ? payload.places.filter((place) => place?.name && place?.providerId)
+    : [];
+  debugLog('scanner:backendResult', {
+    source: payload.source,
+    cacheState: payload.cacheState,
+    count: places.length,
+    providerHealth: payload.providerHealth,
+  });
+  return {
+    places,
+    radius: payload.radius ?? radius,
+    source: payload.source ?? 'backend',
+    cacheState: payload.cacheState ?? 'miss',
+    providerHealth: payload.providerHealth ?? {},
+    backend: true,
+  };
 }
 
 async function fillWithSandboxTargets(realPlaces, position, radius) {
@@ -1141,14 +1276,26 @@ function mergePlaces(...placeGroups) {
   });
 }
 
-function scannerResultMessage(successLabel, realCount, sandboxCount, expandedLabel) {
+function scannerResultMessage(successLabel, realScan, sandboxCount, baseRadius) {
+  const realCount = realScan.places.length;
+  const expandedLabel = realScan.radius > baseRadius ? ` tras ampliar a ${realScan.radius}m` : ` en ${baseRadius}m`;
+  const source = scannerSourceLabel(realScan);
   if (realCount === 0) {
-    return `${successLabel}. Sin objetivos OSM útiles${expandedLabel}; ${sandboxCount} sandbox listos.`;
+    return `${successLabel}. Sin objetivos reales útiles${expandedLabel}; ${sandboxCount} sandbox listos.`;
   }
   if (sandboxCount > 0) {
-    return `${successLabel}. ${realCount} objetivos OSM encontrados${expandedLabel}; +${sandboxCount} sandbox de relleno.`;
+    return `${successLabel}. ${realCount} ${source}${expandedLabel}; +${sandboxCount} sandbox de relleno.`;
   }
-  return `${successLabel}. ${realCount} objetivos OSM encontrados${expandedLabel}.`;
+  return `${successLabel}. ${realCount} ${source}${expandedLabel}.`;
+}
+
+function scannerSourceLabel(realScan) {
+  if (realScan.cacheState === 'fresh') return 'objetivos cacheados';
+  if (realScan.cacheState === 'stale') return 'objetivos de cache antigua';
+  if (realScan.source === 'mixed') return 'objetivos OSM + Geoapify';
+  if (realScan.source === 'geoapify') return 'objetivos Geoapify';
+  if (realScan.source === 'overpass') return 'objetivos OSM encontrados';
+  return 'objetivos reales encontrados';
 }
 
 function zoomMapAtPoint(factor, clientX, clientY, sourceView = appState.mapView) {
@@ -1441,14 +1588,22 @@ function saveCompletionBookmark() {
   if (!appState.completion?.system) return;
   const result = addHostBookmark(appState.deckProfile, appState.completion.system);
   appState.deckProfile = result.profile;
+  const cachedBookmark = result.bookmark ?? findBookmarkBySeed(appState.deckProfile, appState.completion.system.seedId);
   appState.completion = {
     ...appState.completion,
     bookmarkDecision: result.changed || result.reason === 'exists' ? 'saved' : 'skipped',
     canBookmark: false,
   };
-  if (result.changed) void syncDeckProfile();
+  if (result.changed) {
+    void syncDeckProfile();
+    ensureBookmarkZoneCached(cachedBookmark);
+  }
   void audioDirector.play(result.changed ? 'success' : 'failure');
   render();
+}
+
+function findBookmarkBySeed(profile, seedId) {
+  return profile?.bookmarks?.find((bookmark) => bookmark.seedId === seedId) ?? null;
 }
 
 async function signInGuestCloud() {

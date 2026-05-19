@@ -17,6 +17,7 @@ VITE_FIREBASE_APP_ID=
 VITE_FIREBASE_MEASUREMENT_ID=
 VITE_FIREBASE_MESSAGING_VAPID_KEY=
 VITE_FIREBASE_ENABLE_MESSAGING=false
+VITE_TARGETS_ENDPOINT=
 ```
 
 `MEASUREMENT_ID` es opcional. `VAPID_KEY` y `ENABLE_MESSAGING=true` solo son necesarios para Web Push/FCM.
@@ -35,6 +36,7 @@ La base `(default)` del proyecto Nexus esta en `DATASTORE_MODE`, asi que no se u
 - **Cloud Firestore**: helpers iniciales en `src/firebase/cloudPersistence.js`.
 - **Cloud sync**: controlador offline-first en `src/firebase/cloudSync.js`, conectado a ajustes, deck y resultados de run.
 - **Cloud Messaging**: token Web Push mediante `src/firebase/messagingClient.js` y handler genérico en `public/service-worker.js`.
+- **Cloud Functions**: backend opcional para scanner real con cache Firestore, Overpass y Geoapify como fallback privado.
 
 ## Estructura Firestore v1
 
@@ -42,6 +44,8 @@ La base `(default)` del proyecto Nexus esta en `DATASTORE_MODE`, asi que no se u
 users/{uid}/deck/profile
 users/{uid}/hostProgress/{seedId}
 users/{uid}/messagingTokens/{tokenId}
+placesCache/{cacheKey}
+scanRateLimits/{fingerprint}
 ```
 
 Datos previstos:
@@ -49,6 +53,8 @@ Datos previstos:
 - `deck/profile`: créditos, total ganado, stats, hardware, programas desbloqueados, bookmarks y última recompensa.
 - `hostProgress/{seedId}`: alias, tier, valor, runs completadas, mejor puntuación y timestamps.
 - `messagingTokens/{tokenId}`: token FCM, plataforma, userAgent opcional y timestamp.
+- `placesCache/{cacheKey}`: cache compartida de objetivos cercanos por celda aproximada; solo la Admin SDK de Functions debe leer/escribir.
+- `scanRateLimits/{fingerprint}`: contador diario anonimo para proteger el backend del scanner sin guardar IP cruda.
 
 ## Decisiones pendientes
 
@@ -93,6 +99,16 @@ Desplegar reglas:
 ```bash
 npm run firebase -- deploy --only firestore --project nexus-f20f5
 ```
+
+Backend del scanner:
+
+```bash
+npm --prefix functions install
+npm run firebase -- functions:secrets:set GEOAPIFY_API_KEY --project nexus-f20f5
+npm run firebase -- deploy --only functions,firestore --project nexus-f20f5
+```
+
+Tras desplegar `getNearbyTargets`, completar `VITE_TARGETS_ENDPOINT` con la URL HTTPS de la Function. En local, si esa variable está vacía, el scanner conserva el flujo directo Overpass -> sandbox.
 
 Si el deploy falla indicando que `serviceusage.googleapis.com` esta deshabilitada, activar la **Service Usage API** en Google Cloud para `nexus-f20f5` y reintentar el comando de deploy.
 
