@@ -188,6 +188,7 @@ function dispatch(action) {
 
 function render() {
   if (!root) return;
+  setDocumentMode('play');
   applyTheme(appState.theme);
   if (!appState.system || !appState.run) {
     root.innerHTML = '<main class="app-shell app-shell--loading">Sincronizando deck...</main>';
@@ -258,8 +259,19 @@ function renderActiveView() {
 
 function renderLanding() {
   if (!root) return;
+  setDocumentMode('landing');
   applyTheme(appState.theme);
   root.innerHTML = renderLandingPage();
+}
+
+function setDocumentMode(mode) {
+  const documentElement = globalThis.document?.documentElement;
+  const body = globalThis.document?.body;
+  if (!documentElement || !body) return;
+  [documentElement, body].forEach((element) => {
+    element.classList.toggle('is-landing-page', mode === 'landing');
+    element.classList.toggle('is-play-page', mode === 'play');
+  });
 }
 
 function getAppRoute() {
