@@ -355,11 +355,11 @@ if (!bookmarkResult.changed || bookmarkResult.profile.bookmarks.length !== 1) th
 const rewardResult = awardRunCredits(defaultDeck, jackOutSystem, jackOutRun, scoreRun(jackOutSystem, jackOutRun));
 if (rewardResult.reward <= 0 || rewardResult.profile.credits <= 0) throw new Error('Completed runs should award deck upgrade credits');
 const postRunResult = { status: 'escaped', hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3 };
-const postRunChoiceHtml = renderPostRunScannerPanel(postRunResult, { hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3, canBookmark: true, bookmarkCapacity: 3, bookmarkDecision: null }, defaultDeck, true);
-if (!postRunChoiceHtml.includes('Guardar host') || !postRunChoiceHtml.includes('Abrir scanner') || postRunChoiceHtml.includes('No guardar') || postRunChoiceHtml.includes('skipBookmark')) {
+const postRunChoiceHtml = renderPostRunScannerPanel(postRunResult, { hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3, canBookmark: true, bookmarkCapacity: 3, bookmarkDecision: null }, defaultDeck);
+if (!postRunChoiceHtml.includes('Guardar host') || !postRunChoiceHtml.includes('Abrir scanner') || postRunChoiceHtml.includes('Reboot deck') || postRunChoiceHtml.includes('No guardar') || postRunChoiceHtml.includes('skipBookmark')) {
   throw new Error('Post-run scanner panel should only offer save host and scanner');
 }
-const savedPostRunHtml = renderPostRunScannerPanel(postRunResult, { hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3, canBookmark: false, bookmarkCapacity: 3, bookmarkDecision: 'saved' }, defaultDeck, true);
+const savedPostRunHtml = renderPostRunScannerPanel(postRunResult, { hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3, canBookmark: false, bookmarkCapacity: 3, bookmarkDecision: 'saved' }, defaultDeck);
 if (!savedPostRunHtml.includes('Host guardado') || savedPostRunHtml.includes('Guardar host') || !savedPostRunHtml.includes('Abrir scanner')) {
   throw new Error('Saved hosts should show confirmation and leave only scanner available');
 }

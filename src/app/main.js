@@ -72,7 +72,6 @@ const appState = {
   lastMapLogKey: null,
   completion: null,
   runResult: null,
-  postRunRebooted: false,
   lastRecordedStatus: null,
   isSettingsOpen: false,
   isHelpOpen: false,
@@ -129,7 +128,6 @@ async function startRun(place) {
   appState.selectedPlace = place;
   appState.completion = null;
   appState.runResult = null;
-  appState.postRunRebooted = false;
   appState.system = await buildSystem(place);
   appState.deckProfile = loadDeckProfile();
   appState.deckMessage = '';
@@ -202,7 +200,7 @@ function render() {
   const resultVisible = finished && !shockActive;
   const postRunPanelVisible = finished && !shockActive;
   const backgroundUrl = getHostBackground(appState.system.archetype.archetype);
-  const themeRun = appState.postRunRebooted ? { ...appState.run, status: 'exploring', alert: 0, trace: 0, integrity: appState.run.maxIntegrity } : appState.run;
+  const themeRun = appState.run;
   const dangerTheme = getDangerTheme(themeRun);
   const signalFxClass = getSignalFxClass(dangerTheme.level, themeRun.status, shockActive);
   root.innerHTML = `<main class="app-shell ${signalFxClass}" style="--host-bg: url('${backgroundUrl}'); --danger-level: ${dangerTheme.level}; --danger-color: ${dangerTheme.color}; --danger-border: ${dangerTheme.border}; --danger-glow: ${dangerTheme.glow}">
@@ -212,7 +210,7 @@ function render() {
     ${renderHud(runtimeSystem, appState.run, finished, appState.deckProfile.player)}
     ${renderNodeMap(runtimeSystem, appState.run, appState.mapView, getVisibleMapLogMessage(), appState.runResult, resultVisible, appState.nodeVisit, getVisibleMapReveal(), appState.deckProfile.player, appState.isRunLogOpen)}
     ${renderProgramDock(appState.run, finished, appState.nodeVisit?.recommendedProgram, appState.deckProfile)}
-    ${postRunPanelVisible ? renderPostRunScannerPanel(appState.runResult, appState.completion, appState.deckProfile, appState.postRunRebooted) : ''}
+    ${postRunPanelVisible ? renderPostRunScannerPanel(appState.runResult, appState.completion, appState.deckProfile) : ''}
     ${renderDeckTrace(appState.deckProfile, appState.run, appState.deckMessage, getDeckTraceView())}
     ${renderDeckOverlay(appState.isDeckOpen, appState.deckProfile, appState.deckMessage)}
     ${renderSettingsOverlay(appState.isSettingsOpen, audioDirector.getState(), appState.theme, appState.cloud, appState.deckProfile)}
@@ -417,7 +415,6 @@ function bindEvents() {
       if (action === 'scanLocal') void scanLocalTargets();
       if (action === 'saveBookmark') saveCompletionBookmark();
       if (action === 'skipBookmark') skipCompletionBookmark();
-      if (action === 'rebootDeck') rebootDeck();
       if (action === 'toggleMusic') void toggleMusic();
       if (action === 'toggleSfx') void toggleSfx();
       if (action === 'signInGuest') void signInGuestCloud();
@@ -1653,14 +1650,6 @@ function skipCompletionBookmark(shouldRender = true) {
   if (!appState.completion) return;
   appState.completion = { ...appState.completion, bookmarkDecision: 'skipped' };
   if (shouldRender) render();
-}
-
-function rebootDeck() {
-  appState.postRunRebooted = true;
-  appState.isScannerOpen = false;
-  stopDisconnectGlitch();
-  void audioDirector.play('scanner');
-  render();
 }
 
 function deckUpgradeMessage(result, category, key) {

@@ -20,24 +20,23 @@ export function renderRunLogDialog(isOpen, run) {
   </aside>`;
 }
 
-export function renderPostRunScannerPanel(runResult, completion, deckProfile, rebooted = false) {
+export function renderPostRunScannerPanel(runResult, completion, deckProfile) {
   const success = runResult?.status === 'escaped';
   const stateClass = success ? 'is-success' : 'is-danger';
   const summary = runResult
     ? `${runResult.hostAlias} · ${runResult.score} pts · ${runResult.reward} cred · ${runResult.lootTokens} token(s)`
     : 'Run cerrada. Scanner listo para nuevo objetivo.';
-  const title = rebooted ? 'Objetivos / scanner' : 'Deck cerrado';
 
   return `<section class="post-run-panel ${stateClass}" aria-label="Objetivos y scanner">
     <div>
       <p class="eyebrow">Estado</p>
-      <strong>${escapeHtml(title)}</strong>
+      <strong>Objetivos / scanner</strong>
     </div>
     <div class="post-run-panel__body">
       <p>${escapeHtml(summary)}</p>
       <div class="post-run-panel__actions">
         <button class="post-run-panel__log" data-action="toggleRunLog" type="button">Ver log</button>
-        ${rebooted ? renderScannerReady(completion, deckProfile) : '<button class="reboot-deck" data-action="rebootDeck" type="button">Reboot deck</button>'}
+        ${renderScannerReady(completion, deckProfile)}
       </div>
     </div>
   </section>`;
