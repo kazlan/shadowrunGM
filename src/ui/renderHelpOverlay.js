@@ -1,4 +1,5 @@
 import { assetPaths } from '../assets/assetRegistry.js';
+import { iceCatalog } from '../game/iceCatalog.js';
 import { programs } from '../game/programCatalog.js';
 import { nodeEvents } from '../game/nodeEvents.js';
 import { avatarCatalog, deckStatCatalog } from '../world/deckStore.js';
@@ -7,25 +8,63 @@ import { normalizeThemeKey, themeCatalog } from './themeStore.js';
 
 const helpTabs = [
   { key: 'run', label: 'Run' },
+  { key: 'damage', label: 'Daño' },
+  { key: 'stats', label: 'Stats' },
+  { key: 'programs', label: 'Programas' },
+  { key: 'ice', label: 'ICE' },
   { key: 'deck', label: 'Deck' },
   { key: 'events', label: 'Eventos' },
-  { key: 'programs', label: 'Programas' },
 ];
 
 const statHelp = [
   {
     label: 'ALERTA',
-    description: 'Ruido dentro del host. Sube al moverte a nodos recién descubiertos, fallar o usar acciones ruidosas; si llega a 10, las contramedidas cierran la run.',
+    description: 'Ruido dentro del host. Si llega a 10, convergencia: contramedidas cierran la run y quedas dumped.',
   },
   {
     label: 'TRAZA',
-    description: 'Rastreo hacia tu posición. La suben defensas como Tracer, desconexiones forzadas y presión alta; si llega a 8, el host te expulsa.',
+    description: 'Rastreo hacia tu posición. Base 8, sube con Veil. Si llega al máximo, la traza te localiza y te expulsa.',
   },
   {
     label: 'SHELL',
-    description: 'Integridad de tu avatar/deck. Baja por hielo ofensivo, fallos y dump shock; si llega a 0, quedas dumped.',
+    description: 'Integridad del avatar/deck. Base 10, sube con Shell. Si llega a 0, integridad agotada y quedas dumped.',
   },
 ];
+
+const damageHelp = [
+  ['Mover a nodo escaneado', '+1 ALERTA', 'Solo al entrar por primera vez en un nodo en estado SCANNED. Revisitar no suma ruido.'],
+  ['Scan sin rutas nuevas', '+1 ALERTA', 'Si no revela nada y no limpia un señuelo, tu firma sube.'],
+  ['Presión alta', '+1 TRAZA/turno', 'Cuando ALERTA está en 7 o más, cada turno que avanza añade traza.'],
+  ['Jack out lejos de salida', '-3 SHELL, +1 TRAZA', 'Dump shock. Con Shield activo el daño baja a -1 SHELL.'],
+  ['Spike contra ICE falla', '+3 ALERTA, -2 SHELL', 'El retorno hostil golpea shell. El éxito también hace ruido, pero menos.'],
+  ['Ghost sin cámara', '-1 SHELL', 'Quema shell para bajar ALERTA y TRAZA. No se puede usar si ambas están a 0.'],
+  ['Trampa sin Shield', '-1 SHELL, +1 TRAZA', 'Shield la absorbe y la marca resuelta sin daño.'],
+];
+
+const statMechanics = [
+  ['Pulse', 'Spike', 'Fuerza = Pulse + Spike - 2. Aumenta la probabilidad de romper ICE y puertas; con fuerza 3+ forzar puertas no suma alerta.'],
+  ['Veil', 'Ghost / TRAZA', 'Max TRAZA = 8 + floor((Veil - 1) / 2). Ghost reduce ALERTA/TRAZA hasta 3 según Veil + Ghost.'],
+  ['Lens', 'Scan / Extract', 'Scan revela nodos extra con floor((Lens + Scan - 2) / 2). Extract gana finesse con floor((Lens + Extract - 2) / 3).'],
+  ['Shell', 'SHELL / Shield', 'Max SHELL = 10 + Shell - 1. Shield dura 2 + floor((Shell + Shield - 2) / 3) turnos.'],
+];
+
+const programMechanics = {
+  scan: 'Revela nodos conectados. Con Lens + Scan altos revela nodos a un salto extra. Si el nodo tiene señuelo, lo aísla. Si no revela nada, +1 ALERTA.',
+  spike: 'Ataca ICE y fuerza puertas. Contra ICE: éxito si ALERTA + riesgo del nodo <= 12 + fuerza, o si Shield está activo. Fallar causa retorno hostil.',
+  ghost: 'Ciega cámaras sin coste de shell. Si no hay cámara, reduce ALERTA y TRAZA quemando 1 SHELL. No actúa si no hay firma que ocultar.',
+  shield: 'Activa protección durante varios turnos. Absorbe trampas, reduce daño de Piercer/Tracer/Crasher y reduce dump shock fuera de salida.',
+  extract: 'Captura payload en Archivo, Núcleo, database y data. Core da 3 tokens, database 2, data 1. Cada token añade 25 cred al buffer de run.',
+};
+
+const eventMechanics = {
+  archive: 'Extract captura payload útil. Archivo cuenta como objetivo de extracción y marca el nodo resuelto.',
+  gate: 'Spike abre rutas conectadas. Si la fuerza de Spike es baja, forzar puerta puede añadir +1 ALERTA.',
+  camera: 'Al entrar sube +1 ALERTA. Ghost la ciega y resuelve el evento sin quemar SHELL.',
+  decoy: 'Scan lo limpia sin daño. Extract tarde lo detecta, pero mete ruido: +TRAZA y ALERTA según finesse.',
+  trap: 'Sin Shield causa -1 SHELL y +1 TRAZA. Con Shield queda absorbida y resuelta.',
+  core: 'Extract completa el objetivo principal. Núcleo da 3 tokens y suele añadir más ALERTA que data/database.',
+  exit: 'Jack out desde salida asegura la run. Entrada y salida son puntos seguros para desconectar.',
+};
 
 export function renderSettingsOverlay(isOpen, audioState = {}, activeTheme = 'black', cloudState = null, deckProfile = null) {
   if (!isOpen) return '';
@@ -227,9 +266,12 @@ function volumePercent(value, fallback) {
 }
 
 function renderHelpTab(tab) {
+  if (tab === 'damage') return renderDamageHelp();
+  if (tab === 'stats') return renderStatsHelp();
+  if (tab === 'programs') return renderProgramHelp();
+  if (tab === 'ice') return renderIceHelp();
   if (tab === 'deck') return renderDeckHelp();
   if (tab === 'events') return renderEventHelp();
-  if (tab === 'programs') return renderProgramHelp();
   return renderRunHelp();
 }
 
@@ -244,10 +286,49 @@ function renderRunHelp() {
     <div class="help-grid help-grid--three">
       ${renderCard('1 · Explora', 'Scan revela rutas. Toca nodos descubiertos conectados para moverte.')}
       ${renderCard('2 · Resuelve', 'Cada evento pide un programa. El ICE activo suele pedir Spike o protección previa.')}
-      ${renderCard('3 · Escapa', 'Con payload, vuelve a entrada/salida y pulsa Jack out. Sin salida segura hay dump shock.')}
+      ${renderCard('3 · Cobra', 'Extract carga tokens en el buffer. Con payload, vuelve a entrada/salida y pulsa Jack out.')}
     </div>
-    <h3>Relojes</h3>
+    <h3>Relojes base</h3>
     <div class="help-grid">${stats}</div>
+    <h3>Estados de nodo</h3>
+    <div class="help-grid help-grid--three">
+      ${renderCard('UNKNOWN', 'No se puede visitar. Ejecuta Scan desde un nodo conectado.')}
+      ${renderCard('SCANNED', 'Visible y alcanzable. Entrar por primera vez suma +1 ALERTA.')}
+      ${renderCard('VISITED / COMPROMISED', 'Visitado ya conocido. Compromised significa drenado: no duplica loot.')}
+    </div>
+  </div>`;
+}
+
+function renderDamageHelp() {
+  return `<div class="help-section">
+    <div class="help-callout">
+      <strong>Regla de oro</strong>
+      <span>ALERTA y TRAZA suben hacia convergencia; SHELL baja hacia dump. Cada programa que avanza turno también consume un pulso de Shield y puede activar presión alta.</span>
+    </div>
+    <h3>Daño y presión</h3>
+    <div class="help-grid">${damageHelp.map(([label, value, description]) => renderCard(`${label} // ${value}`, description)).join('')}</div>
+    <h3>Fallos de run</h3>
+    <div class="help-grid help-grid--three">
+      ${renderCard('ALERTA 10', 'Convergencia defensiva: el host cierra la run.')}
+      ${renderCard('TRAZA máxima', 'La traza cierra tu vector y te expulsa.')}
+      ${renderCard('SHELL 0', 'Integridad agotada: dumped inmediato.')}
+    </div>
+  </div>`;
+}
+
+function renderStatsHelp() {
+  return `<div class="help-section">
+    <div class="help-callout">
+      <strong>Stats + programas</strong>
+      <span>Las stats del deck marcan el techo; el nivel del programa afina la acción. Muchas fórmulas suman ambos niveles y restan la base inicial.</span>
+    </div>
+    <div class="help-grid">${statMechanics.map(([label, hook, description]) => renderCard(`${label} // ${hook}`, description)).join('')}</div>
+    <h3>Hardware</h3>
+    <div class="help-grid help-grid--three">
+      ${renderCard('Storage', 'Capacidad de loot = 3 + Storage x2. Si se llena, Extract aborta hasta salir o mejorar memoria.')}
+      ${renderCard('Bookmarks', 'Hosts guardados = 2 + nivel de Bookmarks. Si se llena, no aparece Guardar host.')}
+      ${renderCard('Costes', 'Subir stat cuesta 130 x nivel siguiente; hardware 120 x nivel siguiente; programa 90 x nivel siguiente.')}
+    </div>
   </div>`;
 }
 
@@ -271,18 +352,18 @@ function renderDeckHelp() {
     <div class="help-grid">${parts}</div>
     <h3>Atributos</h3>
     <div class="help-grid">${stats}</div>
-    <h3>Regla práctica</h3>
+    <h3>Economía de run</h3>
     <div class="help-grid help-grid--three">
-      ${renderCard('Pulse', 'Si peleas mucho contra ICE y puertas.')}
-      ${renderCard('Veil', 'Si quieres runs sigilosas y más margen de traza.')}
-      ${renderCard('Lens/Shell', 'Lens para mapa y payload; Shell para sobrevivir presión.')}
+      ${renderCard('Loot', 'Cada token sellado vale 25 cred en el buffer de run. Solo se cobra al cerrar la run.')}
+      ${renderCard('Reward', 'Recompensa = tier del host + payload + loot + escape + bonus de score. Dumped mantiene un suelo de 12 cred.')}
+      ${renderCard('Sync', 'Al conectar Nexus, deck, identidad, bookmarks y progreso se sincronizan con la cuenta.')}
     </div>
   </div>`;
 }
 
 function renderEventHelp() {
   const events = Object.values(nodeEvents)
-    .map((event) => renderCard(`${event.glyph} · ${event.label}`, event.hint))
+    .map((event) => renderCard(`${event.glyph} · ${event.label} // ${event.program}`, eventMechanics[event.kind] ?? event.hint))
     .join('');
 
   return `<div class="help-section">
@@ -294,10 +375,30 @@ function renderEventHelp() {
   </div>`;
 }
 
+function renderIceHelp() {
+  const iceCards = Object.values(iceCatalog)
+    .map((ice) => renderCard(`${ice.icon} · ${ice.label}`, `${ice.behavior} Debilidad: ${ice.weakness}. ${iceEffectText(ice.kind)}`))
+    .join('');
+
+  return `<div class="help-section">
+    <div class="help-callout">
+      <strong>ICE activo</strong>
+      <span>Entrar en un nodo con ICE dispara su efecto inmediatamente. Spike lo neutraliza; Shield convierte muchos golpes en presión manejable.</span>
+    </div>
+    <div class="help-grid">${iceCards}</div>
+    <h3>Programas bloqueados</h3>
+    <div class="help-grid help-grid--three">
+      ${renderCard('Crasher', 'Si no tienes Shield, bloquea el programa seleccionado y hace -1 SHELL.')}
+      ${renderCard('Recuperación', 'Los programas bloqueados se limpian cada 3 turnos.')}
+      ${renderCard('Neutralizar', 'Spike exitoso marca el ICE como neutralizado y deja el nodo en exploración.')}
+    </div>
+  </div>`;
+}
+
 function renderProgramHelp() {
   const programHelp = programs
     .map(
-      (program) => renderCard(program.label, program.description),
+      (program) => renderCard(program.label, programMechanics[program.kind] ?? program.description),
     )
     .join('');
 
@@ -308,6 +409,16 @@ function renderProgramHelp() {
     </div>
     <div class="help-grid">${programHelp}</div>
   </div>`;
+}
+
+function iceEffectText(kind) {
+  return {
+    watcher: 'Efecto: +2 ALERTA.',
+    piercer: 'Efecto: +1 ALERTA y -2 SHELL; con Shield, -1 SHELL.',
+    tracer: 'Efecto: +1 ALERTA y +2 TRAZA; con Shield, +1 TRAZA.',
+    locker: 'Efecto: +1 ALERTA y +1 TRAZA.',
+    crasher: 'Efecto: +1 ALERTA, -1 SHELL y bloqueo de programa si no hay Shield.',
+  }[kind] ?? '';
 }
 
 function renderCard(label, description) {
