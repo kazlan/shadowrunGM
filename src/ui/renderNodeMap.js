@@ -347,7 +347,6 @@ function renderRunResultWindow(system, run, runResult = null, player = null, run
   const resultClass = success ? 'node-map--success' : 'node-map--failure';
 
   return `<section class="node-map node-map--result ${resultClass}" aria-label="Resumen final de la run">
-    ${renderMapActions(run, true, player)}
     ${renderRunLogDialog(runLogOpen, run)}
     <div class="result-terminal">
       <p class="result-command">${escapeHtml(command)}</p>
