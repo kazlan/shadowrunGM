@@ -2070,24 +2070,29 @@ button:focus-visible {
   place-items: center;
   padding: 6px 5px;
   color: var(--text);
-  border: 1px solid rgba(51, 255, 204, .24);
-  background: var(--panel);
+  border: 0;
+  background: transparent;
   scroll-snap-align: start;
 }
 
 .settings-identity__avatars button.is-active {
   color: var(--yellow);
-  border-color: var(--yellow);
-  box-shadow: 0 0 14px rgba(248, 214, 109, .14);
+  box-shadow: none;
 }
 
 .settings-identity__avatars img {
   width: 48px;
   height: 48px;
   object-fit: cover;
-  border: 1px solid currentColor;
   background: rgba(5, 7, 22, .58);
+  filter: drop-shadow(0 0 7px rgba(51, 255, 204, .16));
   clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 7px 100%, 0 calc(100% - 7px));
+}
+
+.settings-identity__avatars button.is-active img {
+  filter:
+    drop-shadow(0 0 9px rgba(248, 214, 109, .36))
+    drop-shadow(0 0 16px rgba(255, 61, 242, .18));
 }
 
 .settings-identity__avatars span {
