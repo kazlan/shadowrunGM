@@ -91,7 +91,7 @@ function renderIdentityControl(deckProfile) {
 function renderCloudControl(cloudState, deckProfile) {
   const state = cloudState ?? { configured: false, status: 'disabled', message: 'Firebase no configurado.' };
   const connected = Boolean(state.user);
-  const disabled = !state.configured || state.status === 'syncing';
+  const disabled = !state.configured || state.status === 'authenticating';
   const player = deckProfile?.player ?? { shadowName: 'NEON GHOST', avatar: 'ghost' };
   const avatar = avatarCatalog.find((candidate) => candidate.key === player.avatar) ?? avatarCatalog[0];
   const accountLabel = connected ? cloudAccountLabel(state.user) : 'Modo local';
@@ -147,6 +147,7 @@ function accountDetail(user) {
 
 function cloudStatusLabel(state) {
   if (!state.configured) return 'Firebase no configurado.';
+  if (state.status === 'authenticating') return state.message || 'Conectando...';
   if (state.status === 'syncing') return state.message || 'Sincronizando...';
   if (state.status === 'error') return state.message || 'Cloud sin sincronizar.';
   if (state.user) return state.message || 'Conectado.';

@@ -135,7 +135,7 @@ export function createCloudSyncController({ onDeckLoaded, onStatusChange } = {})
 
   async function signInWithStatus(signIn, message) {
     if (!firebaseStatus.configured) return { ok: false, reason: 'disabled' };
-    setState({ status: 'syncing', message });
+    setState({ status: 'authenticating', message });
     try {
       await signIn();
       return { ok: true };
@@ -147,7 +147,7 @@ export function createCloudSyncController({ onDeckLoaded, onStatusChange } = {})
 
   async function signOutWithStatus() {
     if (!firebaseStatus.configured) return { ok: false, reason: 'disabled' };
-    setState({ status: 'syncing', message: 'Cerrando sesion...' });
+    setState({ status: 'authenticating', message: 'Cerrando sesion...' });
     try {
       await signOutUser();
       return { ok: true };
@@ -158,7 +158,6 @@ export function createCloudSyncController({ onDeckLoaded, onStatusChange } = {})
   }
 
   async function completeRedirectSignIn() {
-    setState({ status: 'syncing', message: 'Comprobando retorno de Google...' });
     try {
       const result = await resolveAuthRedirect();
       if (!result?.user) {
@@ -224,6 +223,15 @@ function syncErrorMessage(error) {
 }
 
 function authErrorMessage(error) {
+  if (error?.code === 'auth/network-request-failed') {
+    return 'No se pudo conectar con Google/Firebase. Revisa red, dominio autorizado o bloqueo del navegador.';
+  }
+  if (error?.code === 'auth/unauthorized-domain') {
+    return 'Dominio no autorizado en Firebase Auth. Anade este host en Authentication > Settings > Authorized domains.';
+  }
+  if (error?.code === 'auth/operation-not-supported-in-this-environment') {
+    return 'Este navegador no permite completar el redirect de Google en este entorno.';
+  }
   const code = error?.code ? ` (${error.code})` : '';
   return `No se pudo iniciar sesion${code}.`;
 }

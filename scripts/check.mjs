@@ -306,6 +306,14 @@ if (!identitySettingsHtml.includes('data-shadow-name-input') || !identitySetting
 if (!identitySettingsHtml.includes('Conectar deck a Nexus') || !identitySettingsHtml.includes('data-action="signInGoogle"') || !identitySettingsHtml.includes('data-action="continueLocal"')) {
   throw new Error('Settings should render the Nexus connection panel with Google redirect and local continuation');
 }
+const syncingSettingsHtml = renderSettingsOverlay(true, {}, 'black', { configured: true, status: 'syncing', message: 'Comprobando retorno de Google...', user: null }, identityDeck);
+if (!syncingSettingsHtml.includes('data-action="signInGoogle" type="button" >Google')) {
+  throw new Error('Background cloud sync should not disable Google sign-in on mobile');
+}
+const authenticatingSettingsHtml = renderSettingsOverlay(true, {}, 'black', { configured: true, status: 'authenticating', message: 'Saliendo hacia Google...', user: null }, identityDeck);
+if (!authenticatingSettingsHtml.includes('data-action="signInGoogle" type="button" disabled>Google')) {
+  throw new Error('Explicit Google auth should disable the sign-in button until redirect/error');
+}
 const upgradedShellDeck = { ...defaultDeck, deck: { ...defaultDeck.deck, shell: 4 }, programs: { ...defaultDeck.programs } };
 const upgradedInitialRun = createInitialRunState(jackOutSystem, upgradedShellDeck);
 if (upgradedInitialRun.maxIntegrity <= createInitialRunState(jackOutSystem).maxIntegrity) throw new Error('Shell deck upgrades should increase max integrity');

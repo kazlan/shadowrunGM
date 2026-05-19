@@ -1,4 +1,4 @@
-const CACHE_NAME = 'shadowhack-shell-v4';
+const CACHE_NAME = 'shadowhack-shell-v5';
 const APP_SHELL = ['/', '/play', '/manifest.webmanifest', '/icons/icon.svg'];
 const OFFLINE_FALLBACK = '/play';
 
