@@ -125,7 +125,8 @@ async function buildSystem(place) {
   const archetype = classifyCompany(place);
   const valuation = valueCompany(place, archetype, seed.seedHex);
   const rng = createRng(seed.seedHex);
-  return generateSystem({ rng, seedId: seed.seedId, company: place, archetype, valuation });
+  const isFirstRun = getPlayerProgressStats().totalRuns === 0;
+  return generateSystem({ rng, seedId: seed.seedId, company: place, archetype, valuation, tutorial: isFirstRun });
 }
 
 async function startRun(place) {
@@ -163,6 +164,8 @@ async function startRun(place) {
     seedId: appState.system.seedId,
     entryNodeId: appState.system.entryNodeId,
     nodeCount: appState.system.nodes.length,
+    template: appState.system.template,
+    tutorial: appState.system.tutorial,
   });
   scheduleTargetPrefetchForRun(place);
   render();

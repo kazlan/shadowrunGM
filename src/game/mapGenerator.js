@@ -5,6 +5,7 @@ const iceByRisk = ['watcher', 'piercer', 'tracer', 'locker', 'crasher'];
 const PAYDATA_MIN_DISTANCE = 3;
 const CORE_MIN_DISTANCE = 4;
 const templateRanges = {
+  tutorial: [8, 8],
   small: [9, 11],
   standard: [12, 15],
   secure: [16, 19],
@@ -17,21 +18,24 @@ const LAYOUT_CANVAS_CENTER = 50;
 const LAYOUT_CANVAS_MIN = 6;
 const LAYOUT_CANVAS_MAX = 94;
 const layoutTargetSpan = {
+  tutorial: { x: 88, y: 82 },
   small: { x: 74, y: 76 },
   standard: { x: 82, y: 82 },
   secure: { x: 86, y: 86 },
 };
 const SEGMENT_EPSILON = 0.001;
 const minimumIceByTemplate = {
+  tutorial: 0,
   small: 1,
   standard: 2,
   secure: 4,
 };
 
 export function generateSystem(params) {
-  const { rng, seedId, company, archetype, valuation = defaultValuation() } = params;
-  const effectiveSecurity = clamp(archetype.security + valuation.securityModifier, 1, 7);
-  const template = pickTopologyTemplate(archetype, valuation, effectiveSecurity);
+  const { rng, seedId, company, archetype, valuation = defaultValuation(), tutorial = false } = params;
+  const useTutorial = tutorial === true;
+  const effectiveSecurity = useTutorial ? 1 : clamp(archetype.security + valuation.securityModifier, 1, 7);
+  const template = useTutorial ? 'tutorial' : pickTopologyTemplate(archetype, valuation, effectiveSecurity);
   const targetCount = pickTemplateNodeCount(template, valuation, rng);
   const topology = buildTopology(template, targetCount, archetype, rng);
   const entryNodeId = 'n-0';
@@ -49,6 +53,8 @@ export function generateSystem(params) {
     archetype,
     valuation,
     effectiveSecurity,
+    template,
+    tutorial: useTutorial,
     nodes,
     edges,
     entryNodeId,
@@ -69,7 +75,32 @@ function pickTemplateNodeCount(template, valuation, rng) {
 }
 
 function buildTopology(template, targetCount, archetype, rng) {
+  if (template === 'tutorial') return buildTutorialTopology();
   return buildStarTopology(template, targetCount, archetype, rng);
+}
+
+function buildTutorialTopology() {
+  const nodes = [
+    node('entry', 'entry', 6, 88, { risk: 1 }),
+    node('tutorialCamera', 'camera', 20, 76, { event: nodeEvents.camera.kind, risk: 1 }),
+    node('tutorialHub', 'firewall', 38, 62, { event: undefined, risk: 1 }),
+    node('tutorialArchive', 'database', 20, 25, { event: nodeEvents.archive.kind, risk: 1 }),
+    node('tutorialGate', 'firewall', 58, 62, { event: nodeEvents.gate.kind, risk: 1 }),
+    node('tutorialCore', 'core', 82, 36, { event: nodeEvents.core.kind, risk: 2, ice: 'watcher' }),
+    node('tutorialExitGate', 'firewall', 70, 82, { event: undefined, risk: 1 }),
+    node('tutorialExit', 'exit', 94, 94, { event: nodeEvents.exit.kind, risk: 1 }),
+  ];
+  const edges = [
+    edge(0, 1),
+    edge(1, 2),
+    edge(2, 3),
+    edge(2, 4),
+    edge(4, 5),
+    edge(4, 6),
+    edge(6, 7),
+  ];
+
+  return finalizeNodeIds(nodes, edges);
 }
 
 function buildStarTopology(template, targetCount, archetype, rng) {
@@ -323,8 +354,8 @@ function getLayoutNode(nodes, nodeId) {
   return nodes[Number.parseInt(String(nodeId).replace('n-', ''), 10)] ?? null;
 }
 
-function node(zone, kind, x, y) {
-  return { zone, kind, x, y };
+function node(zone, kind, x, y, extras = {}) {
+  return { zone, kind, x, y, ...extras };
 }
 
 function edge(from, to) {
@@ -342,16 +373,18 @@ function assignNodeSystems(nodes, distances, archetype, effectiveSecurity, templ
   const prepared = nodes.map((candidate) => {
     const distance = distances[candidate.id] ?? 99;
     const kind = sanitizeEarlyDataKind(candidate.kind, distance);
-    const risk = clamp(effectiveSecurity + rng.nextInt(-1, 1) + riskBonus(candidate.zone), 1, 7);
+    const risk = candidate.risk ?? clamp(effectiveSecurity + rng.nextInt(-1, 1) + riskBonus(candidate.zone), 1, 7);
+    const event = Object.hasOwn(candidate, 'event') ? candidate.event : pickNodeEvent(kind, distance, archetype, rng);
     return {
       id: candidate.id,
       kind,
-      event: pickNodeEvent(kind, distance, archetype, rng),
+      event,
       state: candidate.id === 'n-0' ? 'visited' : distance <= 1 ? 'scanned' : 'unknown',
       x: clamp(candidate.x, 4, 96),
       y: clamp(candidate.y, 4, 96),
       risk,
       zone: candidate.zone,
+      ...(candidate.ice ? { ice: candidate.ice } : {}),
     };
   });
 
@@ -391,6 +424,7 @@ function pickNodeEvent(kind, distance, archetype, rng) {
 }
 
 function assignIce(nodes, template, effectiveSecurity, rng) {
+  if (template === 'tutorial') return nodes;
   const candidates = rng.shuffle(nodes.filter((nodeData) => !['entry', 'exit'].includes(nodeData.kind)));
   for (const nodeData of candidates) {
     const chance = iceChance(nodeData, effectiveSecurity);

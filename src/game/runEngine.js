@@ -163,7 +163,7 @@ function shield(system, run, deckProfile = null) {
   const node = getCurrentNode(system, run);
   const event = getActiveEvent(run, node);
   const resolvesTrap = event?.kind === 'trap';
-  const shieldTurns = 2 + Math.floor((getStatLevel(deckProfile, 'shell') + getProgramLevel(deckProfile, 'shield') - 2) / 3);
+  const shieldTurns = 2 + softThresholdBonus(deckProfile, 'shell', 'shield', 2);
 
   return enforceFailure(
     advanceTurn(
@@ -171,7 +171,7 @@ function shield(system, run, deckProfile = null) {
         ...run,
         shieldTurns,
         resolvedEvents: resolvesTrap ? unique([...(run.resolvedEvents ?? []), node.id]) : run.resolvedEvents,
-        log: appendLog(run.log, resolvesTrap ? `Shield encapsula la trampa de ${nodeLabel(node)}.` : 'Shield activo durante dos pulsos.'),
+        log: appendLog(run.log, resolvesTrap ? `Shield encapsula la trampa de ${nodeLabel(node)}.` : `Shield activo durante ${shieldTurns} pulsos.`),
       },
       system,
     ),
@@ -182,7 +182,7 @@ function ghost(system, run, deckProfile = null) {
   const node = getCurrentNode(system, run);
   const event = getActiveEvent(run, node);
   const resolvesCamera = event?.kind === 'camera';
-  const reduction = Math.min(3, 1 + Math.floor((getStatLevel(deckProfile, 'veil') + getProgramLevel(deckProfile, 'ghost') - 2) / 3));
+  const reduction = 1 + softThresholdBonus(deckProfile, 'veil', 'ghost', 2);
 
   if (!resolvesCamera && run.alert <= 0 && run.trace <= 0) {
     return addLog(run, 'Ghost no encuentra firma activa que ocultar.');
@@ -205,7 +205,7 @@ function ghost(system, run, deckProfile = null) {
 
 function spike(system, run, deckProfile = null) {
   const node = system.nodes.find((candidate) => candidate.id === run.currentNodeId);
-  const force = getStatLevel(deckProfile, 'pulse') + getProgramLevel(deckProfile, 'spike') - 2;
+  const force = combinedUpgradeLevel(deckProfile, 'pulse', 'spike');
   if (!node?.ice || run.neutralizedIce.includes(node.id)) {
     const event = getActiveEvent(run, node);
     if (event?.kind === 'gate') {
@@ -215,7 +215,7 @@ function spike(system, run, deckProfile = null) {
             ...run,
             nodeStates: revealConnectedNodes(system, run),
             resolvedEvents: unique([...(run.resolvedEvents ?? []), node.id]),
-            alert: clamp(run.alert + (force >= 3 ? 0 : 1), 0, run.maxAlert),
+            alert: clamp(run.alert + (force >= 2 ? 0 : 1), 0, run.maxAlert),
             log: appendLog(run.log, `Spike fuerza la puerta de ${nodeLabel(node)} y abre rutas.`),
           },
           system,
@@ -240,7 +240,7 @@ function spike(system, run, deckProfile = null) {
     ...run,
     status: RUN_STATUS.EXPLORING,
     neutralizedIce: success ? [...run.neutralizedIce, node.id] : run.neutralizedIce,
-    alert: clamp(run.alert + Math.max(1, success ? 2 - Math.floor(force / 3) : 3), 0, run.maxAlert),
+    alert: clamp(run.alert + Math.max(1, success ? 2 - Math.floor((force + 1) / 3) : 3), 0, run.maxAlert),
     integrity: clamp(run.integrity - (success ? 0 : 2), 0, run.maxIntegrity),
     log: appendLog(run.log, success ? `Spike neutraliza ${node.ice}.` : `Spike falla contra ${node.ice}. Retorno hostil.`),
   };
@@ -251,7 +251,7 @@ function spike(system, run, deckProfile = null) {
 function extract(system, run, deckProfile = null) {
   const node = system.nodes.find((candidate) => candidate.id === run.currentNodeId);
   const event = getActiveEvent(run, node);
-  const finesse = Math.floor((getStatLevel(deckProfile, 'lens') + getProgramLevel(deckProfile, 'extract') - 2) / 3);
+  const finesse = softThresholdBonus(deckProfile, 'lens', 'extract', 2);
 
   if (node?.event === 'decoy' && (run.resolvedEvents ?? []).includes(node.id)) {
     return addLog(run, 'Señuelo ya aislado: buffer limpio, sin payload que extraer.');
@@ -525,6 +525,14 @@ function getStatLevel(deckProfile, stat) {
 
 function getProgramLevel(deckProfile, program) {
   return clampLevel(deckProfile?.programs?.[program]);
+}
+
+function combinedUpgradeLevel(deckProfile, stat, program) {
+  return getStatLevel(deckProfile, stat) + getProgramLevel(deckProfile, program) - 2;
+}
+
+function softThresholdBonus(deckProfile, stat, program, cap = Number.POSITIVE_INFINITY) {
+  return Math.min(cap, Math.floor((combinedUpgradeLevel(deckProfile, stat, program) + 1) / 3));
 }
 
 function getLootSize(node) {

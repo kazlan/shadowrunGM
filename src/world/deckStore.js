@@ -207,14 +207,15 @@ export function removeHostBookmark(profile, seedId) {
 }
 
 function calculateRunCredits(system, run, score) {
+  if (run.status === 'dumped') return 0;
+
   const tierBonus = { S: 90, A: 70, B: 50, C: 35, D: 25 }[system.valuation?.tier] ?? 30;
   const payloadBonus = run.hasPayload ? 45 : 0;
   const lootBonus = (run.lootTokens ?? 0) * 8;
   const escapeBonus = run.status === 'escaped' ? 35 : 0;
   const scoreBonus = Math.floor(score / 160);
-  const failureFloor = run.status === 'dumped' ? 12 : 0;
 
-  return Math.max(failureFloor, tierBonus + payloadBonus + lootBonus + escapeBonus + scoreBonus);
+  return tierBonus + payloadBonus + lootBonus + escapeBonus + scoreBonus;
 }
 
 function normalizeLevels(source, defaults) {

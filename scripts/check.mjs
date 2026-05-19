@@ -123,6 +123,15 @@ const gameDesignSource = await readFile('docs/game-design.md', 'utf8');
 if (!readmeSource.includes('concede bookmarks al conquistar la CPU') || !gameDesignSource.includes('conquistar la CPU') || !gameDesignSource.includes('no se elige al final de la run')) {
   throw new Error('Docs should describe automatic CPU conquest bookmarks');
 }
+if (!mainSource.includes('getPlayerProgressStats().totalRuns === 0') || !mainSource.includes('tutorial: isFirstRun')) {
+  throw new Error('The first player run should explicitly request the tutorial host template');
+}
+if (!mapGeneratorSource.includes("template === 'tutorial'") || !mapGeneratorSource.includes("ice: 'watcher'")) {
+  throw new Error('Map generator should include a controlled tutorial template with only simple ICE');
+}
+if (!readmeSource.includes('primera run usa un host tutorial') || !gameDesignSource.includes('plantilla tutorial') || !gameDesignSource.includes('Dumped paga 0 cred')) {
+  throw new Error('Docs should describe first-run tutorial onboarding and dumped zero-credit rewards');
+}
 const themeSource = await readFile('src/styles/theme.css', 'utf8');
 if (!themeSource.includes('--scrollbar-thumb') || !themeSource.includes('::-webkit-scrollbar-thumb') || !themeSource.includes('scrollbar-color')) throw new Error('Theme CSS should style scrollbars consistently');
 if (!themeSource.includes('--button-crt-line') || !themeSource.includes('datastreamSlide') || !themeSource.includes('button:focus-visible')) throw new Error('Theme CSS should keep Cybercore-inspired micro styles available');
@@ -319,6 +328,27 @@ assertMapViewContainsGraph(lowValueSystem);
 assertMapViewContainsGraph(highValueSystem);
 if (countHostDefenses(highValueSystem) <= countHostDefenses(lowValueSystem)) throw new Error('High-value hosts should contain more defenses than low-value hosts');
 assertHighTierPayloadApproach(highValueSystem);
+const tutorialSystem = generateSystem({
+  rng: createRng('tutorial-host-check'),
+  seedId: 'tutorial-host-check',
+  company: demoPlaces[0],
+  archetype: classifyCompany(demoPlaces[0]),
+  valuation: valueCompany(demoPlaces[0], classifyCompany(demoPlaces[0]), 'tutorial-host-check'),
+  tutorial: true,
+});
+assertStructuredHost(tutorialSystem);
+assertMapViewContainsGraph(tutorialSystem);
+const tutorialDistances = hostDistances(tutorialSystem);
+const tutorialArchive = tutorialSystem.nodes.find((node) => node.event === nodeEvents.archive.kind);
+const tutorialCore = tutorialSystem.nodes.find((node) => node.event === nodeEvents.core.kind);
+const tutorialExit = tutorialSystem.nodes.find((node) => node.kind === 'exit');
+const tutorialIce = tutorialSystem.nodes.filter((node) => node.ice);
+if (!tutorialSystem.tutorial || tutorialSystem.template !== 'tutorial') throw new Error('Tutorial hosts should expose their template metadata');
+if (tutorialSystem.nodes.length < 7 || tutorialSystem.nodes.length > 9) throw new Error('Tutorial host should stay short and readable');
+if (!tutorialArchive || tutorialDistances[tutorialArchive.id] < 3) throw new Error('Tutorial host should place first payload about three hops from entry');
+if (!tutorialCore || tutorialDistances[tutorialCore.id] < 4) throw new Error('Tutorial host should keep CPU optional and deeper than first payload');
+if (!tutorialExit || tutorialDistances[tutorialExit.id] === undefined) throw new Error('Tutorial host should include a clear reachable exit');
+if (tutorialIce.length > 1 || tutorialIce.some((node) => ['locker', 'crasher'].includes(node.ice))) throw new Error('Tutorial host should never exceed one simple ICE defense');
 const jackOutRun = reduceRun(jackOutSystem, createInitialRunState(jackOutSystem), { type: 'jackOut' });
 if (jackOutRun.status !== 'escaped') throw new Error('Jack-out from entry should escape instead of crashing');
 if (!Number.isFinite(scoreRun(jackOutSystem, jackOutRun))) throw new Error('Jack-out run score should be finite');
@@ -367,6 +397,9 @@ const removedBookmarkResult = removeHostBookmark(bookmarkResult.profile, jackOut
 if (!removedBookmarkResult.changed || removedBookmarkResult.profile.bookmarks.length !== 0) throw new Error('Scanner bookmarks should be destroyable');
 const rewardResult = awardRunCredits(defaultDeck, jackOutSystem, jackOutRun, scoreRun(jackOutSystem, jackOutRun));
 if (rewardResult.reward <= 0 || rewardResult.profile.credits <= 0) throw new Error('Completed runs should award deck upgrade credits');
+const dumpedRewardResult = awardRunCredits(defaultDeck, jackOutSystem, { ...jackOutRun, status: 'dumped', hasPayload: true, lootTokens: 3 }, 2000);
+const emptyDumpedRewardResult = awardRunCredits(defaultDeck, jackOutSystem, { ...jackOutRun, status: 'dumped', hasPayload: false, lootTokens: 0 }, 0);
+if (dumpedRewardResult.reward !== 0 || dumpedRewardResult.profile.credits !== 0 || emptyDumpedRewardResult.reward !== 0) throw new Error('Dumped runs should preserve score/log context but award zero credits');
 const postRunResult = { status: 'escaped', hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3 };
 const postRunChoiceHtml = renderPostRunScannerPanel(postRunResult, { hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3, cpuConquered: true, bookmarkCapacity: 3, bookmarkCount: 1, bookmarkStatus: 'saved', bookmarkHostAlias: jackOutSystem.alias }, defaultDeck);
 if (!postRunChoiceHtml.includes('Ver log') || !postRunChoiceHtml.includes('Area 0') || !postRunChoiceHtml.includes('post-run-panel__area') || !postRunChoiceHtml.includes('data-action="toggleDeck"') || !postRunChoiceHtml.includes('1234 pts') || !postRunChoiceHtml.includes(`¤${rewardResult.reward}`) || !postRunChoiceHtml.includes('CPU conquistada') || !postRunChoiceHtml.includes('bookmark') || postRunChoiceHtml.includes('Guardar host') || postRunChoiceHtml.includes('Abrir scanner') || postRunChoiceHtml.includes('Objetivos / scanner') || postRunChoiceHtml.includes('Reboot deck') || postRunChoiceHtml.includes('No guardar') || postRunChoiceHtml.includes('skipBookmark') || postRunChoiceHtml.includes('saveBookmark')) {
@@ -765,6 +798,28 @@ if (ghostPressureRun.alert !== 2 || ghostPressureRun.trace !== 1) throw new Erro
 if (ghostPressureRun.integrity !== 9) throw new Error('Ghost should cost one shell when hiding an active signature');
 const ghostIdleRun = reduceRun(iceSystem, createInitialRunState(iceSystem), { type: 'runProgram', program: 'ghost' });
 if (ghostIdleRun.turn !== 1 || ghostIdleRun.integrity !== 10) throw new Error('Ghost should not be spammable at zero pressure');
+const l2TunedDeck = {
+  ...defaultDeck,
+  deck: { ...defaultDeck.deck, pulse: 2, veil: 2, lens: 2, shell: 2 },
+  programs: { ...defaultDeck.programs, spike: 2, ghost: 2, shield: 2, extract: 2 },
+};
+const l2GhostPressureRun = reduceRun(iceSystem, { ...createInitialRunState(iceSystem), alert: 3, trace: 2 }, { type: 'runProgram', program: 'ghost' }, l2TunedDeck);
+if (l2GhostPressureRun.alert >= ghostPressureRun.alert || l2GhostPressureRun.trace >= ghostPressureRun.trace) throw new Error('Ghost L2/L2 should visibly reduce more pressure than L1/L1');
+const baseShieldRun = reduceRun(iceSystem, createInitialRunState(iceSystem), { type: 'runProgram', program: 'shield' });
+const l2ShieldRun = reduceRun(iceSystem, createInitialRunState(iceSystem), { type: 'runProgram', program: 'shield' }, l2TunedDeck);
+if (l2ShieldRun.shieldTurns <= baseShieldRun.shieldTurns) throw new Error('Shield L2/L2 should gain an extra readable duration step');
+const l2GateRun = reduceRun(eventSystem, { ...eventInitialRun, currentNodeId: 'n-3', nodeStates: { ...eventInitialRun.nodeStates, 'n-3': 'visited' } }, { type: 'runProgram', program: 'spike' }, l2TunedDeck);
+if (l2GateRun.alert >= gateRun.alert) throw new Error('Spike L2/L2 should force gates with less noise than L1/L1');
+const l2KilledIceRun = reduceRun(iceSystem, movedIntoIce, { type: 'runProgram', program: 'spike' }, l2TunedDeck);
+if (l2KilledIceRun.alert >= killedIceRun.alert) throw new Error('Spike L2/L2 should reduce successful ICE neutralization noise before L3');
+const databaseSystem = {
+  ...eventSystem,
+  nodes: eventSystem.nodes.map((node) => (node.id === 'n-5' ? { ...node, kind: 'database', event: nodeEvents.archive.kind } : node)),
+};
+const databaseInitialRun = createInitialRunState(databaseSystem);
+const baseDatabaseExtractRun = reduceRun(databaseSystem, { ...databaseInitialRun, currentNodeId: 'n-5', nodeStates: { ...databaseInitialRun.nodeStates, 'n-5': 'visited' } }, { type: 'runProgram', program: 'extract' });
+const l2DatabaseExtractRun = reduceRun(databaseSystem, { ...databaseInitialRun, currentNodeId: 'n-5', nodeStates: { ...databaseInitialRun.nodeStates, 'n-5': 'visited' } }, { type: 'runProgram', program: 'extract' }, l2TunedDeck);
+if (l2DatabaseExtractRun.alert >= baseDatabaseExtractRun.alert) throw new Error('Extract L2/L2 should reduce noise on normal payload extraction');
 
 const lowDanger = getDangerTheme(createInitialRunState(iceSystem));
 const warningDanger = getDangerTheme({ ...createInitialRunState(iceSystem), alert: 5 });

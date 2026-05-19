@@ -42,6 +42,7 @@ Los hosts se generan por plantillas de topología, no como una línea de nodos a
 - **Small**: 9-11 nodos, un datastore protegido, una puerta de entrada, hub interno, CPU y salida periférica.
 - **Standard**: 12-15 nodos, dos ramas de datos posibles, rutas cruzadas ligeras, dos capas defensivas y salida lateral.
 - **Secure**: 16-19 nodos, hub interno reforzado, cámara de datos redundante, rama de control, enlaces cruzados peligrosos y núcleo aislado.
+- **Tutorial**: plantilla tutorial fija de 8 nodos para la primera run del jugador. Incluye entrada, cámara, hub, archivo a tres saltos, puerta, CPU opcional algo más profunda y salida clara. Solo permite ICE simple de baja presión y nunca usa Ancla/Rompeprogramas.
 
 Reglas obligatorias:
 
@@ -100,6 +101,12 @@ La música usa un motor WebAudio adaptativo: stems cortos de alta calidad se mez
 
 La progresión debe conservar una tensión clara: un deck mejor permite asumir hosts más valiosos, pero no elimina alerta, traza ni convergencia.
 
+Balance de primera progresión:
+
+- La primera run de cualquier jugador usa la plantilla tutorial, aunque el objetivo elegido venga de scanner real, bookmark o demo. El objetivo es enseñar lectura de mapa, cámara, puerta, archivo, CPU y salida sin una caída temprana opaca.
+- Dumped paga 0 cred. El score, log y progreso histórico se conservan para que el jugador pueda entender qué ocurrió, pero no hay recompensa económica ni transferencia simulada.
+- Las parejas atributo + programa en L2/L2 deben sentirse: Ghost reduce más presión, Shield aguanta un pulso extra, Extract reduce ruido en payload normal y Spike baja antes el ruido de puerta/ICE. Los caps se mantienen para que L4/L5 no apaguen los relojes.
+
 ## Programas iniciales
 
 - **Scan**: revela nodos cercanos e identifica defensas.
@@ -119,7 +126,7 @@ La progresión debe conservar una tensión clara: un deck mejor permite asumir h
 
 ## Bucle jugable implementado
 
-La primera run offline separa el host determinista del estado mutable de partida. El host conserva nodos, conexiones, riesgos y defensas; la run conserva nodo actual, nodos descubiertos, defensas neutralizadas, eventos resueltos, alerta, traza, integridad, payload y log de acciones. El deck se conserva aparte como progresión local persistente.
+La primera run offline separa el host determinista del estado mutable de partida. Si el jugador no tiene runs previas, el host determinista usa la plantilla tutorial controlada; después vuelve al generador normal. El host conserva nodos, conexiones, riesgos y defensas; la run conserva nodo actual, nodos descubiertos, defensas neutralizadas, eventos resueltos, alerta, traza, integridad, payload y log de acciones. El deck se conserva aparte como progresión local persistente.
 
 El mapa se abre con un encuadre calculado desde el grafo generado y desde la UI visible: header, acciones, mensajes y medidores se tratan como zonas seguras para que el host no nazca oculto bajo el HUD. La topología puede estirarse dentro de una caja estable por plantilla (`small`, `standard`, `secure`) para aprovechar mejor el espacio vertical sin romper las reglas de distancia mínima entre nodos, core y salidas.
 

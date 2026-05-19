@@ -359,7 +359,7 @@ function renderUpgradeHelp() {
   return `<div class="help-section">
     <div class="help-callout">
       <strong>Cred invertido = presión controlada</strong>
-      <span>Las mejoras no hacen la run automática: cambian márgenes concretos. Sube el atributo y el programa que comparten fórmula cuando quieras notar un salto táctico claro.</span>
+      <span>Las mejoras no hacen la run automática: cambian márgenes concretos. L2 + L2 ya produce un salto visible; sube el atributo y el programa que comparten fórmula cuando quieras notar un cambio táctico claro.</span>
     </div>
     <h3>Atributos</h3>
     <div class="help-grid">${attributeUpgradeHelp.map(([label, hook, description]) => renderCard(`${label} // ${hook}`, description)).join('')}</div>
@@ -402,7 +402,7 @@ function renderDeckHelp() {
     <h3>Economía de run</h3>
     <div class="help-grid help-grid--three">
       ${renderCard('Loot', 'Cada token sellado vale 25 cred en el buffer de run. Solo se cobra al cerrar la run.')}
-      ${renderCard('Reward', 'Recompensa = tier del host + payload + loot + escape + bonus de score. Dumped mantiene un suelo de 12 cred.')}
+      ${renderCard('Reward', 'Recompensa = tier del host + payload + loot + escape + bonus de score. Dumped paga 0 cred, pero conserva score y log.')}
       ${renderCard('Sync', 'Al conectar Nexus, deck, identidad, bookmarks y progreso se sincronizan con la cuenta.')}
     </div>
   </div>`;
