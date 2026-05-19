@@ -10,6 +10,7 @@ const helpTabs = [
   { key: 'run', label: 'Run' },
   { key: 'damage', label: 'Daño' },
   { key: 'stats', label: 'Stats' },
+  { key: 'upgrades', label: 'Mejoras' },
   { key: 'programs', label: 'Programas' },
   { key: 'ice', label: 'ICE' },
   { key: 'deck', label: 'Deck' },
@@ -65,6 +66,27 @@ const eventMechanics = {
   core: 'Extract completa el objetivo principal. Núcleo da 3 tokens y suele añadir más ALERTA que data/database.',
   exit: 'Jack out desde salida asegura la run. Entrada y salida son puntos seguros para desconectar.',
 };
+
+const attributeUpgradeHelp = [
+  ['Pulse', 'Más fuerza para Spike', 'Hace más probable romper ICE y puertas. Con fuerza 3+ las puertas no suman alerta; contra ICE también reduce el ruido del Spike exitoso.'],
+  ['Veil', 'Más margen contra TRAZA', 'Sube el máximo de TRAZA en los cortes de L3 y L5. Además aumenta la limpieza de Ghost cuando se combina con Ghost alto.'],
+  ['Lens', 'Más lectura y mejor extracción', 'Con Scan revela nodos extra; con Extract mejora finesse, baja el ruido al extraer y castiga menos si detectas tarde un señuelo.'],
+  ['Shell', 'Más vida y mejor Shield', 'Cada nivel suma +1 SHELL máxima. También alarga Shield cuando Shell + Shield cruza los cortes de duración.'],
+];
+
+const programUpgradeHelp = [
+  ['Scan', 'Explorar antes de saltar', 'Subirlo junto a Lens aumenta los nodos revelados por acción. Es la mejora para mapas menos ciegos y menos scans muertos.'],
+  ['Spike', 'Abrir y tumbar defensas', 'Subirlo junto a Pulse aumenta fuerza: más ICE neutralizado, puertas más limpias y menos alerta al acertar contra defensa activa.'],
+  ['Ghost', 'Bajar firma', 'Subirlo junto a Veil aumenta cuánto limpias de ALERTA/TRAZA por uso, hasta 3. En cámaras sigue resolviendo sin quemar SHELL.'],
+  ['Shield', 'Comprar tiempo', 'Subirlo junto a Shell aumenta la duración. Cada pulso extra puede absorber trampas, suavizar ICE y reducir dump shock.'],
+  ['Extract', 'Cobrar con menos ruido', 'Subirlo junto a Lens baja la alerta al extraer, mejora el manejo de señuelos y ayuda a sacar payload sin disparar la convergencia.'],
+];
+
+const hardwareUpgradeHelp = [
+  ['Memoria', 'Más payload por run', 'Capacidad = 3 + Memoria x2. L1 guarda 5 tokens; L5 guarda 13. Si el buffer se llena, Extract aborta aunque el nodo tenga loot.'],
+  ['Bookmarks', 'Más hosts guardados', 'Capacidad = 2 + Bookmarks. Sirve para conservar objetivos interesantes y volver luego con un deck más fuerte.'],
+  ['Deck L', 'Lectura de progreso', 'El nivel del deck sube con atributos y programas. Ahora mismo no da un bonus oculto: los efectos reales vienen de cada mejora concreta.'],
+];
 
 export function renderSettingsOverlay(isOpen, audioState = {}, activeTheme = 'black', cloudState = null, deckProfile = null) {
   if (!isOpen) return '';
@@ -268,6 +290,7 @@ function volumePercent(value, fallback) {
 function renderHelpTab(tab) {
   if (tab === 'damage') return renderDamageHelp();
   if (tab === 'stats') return renderStatsHelp();
+  if (tab === 'upgrades') return renderUpgradeHelp();
   if (tab === 'programs') return renderProgramHelp();
   if (tab === 'ice') return renderIceHelp();
   if (tab === 'deck') return renderDeckHelp();
@@ -332,6 +355,30 @@ function renderStatsHelp() {
   </div>`;
 }
 
+function renderUpgradeHelp() {
+  return `<div class="help-section">
+    <div class="help-callout">
+      <strong>Cred invertido = presión controlada</strong>
+      <span>Las mejoras no hacen la run automática: cambian márgenes concretos. Sube el atributo y el programa que comparten fórmula cuando quieras notar un salto táctico claro.</span>
+    </div>
+    <h3>Atributos</h3>
+    <div class="help-grid">${attributeUpgradeHelp.map(([label, hook, description]) => renderCard(`${label} // ${hook}`, description)).join('')}</div>
+    <h3>Programas</h3>
+    <div class="help-grid">${programUpgradeHelp.map(([label, hook, description]) => renderCard(`${label} // ${hook}`, description)).join('')}</div>
+    <h3>Piezas y hardware</h3>
+    <div class="help-grid help-grid--three">${hardwareUpgradeHelp.map(([label, hook, description]) => renderCard(`${label} // ${hook}`, description)).join('')}</div>
+    <h3>Qué subir si...</h3>
+    <div class="help-grid help-grid--three">
+      ${renderCard('Te tumba el ICE', 'Pulse + Spike para neutralizar; Shell + Shield si el problema es sobrevivir al golpe.')}
+      ${renderCard('Te caza la TRAZA', 'Veil + Ghost para más margen y limpiezas más fuertes antes de presión alta.')}
+      ${renderCard('Dejas loot atrás', 'Memoria primero; luego Lens + Extract para cobrar con menos ruido.')}
+      ${renderCard('El mapa sale ciego', 'Lens + Scan para revelar más rutas por acción y gastar menos turnos buscando.')}
+      ${renderCard('Quieres farmear hosts', 'Bookmarks guarda objetivos buenos; el deck mejorado vuelve con más capacidad y menos riesgo.')}
+      ${renderCard('No sabes qué comprar', 'Mejora parejas: atributo + programa. Un solo nivel aislado ayuda, pero los cortes buenos llegan por suma.')}
+    </div>
+  </div>`;
+}
+
 function renderDeckHelp() {
   const stats = Object.values(deckStatCatalog)
     .map((stat) => renderCard(stat.label, stat.description))
@@ -346,7 +393,7 @@ function renderDeckHelp() {
   return `<div class="help-section">
     <div class="help-callout">
       <strong>Progresión</strong>
-      <span>Las runs dan cred. Gástalo en chasis y programas: un deck mejor permite asumir hosts más valiosos, pero no cancela la alerta.</span>
+      <span>Las runs dan cred. Gástalo en hardware, atributos y programas: un deck mejor permite asumir hosts más valiosos, pero no cancela la alerta.</span>
     </div>
     <h3>Piezas</h3>
     <div class="help-grid">${parts}</div>
