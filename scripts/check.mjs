@@ -573,6 +573,7 @@ if (!deckOverlayHtml.includes('deck-software-grid')) throw new Error('Deck softw
 if (!deckOverlayHtml.includes('/assets/stats/stat-pulse.svg')) throw new Error('Deck stats should use custom SVG icons');
 const mapActionHtml = renderNodeMap(projectSystemForRun(iceSystem, createInitialRunState(iceSystem)), createInitialRunState(iceSystem));
 if (!mapActionHtml.includes('node-map__actions') || !mapActionHtml.includes('data-action="toggleSettings"') || !mapActionHtml.includes('node-map__avatar-settings')) throw new Error('Node map should expose settings avatar next to jack-out');
+if (!mapActionHtml.includes('node-map__meters') || !mapActionHtml.includes('ALERTA') || !mapActionHtml.includes('node-map-meter__icon') || !mapActionHtml.includes('data-meter-ratio') || !themeSource.includes('.node-map__actions') || !themeSource.includes('top: 10px') || !themeSource.includes('grid-template-columns: repeat(3, minmax(0, 1fr))') || !themeSource.includes('grid-template-areas: "icon bar"') || !themeSource.includes('mapMeterFillProgress')) throw new Error('Node map should keep actions top-right and render pressure meters as a bottom icon row with animated bar values');
 if (mapActionHtml.includes('data-action="toggleMusic"') || mapActionHtml.includes('data-action="toggleSfx"')) throw new Error('Audio controls should live inside settings, not the main HUD');
 if (!renderNodeMap(projectSystemForRun(iceSystem, { ...jackOutRun, selectedProgram: 'scan', disabledPrograms: [] }), { ...jackOutRun, selectedProgram: 'scan', disabledPrograms: [] }, undefined, null, null, true).includes('disabled')) throw new Error('Finished runs should disable jack-out controls');
 if (!renderProgramDock({ ...jackOutRun, selectedProgram: 'scan', disabledPrograms: [] }, true).includes('program-dock--inactive')) throw new Error('Finished runs should fade and disable program controls');
@@ -684,6 +685,31 @@ if (cleanedDecoyExtractRun.hasPayload) throw new Error('Cleaned decoys should st
 const decoyExtractRun = reduceRun(eventSystem, { ...eventInitialRun, currentNodeId: 'n-2', nodeStates: { ...eventInitialRun.nodeStates, 'n-2': 'visited' } }, { type: 'runProgram', program: 'extract' });
 if (decoyExtractRun.hasPayload) throw new Error('Extracting a decoy should not grant payload');
 if (decoyExtractRun.alert < 2 || decoyExtractRun.trace < 1) throw new Error('Extracting a decoy should raise alert and trace');
+
+const scanSpamSystem = {
+  ...eventSystem,
+  entryNodeId: 'n-0',
+  nodes: [
+    { id: 'n-0', kind: 'entry', state: 'visited', x: 10, y: 50, risk: 1 },
+    { id: 'n-1', kind: 'camera', state: 'visited', x: 26, y: 50, risk: 1 },
+    { id: 'n-2', kind: 'data', state: 'unknown', x: 42, y: 50, risk: 1 },
+    { id: 'n-3', kind: 'data', state: 'unknown', x: 58, y: 50, risk: 1 },
+    { id: 'n-4', kind: 'data', state: 'unknown', x: 74, y: 50, risk: 1 },
+    { id: 'n-5', kind: 'data', state: 'unknown', x: 90, y: 50, risk: 1 },
+  ],
+  edges: [
+    { from: 'n-1', to: 'n-2' },
+    { from: 'n-2', to: 'n-3' },
+    { from: 'n-2', to: 'n-4' },
+    { from: 'n-2', to: 'n-5' },
+  ],
+};
+const boostedScanDeck = { deck: { lens: 3 }, programs: { scan: 3 } };
+const scanSpamInitial = { ...createInitialRunState(scanSpamSystem), currentNodeId: 'n-1', nodeStates: { 'n-0': 'visited', 'n-1': 'visited', 'n-2': 'unknown', 'n-3': 'unknown', 'n-4': 'unknown', 'n-5': 'unknown' } };
+const usefulScanRun = reduceRun(scanSpamSystem, scanSpamInitial, { type: 'runProgram', program: 'scan' }, boostedScanDeck);
+if (usefulScanRun.alert !== scanSpamInitial.alert || !usefulScanRun.scannedFromNodeIds.includes('n-1')) throw new Error('First useful scan from a node should reveal cleanly and remember the scan origin');
+const repeatedUsefulScanRun = reduceRun(scanSpamSystem, usefulScanRun, { type: 'runProgram', program: 'scan' }, boostedScanDeck);
+if (repeatedUsefulScanRun.alert <= usefulScanRun.alert || !repeatedUsefulScanRun.log.at(-1).includes('Scan repetido')) throw new Error('Repeated scans from the same node should raise alert even when they still reveal nodes');
 
 const gateRun = reduceRun(eventSystem, { ...eventInitialRun, currentNodeId: 'n-3', nodeStates: { ...eventInitialRun.nodeStates, 'n-3': 'visited' } }, { type: 'runProgram', program: 'spike' });
 if (!gateRun.resolvedEvents.includes('n-3')) throw new Error('Spike should resolve gate events');

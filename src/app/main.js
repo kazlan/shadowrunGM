@@ -204,12 +204,13 @@ function render() {
   const themeRun = appState.run;
   const dangerTheme = getDangerTheme(themeRun);
   const signalFxClass = getSignalFxClass(dangerTheme.level, themeRun.status, shockActive);
+  const previousMapMeters = readVisibleMapMeters();
   root.innerHTML = `<main class="app-shell ${signalFxClass}" style="--host-bg: url('${backgroundUrl}'); --danger-level: ${dangerTheme.level}; --danger-color: ${dangerTheme.color}; --danger-border: ${dangerTheme.border}; --danger-glow: ${dangerTheme.glow}">
     ${shockActive ? renderDisconnectFilter() : ''}
     <div class="scanline"></div>
     <div class="crt-vignette"></div>
     ${renderHud(runtimeSystem, appState.run, finished, appState.deckProfile.player)}
-    ${renderNodeMap(runtimeSystem, appState.run, appState.mapView, getVisibleMapLogMessage(), appState.runResult, resultVisible, appState.nodeVisit, getVisibleMapReveal(), appState.deckProfile.player, appState.isRunLogOpen)}
+    ${renderNodeMap(runtimeSystem, appState.run, appState.mapView, getVisibleMapLogMessage(), appState.runResult, resultVisible, appState.nodeVisit, getVisibleMapReveal(), appState.deckProfile.player, appState.isRunLogOpen, previousMapMeters)}
     ${renderProgramDock(appState.run, finished, appState.nodeVisit?.recommendedProgram, appState.deckProfile)}
     ${postRunPanelVisible ? renderPostRunScannerPanel(appState.runResult, appState.completion, appState.deckProfile) : ''}
     ${renderDeckTrace(appState.deckProfile, appState.run, appState.deckMessage, getDeckTraceView())}
@@ -228,6 +229,17 @@ function render() {
   </main>`;
 
   bindEvents();
+}
+
+function readVisibleMapMeters() {
+  if (!root) return null;
+  const meters = {};
+  root.querySelectorAll('.node-map-meter[data-meter-kind]').forEach((meter) => {
+    const kind = meter.dataset.meterKind;
+    const ratio = Number(meter.dataset.meterRatio);
+    if (kind && Number.isFinite(ratio)) meters[kind] = Math.max(0, Math.min(1, ratio));
+  });
+  return Object.keys(meters).length > 0 ? meters : null;
 }
 
 function getSignalFxClass(level, status, disconnectGlitchActive = false) {
@@ -772,7 +784,6 @@ function startNodeVisit(nodeId, previousRun, nextRun, options = {}) {
     scheduleNodeVisitAutoClear(visitId);
     return true;
   }
-  render();
   return true;
 }
 

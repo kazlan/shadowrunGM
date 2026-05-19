@@ -54,6 +54,8 @@ function scan(system, run, deckProfile = null) {
   const currentNode = getCurrentNode(system, run);
   const currentEvent = getActiveEvent(run, currentNode);
   const nextNodeStates = { ...run.nodeStates };
+  const previousScanNodeIds = run.scannedFromNodeIds ?? [];
+  const repeatedNodeScan = currentNode ? previousScanNodeIds.includes(currentNode.id) : false;
   const bonusReveals = Math.max(0, Math.floor((getStatLevel(deckProfile, 'lens') + getProgramLevel(deckProfile, 'scan') - 2) / 2));
   let revealed = 0;
 
@@ -77,9 +79,12 @@ function scan(system, run, deckProfile = null) {
   }
 
   const resolvesDecoy = currentEvent?.kind === 'decoy';
+  const noisyScan = !resolvesDecoy && (revealed === 0 || repeatedNodeScan);
   const scanMessage = resolvesDecoy
     ? `Scan identifica un señuelo en ${nodeLabel(currentNode)} y lo saca del mapa útil.`
-    : revealed > 0
+    : repeatedNodeScan && revealed > 0
+      ? `Scan repetido revela ${revealed} nodo(s), pero la firma sube.`
+      : revealed > 0
       ? `Scan revela ${revealed} nodo(s) cercano(s).`
       : 'Scan sin nuevas rutas. La firma sube.';
 
@@ -87,8 +92,9 @@ function scan(system, run, deckProfile = null) {
     {
       ...run,
       nodeStates: nextNodeStates,
+      scannedFromNodeIds: currentNode ? unique([...previousScanNodeIds, currentNode.id]) : previousScanNodeIds,
       resolvedEvents: resolvesDecoy ? unique([...(run.resolvedEvents ?? []), currentNode.id]) : run.resolvedEvents,
-      alert: clamp(run.alert + (revealed === 0 && !resolvesDecoy ? 1 : 0), 0, run.maxAlert),
+      alert: clamp(run.alert + (noisyScan ? 1 : 0), 0, run.maxAlert),
       log: appendLog(run.log, scanMessage),
     },
     system,

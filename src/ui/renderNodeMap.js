@@ -24,7 +24,7 @@ const nodeGlyph = {
   exit: '↑',
 };
 
-export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, height: 100 }, mapMessage = null, runResult = null, showResult = true, nodeVisit = null, mapReveal = null, player = null, runLogOpen = false) {
+export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, height: 100 }, mapMessage = null, runResult = null, showResult = true, nodeVisit = null, mapReveal = null, player = null, runLogOpen = false, previousMeters = null) {
   if (showResult && (run.status === 'escaped' || run.status === 'dumped')) {
     return renderRunResultWindow(system, run, runResult, player, runLogOpen);
   }
@@ -51,7 +51,7 @@ export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, h
       <strong class="fx-glitch" data-text="${escapeHtml(system.alias)}">${escapeHtml(system.alias)}</strong>
       <small>${escapeHtml(system.company.name)} · Seg ${system.effectiveSecurity ?? system.archetype.security}</small>
     </div>
-    ${renderMapMeters(run)}
+    ${renderMapMeters(run, previousMeters)}
     ${renderMapActions(run, false, player)}
     ${renderMapMessage(mapMessage)}
     ${renderRunLogDialog(runLogOpen, run)}
@@ -76,19 +76,26 @@ export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, h
   </section>`;
 }
 
-function renderMapMeters(run) {
+function renderMapMeters(run, previousMeters = null) {
   return `<aside class="node-map__meters" aria-label="Estado de la run">
-    ${renderMapMeter('ALERTA', run.alert, run.maxAlert, 'alert')}
-    ${renderMapMeter('TRAZA', run.trace, run.maxTrace, 'trace')}
-    ${renderMapMeter('SHELL', run.integrity, run.maxIntegrity, 'integrity')}
+    ${renderMapMeter('ALERTA', run.alert, run.maxAlert, 'alert', previousMeters)}
+    ${renderMapMeter('TRAZA', run.trace, run.maxTrace, 'trace', previousMeters)}
+    ${renderMapMeter('SHELL', run.integrity, run.maxIntegrity, 'integrity', previousMeters)}
   </aside>`;
 }
 
-function renderMapMeter(label, value, max, kind) {
+function renderMapMeter(label, value, max, kind, previousMeters = null) {
   const percent = Math.round((value / max) * 100);
-  return `<div class="node-map-meter node-map-meter--${kind}">
-    <span>${label}</span>
-    <i style="--meter:${percent}%"></i>
+  const ratio = clampRatio(value / max);
+  const previousRatio = previousMeters?.[kind] ?? ratio;
+  const icon = {
+    alert: '!',
+    trace: '⌖',
+    integrity: '◆',
+  }[kind] ?? '•';
+  return `<div class="node-map-meter node-map-meter--${kind}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)} ${value} de ${max}" data-meter-kind="${kind}" data-meter-ratio="${formatNumber(ratio)}">
+    <span class="node-map-meter__icon" aria-hidden="true">${escapeHtml(icon)}</span>
+    <i style="--meter:${percent}%; --meter-ratio:${formatNumber(ratio)}; --meter-from-ratio:${formatNumber(previousRatio)}"></i>
     <strong>${value}/${max}</strong>
   </div>`;
 }
@@ -424,6 +431,11 @@ function normalizeMapIdentity(player) {
 
 function formatNumber(value) {
   return Number(value).toFixed(2).replace(/\.?0+$/, '');
+}
+
+function clampRatio(value) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(1, value));
 }
 
 function isNodeReachable(system, run, nodeId) {

@@ -38,6 +38,7 @@ export function createInitialRunState(system, deckProfile = null) {
     disabledPrograms: [],
     neutralizedIce: [],
     resolvedEvents: [],
+    scannedFromNodeIds: [],
     shieldTurns: 0,
     alert: 0,
     trace: 0,

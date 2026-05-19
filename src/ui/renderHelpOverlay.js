@@ -34,7 +34,7 @@ const statHelp = [
 
 const damageHelp = [
   ['Mover a nodo escaneado', '+1 ALERTA', 'Solo al entrar por primera vez en un nodo en estado SCANNED. Revisitar no suma ruido.'],
-  ['Scan sin rutas nuevas', '+1 ALERTA', 'Si no revela nada y no limpia un señuelo, tu firma sube.'],
+  ['Scan repetido o ciego', '+1 ALERTA', 'El primer scan útil desde un nodo puede ser limpio; repetirlo desde el mismo nodo o no revelar nada sube firma.'],
   ['Presión alta', '+1 TRAZA/turno', 'Cuando ALERTA está en 7 o más, cada turno que avanza añade traza.'],
   ['Jack out lejos de salida', '-3 SHELL, +1 TRAZA', 'Dump shock. Con Shield activo el daño baja a -1 SHELL.'],
   ['Spike contra ICE falla', '+3 ALERTA, -2 SHELL', 'El retorno hostil golpea shell. El éxito también hace ruido, pero menos.'],
@@ -50,7 +50,7 @@ const statMechanics = [
 ];
 
 const programMechanics = {
-  scan: 'Revela nodos conectados. Con Lens + Scan altos revela nodos a un salto extra. Si el nodo tiene señuelo, lo aísla. Si no revela nada, +1 ALERTA.',
+  scan: 'Revela nodos conectados. Con Lens + Scan altos revela nodos a un salto extra. Si el nodo tiene señuelo, lo aísla. Repetirlo desde el mismo nodo o no revelar nada suma +1 ALERTA.',
   spike: 'Ataca ICE y fuerza puertas. Contra ICE: éxito si ALERTA + riesgo del nodo <= 12 + fuerza, o si Shield está activo. Fallar causa retorno hostil.',
   ghost: 'Ciega cámaras sin coste de shell. Si no hay cámara, reduce ALERTA y TRAZA quemando 1 SHELL. No actúa si no hay firma que ocultar.',
   shield: 'Activa protección durante varios turnos. Absorbe trampas, reduce daño de Piercer/Tracer/Crasher y reduce dump shock fuera de salida.',

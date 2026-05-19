@@ -696,7 +696,7 @@ button:focus-visible {
   top: 8px;
   left: 10px;
   z-index: 5;
-  max-width: calc(100% - 118px);
+  max-width: calc(100% - 220px);
   pointer-events: none;
   text-shadow: 0 0 12px var(--shadow-strong);
 }
@@ -722,45 +722,78 @@ button:focus-visible {
 }
 .node-map__meters {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  right: 10px;
+  bottom: 4px;
+  left: 10px;
   z-index: 6;
   display: grid;
-  width: min(134px, 42vw);
-  gap: 4px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 2px;
   pointer-events: none;
   text-shadow: 0 0 10px var(--shadow-strong);
 }
 .node-map-meter {
+  --meter-accent: var(--cyan);
+  --meter-glow: rgba(51, 255, 204, .22);
   display: grid;
-  grid-template-columns: 44px minmax(38px, 1fr) auto;
+  grid-template-columns: 26px minmax(54px, 1fr);
+  grid-template-areas: "icon bar";
   align-items: center;
   gap: 5px;
-  min-height: 12px;
-  color: var(--text-strong);
+  min-height: 26px;
+  min-width: 0;
+  color: var(--meter-accent);
 }
-.node-map-meter span {
-  color: var(--muted);
-  font-size: .48rem;
+.node-map-meter__icon {
+  grid-area: icon;
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  color: var(--meter-accent);
+  font-size: .98rem;
   font-weight: 900;
-  letter-spacing: .08em;
+  line-height: 1;
+  text-shadow: 0 0 10px var(--meter-glow), 0 0 6px currentColor;
 }
 .node-map-meter strong {
-  min-width: 27px;
+  grid-area: bar;
+  z-index: 1;
+  justify-self: center;
   color: var(--text-strong);
-  font-size: .52rem;
+  font-size: .72rem;
   line-height: 1;
-  text-align: right;
+  text-align: center;
+  text-shadow: 0 0 9px rgba(0, 0, 0, .9), 0 0 8px currentColor;
 }
 .node-map-meter i {
+  grid-area: bar;
+  position: relative;
   display: block;
-  height: 3px;
-  background: linear-gradient(90deg, var(--cyan) var(--meter), rgba(131, 166, 181, .22) var(--meter));
-  box-shadow: 0 0 8px rgba(51, 255, 204, .22);
+  width: 100%;
+  height: 12px;
+  overflow: hidden;
+  background: rgba(131, 166, 181, .2);
+  box-shadow: 0 0 8px var(--meter-glow), inset 0 0 8px rgba(0, 0, 0, .28);
 }
-.node-map-meter--alert i { background: linear-gradient(90deg, var(--red) var(--meter), rgba(131, 166, 181, .22) var(--meter)); box-shadow: 0 0 8px rgba(255, 61, 110, .24); }
-.node-map-meter--trace i { background: linear-gradient(90deg, var(--magenta) var(--meter), rgba(131, 166, 181, .22) var(--meter)); box-shadow: 0 0 8px rgba(255, 61, 242, .22); }
-.node-map-meter--integrity i { background: linear-gradient(90deg, var(--yellow) var(--meter), rgba(131, 166, 181, .22) var(--meter)); box-shadow: 0 0 8px rgba(248, 214, 109, .22); }
+.node-map-meter i::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--meter-accent);
+  box-shadow: 0 0 10px var(--meter-glow);
+  transform: scaleX(var(--meter-ratio));
+  transform-origin: left center;
+  animation: mapMeterFillProgress .56s cubic-bezier(.16, 1, .3, 1) both;
+}
+.node-map-meter--alert { --meter-accent: var(--red); --meter-glow: rgba(255, 61, 110, .28); }
+.node-map-meter--trace { --meter-accent: var(--magenta); --meter-glow: rgba(255, 61, 242, .24); }
+.node-map-meter--integrity { --meter-accent: #4aa3ff; --meter-glow: rgba(74, 163, 255, .3); }
+@keyframes mapMeterFillProgress {
+  from { transform: scaleX(var(--meter-from-ratio)); }
+  to { transform: scaleX(var(--meter-ratio)); }
+}
 .node-map__log-button {
   position: relative;
   z-index: 1;
@@ -786,7 +819,7 @@ button:focus-visible {
 .node-map__message {
   position: absolute;
   top: 58px;
-  right: 150px;
+  right: 10px;
   left: 10px;
   z-index: 7;
   height: 22px;
@@ -866,10 +899,10 @@ button:focus-visible {
 .node-focus-hud {
   position: absolute;
   left: 12px;
-  bottom: 8px;
+  bottom: 36px;
   z-index: 8;
   box-sizing: border-box;
-  width: min(330px, calc(100% - 190px));
+  width: min(360px, calc(100% - 250px));
   min-height: 58px;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -1030,9 +1063,9 @@ button:focus-visible {
 .node-focus-hud--failed .node-focus-hud__stamp { color: var(--red); }
 @media (max-width: 640px) {
   .node-focus-hud {
-    bottom: 4px;
+    bottom: 40px;
     left: 8px;
-    width: min(320px, calc(100% - 176px));
+    width: calc(100% - 16px);
     min-height: 58px;
     grid-template-columns: minmax(0, 1fr);
     gap: 6px;
@@ -1339,8 +1372,8 @@ button:focus-visible {
 
 .node-map__actions {
   position: absolute;
+  top: 10px;
   right: 10px;
-  bottom: 10px;
   z-index: 8;
   display: flex;
   gap: 6px;
@@ -3509,6 +3542,7 @@ body.is-landing-page .landing-play h2 {
   .node--visit-resolved .node__burst,
   .node--visit-failed .node__burst,
   .node--current .node__frame--aura,
+  .node-map-meter i::before,
   .app-shell--disconnect-glitch .fx-glitch::before,
   .app-shell--disconnect-glitch .fx-glitch::after,
   :where(.run-log, .post-run-panel, .result-message)::after,
@@ -3543,15 +3577,17 @@ body.is-landing-page .landing-play h2 {
   .program-card__body small { display: none; }
   .program-card__rec { top: 4px; right: 4px; font-size: .38rem; }
   .node-map { flex-basis: 260px; min-height: 220px; }
-  .node-map__meters { top: 6px; right: 6px; width: min(116px, 48vw); gap: 3px; }
-  .node-map-meter { grid-template-columns: 38px minmax(30px, 1fr) auto; gap: 4px; }
-  .node-map-meter span { font-size: .42rem; }
-  .node-map-meter strong { min-width: 24px; font-size: .46rem; }
+  .node-map__heading { max-width: calc(100% - 172px); }
+  .node-map__meters { right: 6px; bottom: 4px; left: 6px; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 0; }
+  .node-map-meter { grid-template-columns: 19px minmax(28px, 1fr); grid-template-areas: "icon bar"; gap: 3px; min-height: 20px; }
+  .node-map-meter__icon { width: 19px; height: 19px; font-size: .72rem; }
+  .node-map-meter strong { min-width: 0; font-size: .5rem; text-align: center; justify-self: center; }
+  .node-map-meter i { width: 100%; height: 9px; }
   .node-map__log-button { flex-basis: 50px; height: 34px; padding: 0 7px; }
-  .node-map__actions { right: 6px; bottom: 6px; gap: 4px; }
+  .node-map__actions { top: 6px; right: 6px; gap: 4px; }
   .node-map__jack-out { min-width: 64px; min-height: 34px; padding: 0 7px; font-size: .54rem; }
   .node-map__avatar-settings { width: 34px; height: 34px; }
-  .node-map__message { top: 49px; right: 122px; left: 8px; height: 22px; }
+  .node-map__message { top: 49px; right: 8px; left: 8px; height: 22px; }
   .node-map__message-text { font-size: .9rem; }
   .scan-local { min-height: 34px; font-size: .68rem; }
   .deck-trace button { min-height: 32px; padding: 6px 7px; }
