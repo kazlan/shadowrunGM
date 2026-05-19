@@ -24,14 +24,6 @@ const nodeGlyph = {
   exit: '↑',
 };
 
-const avatarGlyphs = {
-  ghost: 'GH',
-  spark: 'SP',
-  cipher: 'CI',
-  vector: 'VX',
-  null: 'N0',
-};
-
 export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, height: 100 }, mapMessage = null, runResult = null, showResult = true, nodeVisit = null, mapReveal = null, player = null, runLogOpen = false) {
   if (showResult && (run.status === 'escaped' || run.status === 'dumped')) {
     return renderRunResultWindow(system, run, runResult, player, runLogOpen);
@@ -418,13 +410,12 @@ function renderMapActions(run, finished = false, player = null) {
     <button class="jack-out node-map__jack-out" data-action="jackOut" type="button" ${finished ? 'disabled' : ''}>Jack out</button>
     <button class="node-map__avatar-settings runner-id--${escapeHtml(identity.avatar)}" data-action="toggleSettings" type="button" aria-label="${escapeHtml(`Abrir ajustes de ${identity.shadowName}`)}" title="${escapeHtml(identity.shadowName)}">
       <img src="${escapeHtml(avatar)}" alt="" loading="lazy" />
-      <b>${escapeHtml(avatarGlyphs[identity.avatar] ?? 'GH')}</b>
     </button>
   </div>`;
 }
 
 function normalizeMapIdentity(player) {
-  const avatar = Object.hasOwn(avatarGlyphs, player?.avatar) ? player.avatar : 'ghost';
+  const avatar = assetPaths.avatars[player?.avatar] ? player.avatar : 'ghost';
   return {
     shadowName: String(player?.shadowName || 'NEON GHOST').slice(0, 24),
     avatar,

@@ -1,3 +1,4 @@
+import { assetPaths } from '../assets/assetRegistry.js';
 import { programs } from '../game/programCatalog.js';
 import { nodeEvents } from '../game/nodeEvents.js';
 import { avatarCatalog, deckStatCatalog } from '../world/deckStore.js';
@@ -71,7 +72,7 @@ function renderIdentityControl(deckProfile) {
   const player = deckProfile?.player ?? { shadowName: 'NEON GHOST', avatar: 'ghost' };
   const avatars = avatarCatalog
     .map((avatar) => `<button class="${avatar.key === player.avatar ? 'is-active' : ''}" data-avatar-option="${escapeHtml(avatar.key)}" type="button" aria-pressed="${avatar.key === player.avatar ? 'true' : 'false'}" title="${escapeHtml(avatar.label)}">
-      <b>${escapeHtml(avatar.glyph)}</b>
+      <img src="${escapeHtml(avatarImagePath(avatar.key))}" alt="" loading="lazy" />
       <span>${escapeHtml(avatar.label)}</span>
     </button>`)
     .join('');
@@ -99,7 +100,7 @@ function renderCloudControl(cloudState, deckProfile) {
 
   return `<div class="settings-cloud settings-cloud--${connected ? 'connected' : 'signed-out'}" aria-label="Conexion Nexus">
     <div class="settings-cloud__header">
-      <span class="settings-cloud__avatar">${escapeHtml(avatar.glyph)}</span>
+      <span class="settings-cloud__avatar"><img src="${escapeHtml(avatarImagePath(avatar.key))}" alt="" loading="lazy" /></span>
       <div>
         <h3>Conectar deck a Nexus</h3>
         <strong>${escapeHtml(player.shadowName)}</strong>
@@ -109,6 +110,10 @@ function renderCloudControl(cloudState, deckProfile) {
     <p>${escapeHtml(status)}</p>
     ${connected ? renderConnectedCloudActions(state, disabled) : renderSignedOutCloudActions(disabled)}
   </div>`;
+}
+
+function avatarImagePath(key) {
+  return assetPaths.avatars[key] ?? assetPaths.avatars.ghost;
 }
 
 function renderSignedOutCloudActions(disabled) {

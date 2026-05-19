@@ -3,6 +3,12 @@ import { readFile } from 'node:fs/promises';
 const requiredFiles = [
   'index.html',
   '.env.example',
+  'firebase.json',
+  'functions/package.json',
+  'functions/.env.example',
+  'functions/index.js',
+  'functions/src/targetSearch.js',
+  'functions/test/targetSearch.test.mjs',
   'public/manifest.webmanifest',
   'public/service-worker.js',
   'src/app/main.js',
@@ -20,6 +26,8 @@ const requiredFiles = [
   'public/assets/ui/source-world.svg',
   'public/assets/ui/source-sandbox.svg',
   'public/assets/characters/decker-placeholder.svg',
+  'public/assets/avatars/avatar-runner-01.png',
+  'public/assets/avatars/avatar-runner-36.png',
   'public/assets/defenses/ice-watcher.svg',
   'public/assets/programs/program-scan.svg',
   'public/assets/stats/stat-pulse.svg',
@@ -80,6 +88,10 @@ const manifest = JSON.parse(await readFile('public/manifest.webmanifest', 'utf8'
 if (manifest.orientation !== 'portrait') throw new Error('Manifest orientation must be portrait');
 if (!['fullscreen', 'standalone'].includes(manifest.display)) throw new Error('Manifest display must be fullscreen or standalone');
 const mainSource = await readFile('src/app/main.js', 'utf8');
+const envExample = await readFile('.env.example', 'utf8');
+const firebaseJson = JSON.parse(await readFile('firebase.json', 'utf8'));
+if (!firebaseJson.functions?.source || firebaseJson.functions.source !== 'functions') throw new Error('Firebase config should deploy the backend Functions source');
+if (!envExample.includes('VITE_TARGETS_ENDPOINT=')) throw new Error('Env example should expose optional targets backend endpoint');
 const authSource = await readFile('src/firebase/authClient.js', 'utf8');
 if (authSource.includes('signInWithPopup') || !authSource.includes('signInWithRedirect') || !authSource.includes('linkWithRedirect') || !authSource.includes('getRedirectResult')) {
   throw new Error('Google auth should use redirect flow and support guest-to-Google linking');
@@ -93,6 +105,12 @@ if (!locationSource.includes('getGeolocationPermissionState') || !locationSource
 const overpassSource = await readFile('src/world/overpassProvider.js', 'utf8');
 if (!overpassSource.includes('nwr["name"]["tourism"]') || !overpassSource.includes('nwr["name"]["healthcare"]') || !mainSource.includes('EXPANDED_SCAN_RADIUS')) throw new Error('Local scanner should broaden OSM target searches before using demo fallback');
 if (!mainSource.includes('VALENCIA_TEST_POSITION') || !mainSource.includes('MIN_SCANNER_TARGETS') || !mainSource.includes('fillWithSandboxTargets')) throw new Error('Local scanner should use Valencia in local testing and fill short OSM result sets with sandbox targets');
+if (!mainSource.includes('VITE_TARGETS_ENDPOINT') || !mainSource.includes('searchBackendTargets') || !mainSource.includes('searchOverpassPlaces')) throw new Error('Scanner should try the targets backend before falling back to direct Overpass');
+if (!mainSource.includes('scheduleTargetPrefetchForRun') || !mainSource.includes('SCANNER_PREFETCH_LIMIT')) throw new Error('Scanner should prefetch a small number of target zones during runs');
+const functionsSource = await readFile('functions/src/targetSearch.js', 'utf8');
+if (!functionsSource.includes('placesCache') || !functionsSource.includes('fetchGeoapifyPlaces') || !functionsSource.includes('createCacheKey')) throw new Error('Targets backend should cache zones and include Geoapify fallback');
+const functionsIndexSource = await readFile('functions/index.js', 'utf8');
+if (!functionsIndexSource.includes('defineSecret') || !functionsIndexSource.includes('GEOAPIFY_API_KEY') || functionsIndexSource.includes('f9d6')) throw new Error('Geoapify key should be a backend secret, never committed');
 const themeSource = await readFile('src/styles/theme.css', 'utf8');
 if (!themeSource.includes('--scrollbar-thumb') || !themeSource.includes('::-webkit-scrollbar-thumb') || !themeSource.includes('scrollbar-color')) throw new Error('Theme CSS should style scrollbars consistently');
 if (!themeSource.includes('--button-crt-line') || !themeSource.includes('datastreamSlide') || !themeSource.includes('button:focus-visible')) throw new Error('Theme CSS should keep Cybercore-inspired micro styles available');
@@ -236,6 +254,7 @@ const { renderHud, renderProgramDock } = await import('../src/ui/renderHud.js');
 const { renderPostRunScannerPanel, renderRunLogDialog } = await import('../src/ui/renderRunLog.js');
 const { renderScannerOverlay } = await import('../src/ui/renderScannerOverlay.js');
 const { applyTheme, normalizeThemeKey, themeCatalog } = await import('../src/ui/themeStore.js');
+const { assetPaths } = await import('../src/assets/assetRegistry.js');
 const { firebaseFirestoreDatabaseId, getFirebaseConfig, isFirebaseConfigured, isFirebaseMessagingConfigured } = await import('../src/firebase/firebaseConfig.js');
 const { getFirebaseStatus } = await import('../src/firebase/firebaseClient.js');
 const { cloudPaths } = await import('../src/firebase/cloudPersistence.js');
@@ -292,7 +311,7 @@ const jackOutRun = reduceRun(jackOutSystem, createInitialRunState(jackOutSystem)
 if (jackOutRun.status !== 'escaped') throw new Error('Jack-out from entry should escape instead of crashing');
 if (!Number.isFinite(scoreRun(jackOutSystem, jackOutRun))) throw new Error('Jack-out run score should be finite');
 const defaultDeck = createDefaultDeckProfile();
-if (defaultDeck.player.shadowName !== 'NEON GHOST' || avatarCatalog.length < 5) throw new Error('Default deck should include runner identity and avatar presets');
+if (defaultDeck.player.shadowName !== 'NEON GHOST' || avatarCatalog.length < 40 || !assetPaths.avatars.runner36) throw new Error('Default deck should include runner identity and avatar presets');
 const identityDeck = updatePlayerProfile(defaultDeck, { shadowName: 'HEX MANTA', avatar: 'cipher' });
 if (identityDeck.player.shadowName !== 'HEX MANTA' || identityDeck.player.avatar !== 'cipher') throw new Error('Runner identity updates should persist through deck normalization');
 const identityMapHtml = renderNodeMap(projectSystemForRun(jackOutSystem, createInitialRunState(jackOutSystem, identityDeck)), createInitialRunState(jackOutSystem, identityDeck), undefined, null, null, false, null, null, identityDeck.player);
@@ -302,6 +321,9 @@ if (!identityMapHtml.includes('HEX MANTA') || !identityMapHtml.includes('data-ac
 const identitySettingsHtml = renderSettingsOverlay(true, {}, 'black', null, identityDeck);
 if (!identitySettingsHtml.includes('data-shadow-name-input') || !identitySettingsHtml.includes('data-avatar-option="cipher"')) {
   throw new Error('Settings should expose runner identity editing');
+}
+if (!identitySettingsHtml.includes('/assets/avatars/avatar-runner-01.png') || !themeSource.includes('overflow-x: auto')) {
+  throw new Error('Settings should expose the PNG avatar strip as a horizontal scroller');
 }
 if (!identitySettingsHtml.includes('Conectar deck a Nexus') || !identitySettingsHtml.includes('data-action="signInGoogle"') || !identitySettingsHtml.includes('data-action="continueLocal"')) {
   throw new Error('Settings should render the Nexus connection panel with Google redirect and local continuation');
@@ -578,6 +600,7 @@ const scannerHtml = renderScannerOverlay({
   isOpen: true,
   places: [
     { provider: 'osm', providerId: 'node/1', name: 'Real Shop', category: 'shop', address: 'Calle Real 1' },
+    { provider: 'geoapify', providerId: 'geoapify/1', name: 'Geo Office', category: 'office', address: 'Geoapify Way' },
     { provider: 'manual', providerId: 'demo/1', name: 'Demo Shop', category: 'shop' },
   ],
   selectedPlace: { providerId: 'node/1' },
@@ -587,7 +610,7 @@ const scannerHtml = renderScannerOverlay({
   bookmarkCapacity: 3,
 });
 if (!scannerHtml.includes('/assets/ui/source-world.svg') || !scannerHtml.includes('/assets/ui/source-sandbox.svg')) throw new Error('Scanner should identify real world and sandbox host sources');
-if (!scannerHtml.includes('Mundo real') || !scannerHtml.includes('Sandbox') || !scannerHtml.includes('Calle Real 1')) throw new Error('Scanner should show source labels and real-world anchor data when available');
+if (!scannerHtml.includes('Mundo real') || !scannerHtml.includes('Geoapify') || !scannerHtml.includes('Sandbox') || !scannerHtml.includes('Calle Real 1')) throw new Error('Scanner should show source labels and real-world anchor data when available');
 if (!scannerHtml.includes('Proxy remoto')) throw new Error('Scanner bookmarks should be labelled as proxy scans');
 
 const fetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'fetch');

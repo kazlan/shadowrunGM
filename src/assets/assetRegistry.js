@@ -1,4 +1,10 @@
 const BASE = '/assets';
+const runnerAvatarPaths = Object.fromEntries(
+  Array.from({ length: 36 }, (_, index) => {
+    const id = String(index + 1).padStart(2, '0');
+    return [`runner${id}`, `${BASE}/avatars/avatar-runner-${id}.png`];
+  }),
+);
 
 export const assetPaths = {
   logo: `${BASE}/logos/logo-shadowhack.svg`,
@@ -52,6 +58,7 @@ export const assetPaths = {
     cipher: `${BASE}/avatars/avatar-cipher.png`,
     vector: `${BASE}/avatars/avatar-vector.png`,
     null: `${BASE}/avatars/avatar-null.png`,
+    ...runnerAvatarPaths,
   },
   stats: {
     pulse: `${BASE}/stats/stat-pulse.svg`,
