@@ -57,7 +57,7 @@ const NODE_VISIT_EMPTY_MS = 460;
 const NODE_VISIT_RESOLVE_MS = 1800;
 const DEBUG_LOG_LIMIT = 90;
 const DEBUG_LOG_STORAGE_KEY = 'shadowHack.debugLog';
-const EXPANDED_SCAN_RADIUS = 1500;
+const EXPANDED_SCAN_RADIUS = 3000;
 const MIN_SCANNER_TARGETS = 4;
 const SCANNER_BACKEND_LIMIT = 10;
 const SCANNER_PREFETCH_LIMIT = 3;
@@ -70,7 +70,7 @@ const appState = {
   selectedPlace: demoPlaces[0],
   system: null,
   run: null,
-  locationMessage: 'Objetivos demo cargados. Puedes activar scanner local cuando quieras.',
+  locationMessage: '',
   currentProgress: null,
   recentProgress: [],
   deckProfile: loadDeckProfile(),
@@ -643,7 +643,7 @@ async function scanLocalTargets() {
   void audioDirector.play('scanner');
 
   if (isLocalTestServer()) {
-    appState.locationMessage = 'Proxy local de pruebas activo: scanner centrado en Valencia.';
+    appState.locationMessage = 'Escaneando objetivos...';
     render();
     await scanFromPosition(VALENCIA_TEST_POSITION, 'Scanner local activo desde Valencia');
     appState.selectedPlace = appState.places[0] ?? appState.selectedPlace;
@@ -664,7 +664,7 @@ async function scanLocalTargets() {
     render();
   } catch (error) {
     appState.places = demoPlaces;
-    appState.locationMessage = `No se pudo usar ubicación: ${error.message}. Seguimos con objetivos demo.`;
+    appState.locationMessage = '';
     appState.selectedPlace = appState.places[0] ?? appState.selectedPlace;
     appState.isScannerOpen = true;
     render();
@@ -1254,7 +1254,7 @@ function getPointerCenter(first, second) {
 
 async function scanFromBookmark(bookmark) {
   const radius = getScanRadius();
-  appState.locationMessage = `Escaneando desde bookmark ${bookmark.hostAlias} (${radius}m)...`;
+  appState.locationMessage = `Escaneando desde bookmark ${bookmark.hostAlias}...`;
   render();
   await scanFromPosition({ lat: bookmark.lat, lon: bookmark.lon }, `Scanner remoto desde ${bookmark.hostAlias}`);
   appState.isScannerOpen = true;
@@ -1328,21 +1328,16 @@ function targetPrefetchKey(target, radius) {
   return `${Math.round(target.lat * 2000)}:${Math.round(target.lon * 2000)}:${radius}`;
 }
 
-async function scanFromPosition(position, successLabel) {
+async function scanFromPosition(position) {
   const radius = getScanRadius();
   try {
     const realScan = await searchRealPlaces(position, radius);
     appState.places = await fillWithSandboxTargets(realScan.places, position, radius);
-    const realCount = realScan.places.length;
-    const sandboxCount = appState.places.length - realCount;
-    appState.locationMessage = scannerResultMessage(successLabel, realScan, sandboxCount, radius);
+    appState.locationMessage = scannerResultMessage();
   } catch (providerError) {
     console.warn('Overpass unavailable, using demo nearby provider', providerError);
     appState.places = await fillWithSandboxTargets([], position, radius);
-    const osmReason = providerError.message.startsWith('sin objetivos')
-      ? `OSM respondió sin objetivos útiles (${providerError.message})`
-      : `OSM/Overpass no respondió (${providerError.message})`;
-    appState.locationMessage = `${successLabel}. ${osmReason}; objetivos demo en ${radius}m.`;
+    appState.locationMessage = '';
   }
 }
 
@@ -1428,26 +1423,8 @@ function mergePlaces(...placeGroups) {
   });
 }
 
-function scannerResultMessage(successLabel, realScan, sandboxCount, baseRadius) {
-  const realCount = realScan.places.length;
-  const expandedLabel = realScan.radius > baseRadius ? ` tras ampliar a ${realScan.radius}m` : ` en ${baseRadius}m`;
-  const source = scannerSourceLabel(realScan);
-  if (realCount === 0) {
-    return `${successLabel}. Sin objetivos reales útiles${expandedLabel}; ${sandboxCount} sandbox listos.`;
-  }
-  if (sandboxCount > 0) {
-    return `${successLabel}. ${realCount} ${source}${expandedLabel}; +${sandboxCount} sandbox de relleno.`;
-  }
-  return `${successLabel}. ${realCount} ${source}${expandedLabel}.`;
-}
-
-function scannerSourceLabel(realScan) {
-  if (realScan.cacheState === 'fresh') return 'objetivos cacheados';
-  if (realScan.cacheState === 'stale') return 'objetivos de cache antigua';
-  if (realScan.source === 'mixed') return 'objetivos OSM + Geoapify';
-  if (realScan.source === 'geoapify') return 'objetivos Geoapify';
-  if (realScan.source === 'overpass') return 'objetivos OSM encontrados';
-  return 'objetivos reales encontrados';
+function scannerResultMessage() {
+  return '';
 }
 
 function zoomMapAtPoint(factor, clientX, clientY, sourceView = appState.mapView) {

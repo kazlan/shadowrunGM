@@ -3,7 +3,7 @@ const OVERPASS_ENDPOINTS = [
   'https://z.overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
 ];
-const ALLOWED_RADIUS = [250, 1500];
+const ALLOWED_RADIUS = [250, 3000];
 const OVERPASS_REQUEST_TIMEOUT_MS = 8500;
 
 export function createOverpassProvider(options = {}) {

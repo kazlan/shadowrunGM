@@ -15,7 +15,7 @@ test('cache key is stable inside the same 500m-ish cell', () => {
 
 test('request normalization clamps gameplay limits', () => {
   const request = normalizeTargetRequest({ lat: 39.4, lon: -0.3, radius: 5000, limit: 50, minTargets: 99 });
-  assert.equal(request.radius, 1500);
+  assert.equal(request.radius, 3000);
   assert.equal(request.limit, 10);
   assert.equal(request.minTargets, 10);
   assert.throws(() => normalizeTargetRequest({ lat: 300, lon: -0.3 }), /Invalid lat\/lon/);
@@ -81,6 +81,32 @@ test('overpass failure falls back to geoapify', async () => {
   assert.equal(result.source, 'geoapify');
   assert.equal(result.places.length, 2);
   assert.equal(result.providerHealth.overpass, 'failed');
+});
+
+test('thin search expands radius before returning empty real targets', async () => {
+  const radii = [];
+  const result = await resolveNearbyTargets({
+    db: createMockDb(),
+    geoapifyApiKey: '',
+    input: { lat: 39.4699, lon: -0.3763, radius: 700, limit: 10, minTargets: 2 },
+    fetchImpl: async (url, options = {}) => {
+      assert.equal(String(url).includes('geoapify'), false);
+      const query = options.body?.get?.('data') ?? String(options.body ?? '');
+      const radius = Number(query.match(/around:(\d+)/)?.[1] ?? 0);
+      radii.push(radius);
+      if (radius >= 3000) {
+        return okJson({ elements: [
+          overpassElement(10, 'Wide Alpha'),
+          overpassElement(11, 'Wide Beta'),
+        ] });
+      }
+      return okJson({ elements: [] });
+    },
+  });
+  assert.deepEqual(radii, [700, 3000]);
+  assert.equal(result.radius, 3000);
+  assert.equal(result.source, 'overpass');
+  assert.equal(result.places.length, 2);
 });
 
 test('providers failure returns stale cache when available', async () => {

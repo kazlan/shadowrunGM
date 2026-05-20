@@ -7,6 +7,9 @@ const OVERPASS_TIMEOUT_MS = 8500;
 const CACHE_COLLECTION = 'placesCache';
 const CACHE_VERSION = 1;
 const CACHE_GRID_METERS = 500;
+const MIN_TARGET_RADIUS = 250;
+const MAX_TARGET_RADIUS = 3000;
+const EXPANDED_TARGET_RADIUS = 3000;
 const FRESH_TTL_MS = 24 * 60 * 60 * 1000;
 const STALE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const GEOAPIFY_CATEGORIES = [
@@ -34,29 +37,38 @@ export async function resolveNearbyTargets({ db, fetchImpl = fetch, geoapifyApiK
   const providerHealth = { overpass: 'skipped', geoapify: 'skipped' };
   let overpassPlaces = [];
   let geoapifyPlaces = [];
+  let resolvedRadius = request.radius;
 
-  try {
-    overpassPlaces = await fetchOverpassPlaces(fetchImpl, request.position, request.radius);
-    providerHealth.overpass = overpassPlaces.length >= request.minTargets
-      ? 'ok'
-      : overpassPlaces.length > 0 ? 'partial' : 'partial';
-  } catch (error) {
-    providerHealth.overpass = 'failed';
-  }
+  for (const radius of getSearchRadii(request.radius)) {
+    resolvedRadius = radius;
+    try {
+      const radiusOverpassPlaces = await fetchOverpassPlaces(fetchImpl, request.position, radius);
+      overpassPlaces = mergePlaces(overpassPlaces, radiusOverpassPlaces);
+      recordProviderHealth(providerHealth, 'overpass', overpassPlaces.length >= request.minTargets
+        ? 'ok'
+        : radiusOverpassPlaces.length > 0 ? 'partial' : 'partial');
+    } catch (error) {
+      recordProviderHealth(providerHealth, 'overpass', 'failed');
+    }
 
-  if (overpassPlaces.length < request.minTargets) {
+    if (mergePlaces(overpassPlaces, geoapifyPlaces).length >= request.minTargets) {
+      if (providerHealth.geoapify === 'skipped') providerHealth.geoapify = 'not_needed';
+      break;
+    }
+
     if (geoapifyApiKey) {
       try {
-        geoapifyPlaces = await fetchGeoapifyPlaces(fetchImpl, request.position, request.radius, request.limit, geoapifyApiKey);
-        providerHealth.geoapify = geoapifyPlaces.length > 0 ? 'ok' : 'partial';
+        const radiusGeoapifyPlaces = await fetchGeoapifyPlaces(fetchImpl, request.position, radius, request.limit, geoapifyApiKey);
+        geoapifyPlaces = mergePlaces(geoapifyPlaces, radiusGeoapifyPlaces);
+        recordProviderHealth(providerHealth, 'geoapify', radiusGeoapifyPlaces.length > 0 ? 'ok' : 'partial');
       } catch (error) {
-        providerHealth.geoapify = 'failed';
+        recordProviderHealth(providerHealth, 'geoapify', 'failed');
       }
     } else {
       providerHealth.geoapify = 'not_configured';
     }
-  } else {
-    providerHealth.geoapify = 'not_needed';
+
+    if (mergePlaces(overpassPlaces, geoapifyPlaces).length >= request.minTargets) break;
   }
 
   const places = mergePlaces(overpassPlaces, geoapifyPlaces).slice(0, request.limit);
@@ -70,7 +82,7 @@ export async function resolveNearbyTargets({ db, fetchImpl = fetch, geoapifyApiK
       cell: getGridCell(request.position),
       lat: request.position.lat,
       lon: request.position.lon,
-      radius: request.radius,
+      radius: resolvedRadius,
       limit: request.limit,
       minTargets: request.minTargets,
       fetchedAt: now,
@@ -88,7 +100,7 @@ export async function resolveNearbyTargets({ db, fetchImpl = fetch, geoapifyApiK
     source,
     cacheState: 'miss',
     providerHealth,
-    radius: request.radius,
+    radius: resolvedRadius,
     limit: request.limit,
   };
 }
@@ -99,7 +111,7 @@ export function normalizeTargetRequest(input) {
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
     throwInvalidRequest('Invalid lat/lon');
   }
-  const radius = clamp(Number.parseInt(input.radius, 10) || 900, 250, 1500);
+  const radius = clamp(Number.parseInt(input.radius, 10) || 900, MIN_TARGET_RADIUS, MAX_TARGET_RADIUS);
   const limit = clamp(Number.parseInt(input.limit, 10) || 10, 1, 10);
   const minTargets = clamp(Number.parseInt(input.minTargets, 10) || 4, 1, 10);
   return {
@@ -111,6 +123,25 @@ export function normalizeTargetRequest(input) {
     limit,
     minTargets,
   };
+}
+
+function getSearchRadii(radius) {
+  const radii = [radius];
+  if (radius < EXPANDED_TARGET_RADIUS) radii.push(EXPANDED_TARGET_RADIUS);
+  return [...new Set(radii.map((value) => clamp(value, MIN_TARGET_RADIUS, MAX_TARGET_RADIUS)))];
+}
+
+function recordProviderHealth(providerHealth, provider, state) {
+  const rank = {
+    skipped: 0,
+    not_needed: 1,
+    not_configured: 1,
+    failed: 2,
+    partial: 3,
+    ok: 4,
+  };
+  const current = providerHealth[provider] ?? 'skipped';
+  if ((rank[state] ?? 0) >= (rank[current] ?? 0)) providerHealth[provider] = state;
 }
 
 export function createCacheKey(requestOrInput) {

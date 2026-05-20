@@ -159,6 +159,7 @@ if (!gameDesignSource.includes('no fuerzan ICE mínimo') || !gameDesignSource.in
 }
 const themeSource = await readFile('src/styles/theme.css', 'utf8');
 if (!mainSource.includes('setupPortraitOrientationLock') || !mainSource.includes('renderOrientationGuard') || !themeSource.includes('@media (orientation: landscape) and (pointer: coarse)') || !themeSource.includes('.orientation-guard ~ .app-shell')) throw new Error('Mobile play shell should force portrait when possible and guard landscape touch viewports');
+if (!mainSource.includes('const EXPANDED_SCAN_RADIUS = 3000') || mainSource.includes('Sin objetivos reales') || mainSource.includes('objetivos demo en') || mainSource.includes('tras ampliar a') || mainSource.includes('(${radius}m)')) throw new Error('Scanner should expand sparse searches silently without exposing radius or provider fallback diagnostics');
 if (!themeSource.includes('--scrollbar-thumb') || !themeSource.includes('::-webkit-scrollbar-thumb') || !themeSource.includes('scrollbar-color')) throw new Error('Theme CSS should style scrollbars consistently');
 if (!themeSource.includes('--button-crt-line') || !themeSource.includes('datastreamSlide') || !themeSource.includes('button:focus-visible')) throw new Error('Theme CSS should keep Cybercore-inspired micro styles available');
 if (!themeSource.includes('.disconnect-shock') || !themeSource.includes('disconnectShockSweep') || !themeSource.includes('disconnectSignalTear')) throw new Error('Dump shock should render a visible SVG-filtered signal sweep, not only blink the CRT mask');
@@ -751,6 +752,16 @@ const scannerHtml = renderScannerOverlay({
   bookmarks: [{ provider: 'osm', providerId: 'node/2', hostAlias: 'BOOKMARK', name: 'Saved Real', address: 'Calle Bookmark 2' }],
   bookmarkCapacity: 3,
 });
+const quietScannerHtml = renderScannerOverlay({
+  isOpen: true,
+  places: [{ provider: 'manual', providerId: 'demo/quiet', name: 'Quiet Demo', category: 'shop' }],
+  selectedPlace: { providerId: 'demo/quiet' },
+  locationMessage: '',
+  describeTarget: () => 'shop · C 42/100',
+  bookmarks: [],
+  bookmarkCapacity: 3,
+});
+if (quietScannerHtml.includes('scanner-status')) throw new Error('Scanner should hide status copy once targets are ready');
 if (!scannerHtml.includes('/assets/ui/source-world.svg') || !scannerHtml.includes('/assets/ui/source-sandbox.svg')) throw new Error('Scanner should identify real world and sandbox host sources');
 if (!scannerHtml.includes('Mundo real') || !scannerHtml.includes('Geoapify') || !scannerHtml.includes('Sandbox') || !scannerHtml.includes('Calle Real 1')) throw new Error('Scanner should show source labels and real-world anchor data when available');
 if (!scannerHtml.includes('Proxy remoto')) throw new Error('Scanner bookmarks should be labelled as proxy scans');

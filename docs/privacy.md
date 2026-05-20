@@ -35,4 +35,4 @@ La ubicación se usa para descubrir objetivos cercanos, no para perfilar al juga
 
 ## Estado actual del scanner local
 
-El scanner local solicita geolocalización desde la UI y redondea la posición antes de usarla. Primero intenta consultar OpenStreetMap/Overpass para obtener objetivos reales cercanos. Si Overpass no responde, no devuelve resultados o el permiso falla, la app vuelve a objetivos demo sin bloquear la experiencia. El progreso se guarda localmente por `seedId`, alias y puntuación, no por coordenadas exactas.
+El scanner local solicita geolocalización desde la UI y redondea la posición antes de usarla. Primero intenta consultar OpenStreetMap/Overpass y Geoapify para obtener objetivos reales; si hay pocos resultados, amplía la búsqueda de forma silenciosa. Si los proveedores no responden o el permiso falla, la app vuelve a objetivos demo sin bloquear la experiencia ni exponer errores técnicos en la UI. El progreso se guarda localmente por `seedId`, alias y puntuación, no por coordenadas exactas.

@@ -3,6 +3,9 @@ import { escapeHtml } from './html.js';
 export function renderScannerOverlay({ isOpen, places, selectedPlace, locationMessage, describeTarget, bookmarks = [], bookmarkCapacity = 3 }) {
   if (!isOpen) return '';
 
+  const status = locationMessage
+    ? `<p class="scanner-status">${escapeHtml(locationMessage)}</p>`
+    : '';
   const targetButtons = places
     .map((place, index) => {
       const description = describeTarget(place);
@@ -49,7 +52,7 @@ export function renderScannerOverlay({ isOpen, places, selectedPlace, locationMe
         </div>
       </div>
       <div class="overlay-panel__content scanner-panel__content">
-        <p class="scanner-status">${escapeHtml(locationMessage)}</p>
+        ${status}
         <h3>Bookmarks ${bookmarks.length}/${bookmarkCapacity}</h3>
         <div class="scanner-targets scanner-targets--bookmarks" aria-label="Bookmarks">${bookmarkButtons}</div>
         <h3>Objetivos detectados</h3>
