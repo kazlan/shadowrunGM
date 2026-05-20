@@ -232,7 +232,7 @@ function render() {
     <div class="crt-vignette"></div>
     ${renderHud(runtimeSystem, appState.run, finished, appState.deckProfile.player)}
     ${renderNodeMap(runtimeSystem, appState.run, appState.mapView, getVisibleMapLogMessage(), appState.runResult, resultVisible, appState.nodeVisit, getVisibleMapReveal(), appState.deckProfile.player, appState.isRunLogOpen, previousMapMeters, getDeckTraceView())}
-    ${renderProgramDock(appState.run, finished, appState.nodeVisit?.recommendedProgram, appState.deckProfile)}
+    ${renderProgramDock(appState.run, finished, appState.nodeVisit?.recommendedProgram, appState.deckProfile, getJackOutDockState(runtimeSystem, appState.run))}
     ${postRunPanelVisible ? renderPostRunScannerPanel(appState.runResult, appState.completion, appState.deckProfile) : ''}
     ${renderDeckOverlay(appState.isDeckOpen, appState.deckProfile, appState.deckMessage)}
     ${renderSettingsOverlay(appState.isSettingsOpen, audioDirector.getState(), appState.theme, appState.cloud, appState.deckProfile)}
@@ -266,6 +266,16 @@ function readVisibleMapMeters() {
     if (Number.isFinite(max)) meters[`${kind}Max`] = Math.max(0, max);
   });
   return Object.keys(meters).length > 0 ? meters : null;
+}
+
+function getJackOutDockState(system, run) {
+  if (!system || !run || isRunFinished(run)) return null;
+  const currentNode = system.nodes.find((node) => node.id === run.currentNodeId);
+  const safe = run.currentNodeId === system.entryNodeId || currentNode?.kind === 'exit';
+  return {
+    safe,
+    label: safe ? 'Jack out: ruta limpia' : 'Jack out',
+  };
 }
 
 function getSignalFxClass(level, status, disconnectGlitchActive = false) {

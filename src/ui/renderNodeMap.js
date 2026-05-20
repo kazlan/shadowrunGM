@@ -52,7 +52,7 @@ export function renderNodeMap(system, run, mapView = { x: 0, y: 0, width: 100, h
       <small>${escapeHtml(system.company.name)} · Seg ${system.effectiveSecurity ?? system.archetype.security}</small>
     </div>
     ${renderMapMeters(run, previousMeters, extractionView)}
-    ${renderMapActions(system, run, false, player)}
+    ${renderMapActions(run, false, player)}
     ${renderMapMessage(mapMessage)}
     ${renderRunLogDialog(runLogOpen, run)}
     <svg viewBox="${formatViewBox(mapView)}" role="img" data-map-surface="true">
@@ -471,17 +471,13 @@ function formatViewBox(view) {
   return [view.x, view.y, view.width, view.height].map(formatNumber).join(' ');
 }
 
-function renderMapActions(system, run, finished = false, player = null) {
+function renderMapActions(run, finished = false, player = null) {
   const identity = normalizeMapIdentity(player);
   const avatar = assetPaths.avatars[identity.avatar] ?? assetPaths.avatars.runner01;
-  const currentNode = system.nodes.find((node) => node.id === run.currentNodeId);
-  const canJackOutCleanly = run.currentNodeId === system.entryNodeId || currentNode?.kind === 'exit';
-  const jackOutClass = canJackOutCleanly ? ' node-map__jack-out--safe' : '';
-  const jackOutLabel = canJackOutCleanly ? 'Jack out: ruta limpia' : 'Jack out';
 
   return `<div class="node-map__actions" aria-label="Acciones de la run">
     ${renderMapLogButton(run)}
-    <button class="jack-out node-map__jack-out${jackOutClass}" data-action="jackOut" type="button" aria-label="${escapeHtml(jackOutLabel)}" ${finished ? 'disabled' : ''}>Jack out</button>
+    <button class="node-map__help-button" data-action="openHelp" type="button" aria-label="Abrir ayuda" title="Ayuda">?</button>
     <button class="node-map__avatar-settings runner-id--${escapeHtml(identity.avatar)}" data-action="toggleSettings" type="button" aria-label="${escapeHtml(`Abrir ajustes de ${identity.shadowName}`)}" title="${escapeHtml(identity.shadowName)}">
       <img src="${escapeHtml(avatar)}" alt="" loading="lazy" />
     </button>

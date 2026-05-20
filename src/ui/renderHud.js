@@ -6,7 +6,7 @@ export function renderHud(system, run, finished = false, player = null) {
   return '';
 }
 
-export function renderProgramDock(run, finished = false, recommendedProgram = null, deckProfile = null) {
+export function renderProgramDock(run, finished = false, recommendedProgram = null, deckProfile = null, jackOut = null) {
   const programButtons = programs
     .map((program) => {
       const active = run.selectedProgram === program.kind;
@@ -39,8 +39,13 @@ export function renderProgramDock(run, finished = false, recommendedProgram = nu
       </button>`;
     })
     .join('');
+  const jackOutButton = !finished && jackOut
+    ? `<button class="jack-out program-jackout${jackOut.safe ? ' is-safe-jackout' : ''}" data-action="jackOut" type="button" aria-label="${escapeHtml(jackOut.label)}" title="${escapeHtml(jackOut.label)}">
+        <span>Jack out</span>
+      </button>`
+    : '';
 
-  return `<footer class="program-dock ${finished ? 'program-dock--inactive' : ''}" aria-label="Programas ejecutables">${programButtons}</footer>`;
+  return `<footer class="program-dock${finished ? ' program-dock--inactive' : ''}${jackOutButton ? ' program-dock--with-jackout' : ''}" aria-label="Programas ejecutables">${programButtons}${jackOutButton}</footer>`;
 }
 
 function renderProgramPips(level) {

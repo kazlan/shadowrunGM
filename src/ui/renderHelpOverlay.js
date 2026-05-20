@@ -301,7 +301,7 @@ function renderHelpTab(tab) {
 function renderRunHelp() {
   const stats = statHelp.map((stat) => renderCard(stat.label, stat.description)).join('');
 
-  return `<div class="help-section">
+  return `<div class="help-section help-section--run">
     <div class="help-callout">
       <strong>Objetivo</strong>
       <span>Entra, lee el mapa, consigue payload y sal por entrada o salida antes de la convergencia.</span>
