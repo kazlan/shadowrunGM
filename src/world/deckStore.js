@@ -185,6 +185,8 @@ export function addHostBookmark(profile, system) {
     lat: system.company.lat,
     lon: system.company.lon,
     address: system.company.address,
+    valueTier: system.valuation?.tier,
+    valueScore: system.valuation?.score,
     savedAt: new Date().toISOString(),
   };
   const nextProfile = normalizeDeckProfile({
@@ -238,6 +240,8 @@ function normalizeBookmarks(bookmarks) {
       lat: Number(bookmark.lat),
       lon: Number(bookmark.lon),
       address: bookmark.address ? String(bookmark.address) : undefined,
+      valueTier: bookmark.valueTier ? String(bookmark.valueTier) : undefined,
+      valueScore: Number.isFinite(Number(bookmark.valueScore)) ? Number(bookmark.valueScore) : undefined,
       savedAt: bookmark.savedAt ? String(bookmark.savedAt) : new Date().toISOString(),
     }));
 }

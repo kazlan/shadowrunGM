@@ -94,7 +94,9 @@ const appState = {
   mapGestureMoved: false,
   ignoreNextNodeClick: false,
   disconnectGlitchUntil: 0,
+  disconnectGlitchStartedAt: 0,
   disconnectGlitchTimer: null,
+  disconnectGlitchFrame: null,
   nodeVisit: null,
   nodeVisitTimer: null,
   nodeVisitSequence: 0,
@@ -219,6 +221,7 @@ function render() {
   const previousMapMeters = readVisibleMapMeters();
   root.innerHTML = `<main class="app-shell ${signalFxClass}" style="--host-bg: url('${backgroundUrl}'); --danger-level: ${dangerTheme.level}; --danger-color: ${dangerTheme.color}; --danger-border: ${dangerTheme.border}; --danger-glow: ${dangerTheme.glow}">
     ${shockActive ? renderDisconnectFilter() : ''}
+    ${shockActive ? '<div class="disconnect-shock" aria-hidden="true"></div>' : ''}
     <div class="scanline"></div>
     <div class="crt-vignette"></div>
     ${renderHud(runtimeSystem, appState.run, finished, appState.deckProfile.player)}
@@ -240,6 +243,7 @@ function render() {
   </main>`;
 
   bindEvents();
+  syncDisconnectGlitchAnimation(shockActive);
 }
 
 function readVisibleMapMeters() {
@@ -322,18 +326,15 @@ function replaceUnknownPathWithLanding() {
 
 function renderDisconnectFilter() {
   return `<svg class="disconnect-filter" aria-hidden="true" focusable="false">
-    <filter id="disconnectDisplacement">
-      <feTurbulence type="fractalNoise" baseFrequency="0.02 0.08" numOctaves="2" seed="7" result="noise">
-        <animate attributeName="baseFrequency" values="0.02 0.08;0.13 0.02;0.06 0.16;0.18 0.04;0.02 0.08" dur=".42s" repeatCount="indefinite" />
-      </feTurbulence>
-      <feDisplacementMap in="SourceGraphic" in2="noise" scale="24" xChannelSelector="R" yChannelSelector="G">
-        <animate attributeName="scale" values="0;34;12;42;6;28;0" dur=".34s" repeatCount="indefinite" />
-      </feDisplacementMap>
+    <filter id="disconnectDisplacement" x="-16%" y="-16%" width="132%" height="132%">
+      <feTurbulence id="disconnectTurbulence" type="fractalNoise" baseFrequency="0.035 0.11" numOctaves="2" seed="7" result="noise" />
+      <feDisplacementMap id="disconnectDisplacementMap" in="SourceGraphic" in2="noise" scale="0" xChannelSelector="R" yChannelSelector="G" />
     </filter>
   </svg>`;
 }
 
 function triggerDisconnectGlitch() {
+  appState.disconnectGlitchStartedAt = Date.now();
   appState.disconnectGlitchUntil = Date.now() + DISCONNECT_GLITCH_MS;
   if (appState.disconnectGlitchTimer) {
     globalThis.clearTimeout(appState.disconnectGlitchTimer);
@@ -341,12 +342,15 @@ function triggerDisconnectGlitch() {
   appState.disconnectGlitchTimer = globalThis.setTimeout(() => {
     appState.disconnectGlitchTimer = null;
     appState.disconnectGlitchUntil = 0;
+    stopDisconnectGlitchAnimation();
     render();
   }, DISCONNECT_GLITCH_MS);
 }
 
 function stopDisconnectGlitch() {
   appState.disconnectGlitchUntil = 0;
+  appState.disconnectGlitchStartedAt = 0;
+  stopDisconnectGlitchAnimation();
   if (!appState.disconnectGlitchTimer) return;
   globalThis.clearTimeout(appState.disconnectGlitchTimer);
   appState.disconnectGlitchTimer = null;
@@ -354,6 +358,60 @@ function stopDisconnectGlitch() {
 
 function isDisconnectGlitchActive() {
   return Date.now() < appState.disconnectGlitchUntil;
+}
+
+function syncDisconnectGlitchAnimation(active) {
+  if (active) startDisconnectGlitchAnimation();
+  else stopDisconnectGlitchAnimation();
+}
+
+function startDisconnectGlitchAnimation() {
+  if (appState.disconnectGlitchFrame) return;
+  let lastUpdate = 0;
+  const tick = (now) => {
+    if (!isDisconnectGlitchActive()) {
+      stopDisconnectGlitchAnimation();
+      return;
+    }
+
+    if (now - lastUpdate > 48) {
+      lastUpdate = now;
+      updateDisconnectFilter();
+    }
+
+    appState.disconnectGlitchFrame = globalThis.requestAnimationFrame?.(tick) ?? null;
+  };
+
+  updateDisconnectFilter();
+  appState.disconnectGlitchFrame = globalThis.requestAnimationFrame?.(tick) ?? null;
+}
+
+function stopDisconnectGlitchAnimation() {
+  if (appState.disconnectGlitchFrame) {
+    globalThis.cancelAnimationFrame?.(appState.disconnectGlitchFrame);
+    appState.disconnectGlitchFrame = null;
+  }
+
+  root?.querySelector('#disconnectDisplacementMap')?.setAttribute('scale', '0');
+}
+
+function updateDisconnectFilter() {
+  const turbulence = root?.querySelector('#disconnectTurbulence');
+  const displacement = root?.querySelector('#disconnectDisplacementMap');
+  const shell = root?.querySelector('.app-shell--disconnect-glitch');
+  if (!turbulence || !displacement) return;
+
+  const elapsed = Math.max(0, Date.now() - appState.disconnectGlitchStartedAt);
+  const progress = Math.min(1, elapsed / DISCONNECT_GLITCH_MS);
+  const envelope = progress < 0.18 ? progress / 0.18 : Math.max(0.18, 1 - ((progress - 0.18) / 0.82) * 0.62);
+  const tear = 10 + Math.random() * 42 * envelope;
+  const xFrequency = 0.025 + Math.random() * 0.16;
+  const yFrequency = 0.06 + Math.random() * 0.2;
+
+  turbulence.setAttribute('baseFrequency', `${xFrequency.toFixed(3)} ${yFrequency.toFixed(3)}`);
+  turbulence.setAttribute('seed', String(Math.floor(1 + Math.random() * 97)));
+  displacement.setAttribute('scale', tear.toFixed(1));
+  shell?.style.setProperty('--disconnect-tear', tear.toFixed(1));
 }
 
 function bindEvents() {
@@ -499,9 +557,7 @@ function bindEvents() {
         render();
       }
       if (action === 'toggleScanner') {
-        const openingScanner = !appState.isScannerOpen;
-        appState.isScannerOpen = openingScanner;
-        if (openingScanner) skipCompletionBookmark(false);
+        appState.isScannerOpen = true;
         appState.isSettingsOpen = false;
         appState.isHelpOpen = false;
         appState.isDeckOpen = false;

@@ -4,20 +4,24 @@ export function renderScannerOverlay({ isOpen, places, selectedPlace, locationMe
   if (!isOpen) return '';
 
   const targetButtons = places
-    .map(
-      (place, index) => `<button class="${place.providerId === selectedPlace.providerId ? 'is-active' : ''}" data-place-index="${index}" type="button">
+    .map((place, index) => {
+      const description = describeTarget(place);
+      const tone = targetTone(place, description);
+      return `<button class="scanner-target--${tone}${place.providerId === selectedPlace.providerId ? ' is-active' : ''}" data-place-index="${index}" data-target-tone="${tone}" type="button">
         ${renderSourceIcon(place)}
         <span class="scanner-target__body">
           <strong>${escapeHtml(place.name)}</strong>
-          <span>${escapeHtml(describeTarget(place))}</span>
+          <span>${escapeHtml(description)}</span>
           ${renderAddress(place)}
         </span>
-        <small class="scanner-source scanner-source--${sourceKind(place)}">${sourceLabel(place)}</small>
-      </button>`,
-    )
+      </button>`;
+    })
     .join('');
   const bookmarkButtons = bookmarks.length > 0
-    ? bookmarks.map((bookmark, index) => `<article class="scanner-bookmark-card">
+    ? bookmarks.map((bookmark, index) => {
+      const description = describeTarget(bookmark);
+      const tone = targetTone(bookmark, description);
+      return `<article class="scanner-bookmark-card scanner-target--${tone}" data-target-tone="${tone}">
         <button class="scanner-bookmark-card__launch" data-bookmark-index="${index}" type="button">
           ${renderSourceIcon(bookmark)}
           <span class="scanner-target__body">
@@ -25,10 +29,10 @@ export function renderScannerOverlay({ isOpen, places, selectedPlace, locationMe
             <span>${escapeHtml(bookmark.name)} · Proxy remoto</span>
             ${renderAddress(bookmark)}
           </span>
-          <small class="scanner-source scanner-source--${sourceKind(bookmark)}">${sourceLabel(bookmark)}</small>
         </button>
         <button class="scanner-bookmark-card__destroy" data-bookmark-destroy="${escapeHtml(bookmark.seedId)}" type="button" title="Destroy bookmark ${escapeHtml(bookmark.hostAlias)}" aria-label="Destroy bookmark ${escapeHtml(bookmark.hostAlias)}">×</button>
-      </article>`).join('')
+      </article>`;
+    }).join('')
     : '<p class="scanner-empty">Sin bookmarks guardados.</p>';
 
   return `<aside class="scanner-overlay" role="dialog" aria-modal="true" aria-labelledby="scanner-title">
@@ -39,11 +43,13 @@ export function renderScannerOverlay({ isOpen, places, selectedPlace, locationMe
           <p class="eyebrow">Objetivos cercanos</p>
           <h2 id="scanner-title">Scanner local</h2>
         </div>
-        <button class="overlay-close" data-action="closeScanner" type="button" aria-label="Cerrar scanner">×</button>
+        <div class="scanner-panel__header-actions">
+          <button class="scan-local scanner-panel__refresh" data-action="scanLocal" type="button" title="Actualizar objetivos cercanos">Actualizar zona</button>
+          <button class="overlay-close" data-action="closeScanner" type="button" aria-label="Cerrar scanner">×</button>
+        </div>
       </div>
       <div class="overlay-panel__content scanner-panel__content">
         <p class="scanner-status">${escapeHtml(locationMessage)}</p>
-        <button class="scan-local scanner-panel__scan" data-action="scanLocal" type="button">Buscar cerca de mí</button>
         <h3>Bookmarks ${bookmarks.length}/${bookmarkCapacity}</h3>
         <div class="scanner-targets scanner-targets--bookmarks" aria-label="Bookmarks">${bookmarkButtons}</div>
         <h3>Objetivos detectados</h3>
@@ -72,4 +78,23 @@ function sourceLabel(target) {
   if (target.provider === 'osm') return 'Mundo real';
   if (target.provider === 'geoapify') return 'Geoapify';
   return 'Sandbox';
+}
+
+function targetTone(target, description) {
+  if (target.special || target.questId || target.rarity === 'special' || target.tone === 'special') return 'special';
+  if (sourceKind(target) === 'sandbox') return 'sandbox';
+
+  const valuation = target.valuation ?? {};
+  const parsed = parseTargetValuation(description);
+  const tier = String(target.valueTier ?? valuation.tier ?? parsed.tier ?? '').toUpperCase();
+  const score = Number(target.valueScore ?? valuation.score ?? parsed.score ?? 0);
+  if (['S', 'AAA', 'AA'].includes(tier) || score >= 86) return 'lethal';
+  if (tier === 'A' || score >= 68) return 'hot';
+  return 'normal';
+}
+
+function parseTargetValuation(description) {
+  const match = String(description).match(/\b(S|AAA|AA|A|B|C|D)\s+(\d{1,3})\/100\b/i);
+  if (!match) return {};
+  return { tier: match[1], score: Number(match[2]) };
 }

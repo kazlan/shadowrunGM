@@ -215,8 +215,8 @@ function renderCyberNode(node, system, run, recentNodeIds, nodeVisit) {
     <polygon class="node__frame node__frame--aura" points="${hexPoints(outerRadius + .88)}" />
     <polygon class="node__frame node__frame--outer" points="${hexPoints(outerRadius)}" filter="${isCore ? 'url(#mapCoreGlow)' : 'url(#mapNodeGlow)'}" />
     ${icon}
-    <text x="0" y="${isCore ? 13.35 : 10.45}" class="node__label">${escapeHtml(label)}</text>
-    <text x="0" y="${isCore ? 16.05 : 12.8}" class="node__level">${escapeHtml(level)}</text>
+    <text x="0" y="${isCore ? 13.85 : 10.95}" class="node__label">${escapeHtml(label)}</text>
+    <text x="0" y="${isCore ? 16.65 : 13.45}" class="node__level">${escapeHtml(level)}</text>
     <circle class="node__burst" r="${outerRadius + 2.6}" />
     ${iceBadge}
     ${eventBadge}

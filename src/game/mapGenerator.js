@@ -384,11 +384,12 @@ function assignNodeSystems(nodes, distances, archetype, effectiveSecurity, templ
       y: clamp(candidate.y, 4, 96),
       risk,
       zone: candidate.zone,
+      _distance: distance,
       ...(candidate.ice ? { ice: candidate.ice } : {}),
     };
   });
 
-  return assignIce(prepared, template, effectiveSecurity, rng).map(({ zone, ...nodeData }) => nodeData);
+  return assignIce(prepared, template, effectiveSecurity, rng).map(({ zone, _distance, ...nodeData }) => nodeData);
 }
 
 function sanitizeEarlyDataKind(kind, distance) {
@@ -425,13 +426,13 @@ function pickNodeEvent(kind, distance, archetype, rng) {
 
 function assignIce(nodes, template, effectiveSecurity, rng) {
   if (template === 'tutorial') return nodes;
-  const candidates = rng.shuffle(nodes.filter((nodeData) => !['entry', 'exit'].includes(nodeData.kind)));
+  const candidates = rng.shuffle(nodes.filter((nodeData) => canHostIce(nodeData, effectiveSecurity)));
   for (const nodeData of candidates) {
     const chance = iceChance(nodeData, effectiveSecurity);
     if (rng.nextFloat() < chance) nodeData.ice = pickIce(nodeData.risk, rng);
   }
 
-  const minimumIce = minimumIceByTemplate[template];
+  const minimumIce = effectiveSecurity <= 2 ? 0 : minimumIceByTemplate[template];
   const priority = candidates.sort((left, right) => defensePriority(right) - defensePriority(left));
   for (const nodeData of priority) {
     if (nodes.filter((candidate) => candidate.ice).length >= minimumIce) break;
@@ -439,6 +440,15 @@ function assignIce(nodes, template, effectiveSecurity, rng) {
   }
 
   return nodes;
+}
+
+function canHostIce(nodeData, effectiveSecurity) {
+  if (['entry', 'exit'].includes(nodeData.kind)) return false;
+  if (effectiveSecurity > 2) return true;
+  if (nodeData.kind === 'core') return true;
+  if ((nodeData._distance ?? 99) < CORE_MIN_DISTANCE) return false;
+  if (['camera', 'gate', 'trap', 'archive'].includes(nodeData.event)) return false;
+  return nodeData.kind !== 'database';
 }
 
 function iceChance(nodeData, effectiveSecurity) {
@@ -457,7 +467,8 @@ function iceChance(nodeData, effectiveSecurity) {
     dataB: 0.18,
     vaultMirror: 0.2,
   }[nodeData.zone] ?? 0.08;
-  return clamp(0.06 + effectiveSecurity * 0.055 + zoneChance, 0, 0.82);
+  const baseChance = clamp(0.06 + effectiveSecurity * 0.055 + zoneChance, 0, 0.82);
+  return effectiveSecurity <= 2 ? clamp(baseChance * 0.45, 0, 0.28) : baseChance;
 }
 
 function defensePriority(nodeData) {

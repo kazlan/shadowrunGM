@@ -100,6 +100,9 @@ const mapGeneratorSource = await readFile('src/game/mapGenerator.js', 'utf8');
 if (!mainSource.includes('mapPointers: new Map()') || !mainSource.includes('startMapPinch') || !mainSource.includes('zoomMapAtPoint')) throw new Error('Node map should keep pinch zoom support wired into pointer handling');
 if (!mainSource.includes('mapBounds') || !mainSource.includes('getMapBounds') || !mainSource.includes('MAP_GRAPH_OFFSET_Y') || !mainSource.includes('scheduleOpeningMapFit') || !mainSource.includes('getSafeOpeningMapView') || !mainSource.includes('MAP_FIT_CHROME_GAP_PX')) throw new Error('Node map should derive its gesture bounds and animated opening fit from the generated graph and map chrome');
 if (!mapGeneratorSource.includes('spreadLayout(nodes, template)') || !mapGeneratorSource.includes('LAYOUT_CANVAS_CENTER')) throw new Error('Generated maps should spread node layouts to use the map box space');
+if (!mainSource.includes('disconnectDisplacementMap') || !mainSource.includes('startDisconnectGlitchAnimation') || !mainSource.includes('requestAnimationFrame') || !mainSource.includes('updateDisconnectFilter')) {
+  throw new Error('Dump shock should drive the SVG displacement filter during the disconnect glitch window');
+}
 const scanLocalBody = mainSource.match(/async function scanLocalTargets\(\) \{[\s\S]*?\n\}/)?.[0] ?? '';
 if (scanLocalBody.includes('startRun(') || !scanLocalBody.includes('appState.isScannerOpen = true;')) throw new Error('Local scanner should keep the target picker open instead of auto-starting a run');
 const locationSource = await readFile('src/location/locationService.js', 'utf8');
@@ -110,7 +113,7 @@ if (!mainSource.includes('VALENCIA_TEST_POSITION') || !mainSource.includes('MIN_
 if (!mainSource.includes('VITE_TARGETS_ENDPOINT') || !mainSource.includes('searchBackendTargets') || !mainSource.includes('searchOverpassPlaces')) throw new Error('Scanner should try the targets backend before falling back to direct Overpass');
 if (!mainSource.includes('scheduleTargetPrefetchForRun') || !mainSource.includes('SCANNER_PREFETCH_LIMIT')) throw new Error('Scanner should prefetch a small number of target zones during runs');
 if (!mainSource.includes('ensureBookmarkZoneCached') || !mainSource.includes('SCANNER_BOOKMARK_PREFETCH_LIMIT')) throw new Error('Awarding a bookmark should warm the targets cache for that bookmark zone');
-if (!mainSource.includes('hasConqueredCpu') || !mainSource.includes('addHostBookmark(appState.deckProfile, appState.system)') || mainSource.includes("action === 'saveBookmark'") || mainSource.includes("action === 'skipBookmark'")) {
+if (!mainSource.includes('hasConqueredCpu') || !mainSource.includes('addHostBookmark(appState.deckProfile, appState.system)') || mainSource.includes("action === 'saveBookmark'") || mainSource.includes("action === 'skipBookmark'") || mainSource.includes('skipCompletionBookmark')) {
   throw new Error('Bookmarks should be awarded automatically from conquered CPU success, never by post-run buttons');
 }
 const functionsSource = await readFile('functions/src/targetSearch.js', 'utf8');
@@ -129,12 +132,19 @@ if (!mainSource.includes('getPlayerProgressStats().totalRuns === 0') || !mainSou
 if (!mapGeneratorSource.includes("template === 'tutorial'") || !mapGeneratorSource.includes("ice: 'watcher'")) {
   throw new Error('Map generator should include a controlled tutorial template with only simple ICE');
 }
+if (!mapGeneratorSource.includes('effectiveSecurity <= 2 ? 0') || !mapGeneratorSource.includes('canHostIce(nodeData, effectiveSecurity)')) {
+  throw new Error('Low-security hosts should avoid forced ICE and use stricter ICE eligibility');
+}
 if (!readmeSource.includes('primera run usa un host tutorial') || !gameDesignSource.includes('plantilla tutorial') || !gameDesignSource.includes('Dumped paga 0 cred')) {
   throw new Error('Docs should describe first-run tutorial onboarding and dumped zero-credit rewards');
+}
+if (!gameDesignSource.includes('no fuerzan ICE mínimo') || !gameDesignSource.includes('effectiveSecurity <= 2')) {
+  throw new Error('Docs should describe the safer low-security host band');
 }
 const themeSource = await readFile('src/styles/theme.css', 'utf8');
 if (!themeSource.includes('--scrollbar-thumb') || !themeSource.includes('::-webkit-scrollbar-thumb') || !themeSource.includes('scrollbar-color')) throw new Error('Theme CSS should style scrollbars consistently');
 if (!themeSource.includes('--button-crt-line') || !themeSource.includes('datastreamSlide') || !themeSource.includes('button:focus-visible')) throw new Error('Theme CSS should keep Cybercore-inspired micro styles available');
+if (!themeSource.includes('.disconnect-shock') || !themeSource.includes('disconnectShockSweep') || !themeSource.includes('disconnectSignalTear')) throw new Error('Dump shock should render a visible SVG-filtered signal sweep, not only blink the CRT mask');
 
 const { hashCompany } = await import('../src/world/companySeed.js');
 const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
@@ -328,6 +338,21 @@ assertMapViewContainsGraph(lowValueSystem);
 assertMapViewContainsGraph(highValueSystem);
 if (countHostDefenses(highValueSystem) <= countHostDefenses(lowValueSystem)) throw new Error('High-value hosts should contain more defenses than low-value hosts');
 assertHighTierPayloadApproach(highValueSystem);
+const lowSecuritySystem = generateSystem({
+  rng: createRng('low-food-c'),
+  seedId: 'low-food-c',
+  company: demoPlaces[0],
+  archetype: classifyCompany(demoPlaces[0]),
+  valuation: { score: 18, tier: 'D', difficulty: 'minima', payoutMultiplier: 1.18, securityModifier: -1, sizeModifier: -1 },
+});
+assertStructuredHost(lowSecuritySystem);
+const lowSecurityDistances = hostDistances(lowSecuritySystem);
+const lowSecurityIce = lowSecuritySystem.nodes.filter((node) => node.ice);
+if (lowSecuritySystem.effectiveSecurity > 2) throw new Error('Low-security fixture should exercise the softened host band');
+if (lowSecurityIce.length > 1) throw new Error('Low-security hosts should not stack ICE before the player has a deck');
+if (lowSecurityIce.some((node) => lowSecurityDistances[node.id] < 4 || ['camera', 'gate', 'trap', 'archive'].includes(node.event) || node.kind === 'database')) {
+  throw new Error('Low-security ICE should stay off early cameras, gates, traps, and archive payload nodes');
+}
 const tutorialSystem = generateSystem({
   rng: createRng('tutorial-host-check'),
   seedId: 'tutorial-host-check',
@@ -393,6 +418,7 @@ const upgradedBookmarkResult = upgradeDeckProfile(richDeck, 'hardware', 'bookmar
 if (!upgradedBookmarkResult.changed || getBookmarkCapacity(upgradedBookmarkResult.profile) <= getBookmarkCapacity(defaultDeck)) throw new Error('Bookmark upgrades should increase saved host capacity');
 const bookmarkResult = addHostBookmark(defaultDeck, jackOutSystem);
 if (!bookmarkResult.changed || bookmarkResult.profile.bookmarks.length !== 1) throw new Error('Successful hosts should be bookmarkable');
+if (bookmarkResult.bookmark.valueTier !== jackOutSystem.valuation.tier || bookmarkResult.bookmark.valueScore !== jackOutSystem.valuation.score) throw new Error('Bookmarks should preserve host valuation for scanner border tones');
 const removedBookmarkResult = removeHostBookmark(bookmarkResult.profile, jackOutSystem.seedId);
 if (!removedBookmarkResult.changed || removedBookmarkResult.profile.bookmarks.length !== 0) throw new Error('Scanner bookmarks should be destroyable');
 const rewardResult = awardRunCredits(defaultDeck, jackOutSystem, jackOutRun, scoreRun(jackOutSystem, jackOutRun));
@@ -620,11 +646,11 @@ if (!mapLogOpenHtml.includes('run-log-dialog') || !mapLogOpenHtml.includes('node
 const postRunPanelHtml = renderPostRunScannerPanel({ ...jackOutRun, hostAlias: 'ICE CHECK', score: 10, reward: 1, lootTokens: 0 }, null, upgradedDeckResult.profile);
 if (!postRunPanelHtml.includes('data-action="toggleRunLog"') || !postRunPanelHtml.includes('Ver log') || !postRunPanelHtml.includes('data-action="toggleDeck"') || !postRunPanelHtml.includes('Area 0') || postRunPanelHtml.includes('data-action="toggleScanner"') || !themeSource.includes('areaZeroBorderTrace')) throw new Error('Post-run panel should offer log plus animated Area 0 workbench handoff');
 const deckOverlayHtml = renderDeckOverlay(true, upgradedDeckResult.profile, 'Scan mejorado.');
-if (!deckOverlayHtml.includes('Área 0') || deckOverlayHtml.includes('Banco de trabajo') || deckOverlayHtml.includes('overlay-close') || !deckOverlayHtml.includes('deck-workbench__balance') || !deckOverlayHtml.includes('<b>¤</b>') || !deckOverlayHtml.includes('Scanner de objetivos') || !deckOverlayHtml.includes('deck-workbench__radar') || !deckOverlayHtml.includes('data-action="toggleScanner"')) throw new Error('Area 0 overlay should render balance, radar scanner CTA, and no close button');
+if (!deckOverlayHtml.includes('Área 0') || deckOverlayHtml.includes('Banco de trabajo') || deckOverlayHtml.includes('overlay-close') || !deckOverlayHtml.includes('deck-workbench__balance') || !deckOverlayHtml.includes('<b>¤</b>') || !deckOverlayHtml.includes('Scanner de objetivos') || !deckOverlayHtml.includes('deck-workbench__radar') || !deckOverlayHtml.includes('data-action="toggleScanner"') || !deckOverlayHtml.includes('deck-workbench__message') || !deckOverlayHtml.includes('deck-workbench__section--hardware')) throw new Error('Area 0 overlay should render balance, radar scanner CTA, compact message, and no close button');
 if (!deckOverlayHtml.includes('Software cargado') || deckOverlayHtml.includes('cred en cuenta')) throw new Error('Deck overlay should render loaded software and use currency prefix instead of cred labels');
 if (!deckOverlayHtml.includes('deck-software-grid') || !deckOverlayHtml.includes('deck-workbench__section')) throw new Error('Deck software should render as a spacious workbench card grid');
 if (!deckOverlayHtml.includes('/assets/stats/stat-pulse.svg')) throw new Error('Deck stats should use custom SVG icons');
-if (!themeSource.includes('.deck-workbench {') || !themeSource.includes('height: 100dvh') || !themeSource.includes('width: 100%') || !themeSource.includes('overflow-y: auto') || !themeSource.includes('gap: 20px') || !themeSource.includes('.deck-workbench__scanner-button:hover')) throw new Error('Workbench overlay should cover the viewport and give each area breathing room');
+if (!themeSource.includes('.deck-workbench {') || !themeSource.includes('height: 100dvh') || !themeSource.includes('width: 100%') || !themeSource.includes('overflow-y: auto') || !themeSource.includes('gap: 20px') || !themeSource.includes('.deck-workbench__scanner-button:hover') || !themeSource.includes('.deck-workbench__section--hardware .deck-upgrade-list') || !themeSource.includes('repeat(auto-fit, minmax(104px, 1fr))')) throw new Error('Workbench overlay should cover the viewport and give each area breathing room');
 if (mainSource.includes('renderDeckTrace(appState.deckProfile')) throw new Error('Deck trace panel should not render in the active play shell');
 const mapActionHtml = renderNodeMap(projectSystemForRun(iceSystem, createInitialRunState(iceSystem)), createInitialRunState(iceSystem));
 if (!mapActionHtml.includes('node-map__actions') || !mapActionHtml.includes('data-action="toggleSettings"') || !mapActionHtml.includes('node-map__avatar-settings')) throw new Error('Node map should expose settings avatar next to jack-out');
@@ -639,7 +665,7 @@ const finishedActionMapHtml = renderNodeMap(projectSystemForRun(iceSystem, { ...
 if (finishedActionMapHtml.includes('node-map__actions') || finishedActionMapHtml.includes('node-map__jack-out')) throw new Error('Finished maps should remove the active top-right action stack');
 if (!renderProgramDock({ ...jackOutRun, selectedProgram: 'scan', disabledPrograms: [] }, true).includes('program-dock--inactive')) throw new Error('Finished runs should fade and disable program controls');
 const cyberProgramDockHtml = renderProgramDock({ ...jackOutRun, selectedProgram: 'scan', disabledPrograms: [] }, false, 'spike', upgradedDeckResult.profile);
-if (!cyberProgramDockHtml.includes('is-recommended') || !cyberProgramDockHtml.includes('program-card__frame') || !cyberProgramDockHtml.includes('LVL') || cyberProgramDockHtml.includes('program-card__rec') || !themeSource.includes('programRecommendedTrace')) throw new Error('Program dock should render cyberdeck cards with levels and mark the recommended program through the card border');
+if (!cyberProgramDockHtml.includes('is-recommended') || !cyberProgramDockHtml.includes('program-card__frame') || !cyberProgramDockHtml.includes('pathLength="100"') || !cyberProgramDockHtml.includes('LVL') || cyberProgramDockHtml.includes('program-card__rec') || !themeSource.includes('programRecommendedTrace') || !themeSource.includes('programRecommendedOuterPulse') || themeSource.includes('.program-dock .program-card.is-recommended::after')) throw new Error('Program dock should render cyberdeck cards with levels and mark the recommended program through the cut SVG border');
 const settingsHtml = renderSettingsOverlay(true, { music: true, sfx: false, musicVolume: 0.42, sfxVolume: 0.18 }, 'workbench-light');
 if (!settingsHtml.includes('settings-audio') || !settingsHtml.includes('data-audio-volume="music"') || !settingsHtml.includes('value="42"')) throw new Error('Settings overlay should render real music volume controls');
 if (!settingsHtml.includes('data-action="toggleMusic"') || !settingsHtml.includes('data-action="openHelp"')) throw new Error('Settings overlay should contain audio toggles and a help button');
@@ -667,10 +693,16 @@ const scannerHtml = renderScannerOverlay({
     { provider: 'osm', providerId: 'node/1', name: 'Real Shop', category: 'shop', address: 'Calle Real 1' },
     { provider: 'geoapify', providerId: 'geoapify/1', name: 'Geo Office', category: 'office', address: 'Geoapify Way' },
     { provider: 'manual', providerId: 'demo/1', name: 'Demo Shop', category: 'shop' },
+    { provider: 'osm', providerId: 'node/quest', name: 'Quest Host', category: 'quest', special: true },
+    { provider: 'osm', providerId: 'node/lethal', name: 'Red Host', category: 'security' },
   ],
   selectedPlace: { providerId: 'node/1' },
   locationMessage: 'Scanner activo.',
-  describeTarget: (place) => place.category,
+  describeTarget: (place) => {
+    if (place.providerId === 'geoapify/1') return `${place.category} · A 72/100`;
+    if (place.providerId === 'node/lethal') return `${place.category} · AAA 91/100`;
+    return `${place.category} · C 42/100`;
+  },
   bookmarks: [{ provider: 'osm', providerId: 'node/2', hostAlias: 'BOOKMARK', name: 'Saved Real', address: 'Calle Bookmark 2' }],
   bookmarkCapacity: 3,
 });
@@ -678,7 +710,10 @@ if (!scannerHtml.includes('/assets/ui/source-world.svg') || !scannerHtml.include
 if (!scannerHtml.includes('Mundo real') || !scannerHtml.includes('Geoapify') || !scannerHtml.includes('Sandbox') || !scannerHtml.includes('Calle Real 1')) throw new Error('Scanner should show source labels and real-world anchor data when available');
 if (!scannerHtml.includes('Proxy remoto')) throw new Error('Scanner bookmarks should be labelled as proxy scans');
 if (!scannerHtml.includes('scanner-bookmark-card') || !scannerHtml.includes('data-bookmark-destroy') || !scannerHtml.includes('Destroy')) throw new Error('Scanner bookmarks should expose a destroy action');
-if (!themeSource.includes('.scanner-panel {') || !themeSource.includes('height: 100dvh') || !themeSource.includes('.scanner-targets button {') || !themeSource.includes('min-height: 72px')) throw new Error('Scanner local should use an enlarged full-window overlay with larger targets');
+if (scannerHtml.includes('<small class="scanner-source') || !scannerHtml.includes('data-target-tone="sandbox"') || !scannerHtml.includes('data-target-tone="normal"') || !scannerHtml.includes('data-target-tone="hot"') || !scannerHtml.includes('data-target-tone="lethal"') || !scannerHtml.includes('data-target-tone="special"')) throw new Error('Scanner target cards should drop source badges and encode host class through border tone');
+if (!scannerHtml.includes('scanner-panel__header-actions') || !scannerHtml.includes('Actualizar zona') || scannerHtml.includes('Buscar cerca de mí')) throw new Error('Scanner refresh should live as a compact header action next to close');
+if (!themeSource.includes('.scanner-panel {') || !themeSource.includes('height: 100dvh') || !themeSource.includes('.scanner-targets button {') || !themeSource.includes('min-height: 72px') || !themeSource.includes('.scanner-panel__refresh') || !themeSource.includes('.scanner-panel__header-actions button')) throw new Error('Scanner local should use an enlarged full-window overlay with larger targets and normalized header actions');
+if (!themeSource.includes('button.scanner-target--sandbox') || !themeSource.includes('.scanner-bookmark-card.scanner-target--sandbox') || !themeSource.includes('button.scanner-target--normal') || !themeSource.includes('button.scanner-target--hot') || !themeSource.includes('button.scanner-target--lethal') || !themeSource.includes('button.scanner-target--special')) throw new Error('Scanner target borders should apply direct tones to detected hosts and bookmarks');
 if (!themeSource.includes('.scanner-targets:not(.scanner-targets--bookmarks)') || !themeSource.includes('.scanner-targets--bookmarks') || !themeSource.includes('grid-template-columns: repeat(2, minmax(0, 1fr))') || !themeSource.includes('.scanner-bookmark-card__destroy')) throw new Error('Scanner should use two columns for detected objectives and destroy buttons for bookmarks');
 
 const fetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'fetch');

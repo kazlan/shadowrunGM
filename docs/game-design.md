@@ -51,6 +51,7 @@ Reglas obligatorias:
 - El núcleo aparece a cuatro saltos o más desde la entrada.
 - La CPU y los archivos reales no deben quedar pegados a salidas; las salidas son periferia, no atajos a recompensas.
 - Los hosts A/AA/AAA exigen al menos dos decisiones tácticas antes del primer payload real.
+- Los hosts de baja seguridad (`effectiveSecurity <= 2`) no fuerzan ICE mínimo y restringen ICE a zonas profundas, para que `D/C` sean más seguros y no solo menos rentables.
 - Si aparece dato cerca de entrada, debe funcionar como señuelo, pista o nodo bloqueado, no como recompensa inmediata.
 - Cada host debe ofrecer una ruta corta peligrosa y una ruta más legible, con al menos una salida alcanzable.
 - La seed puede rotar, invertir, alargar ramas y añadir anillos parciales, pero no romper la gramática: periferia para acceso/escape, zona media para control, ramas protegidas para datos y centro interno para CPU.

@@ -86,24 +86,24 @@ export function renderDeckOverlay(isOpen, deckProfile, upgradeMessage = '') {
           ${renderRadarIcon()}
           <div>
             <strong>Scanner de objetivos</strong>
-            <span>Localiza nuevos hosts, bookmarks y zonas cercanas antes del siguiente jack-in.</span>
+            <span>Nuevos hosts, bookmarks y zonas cercanas.</span>
           </div>
           <button class="deck-workbench__scanner-button" data-action="toggleScanner" type="button" title="Abrir scanner de objetivos">Scanner de objetivos</button>
-          ${upgradeMessage ? `<p>${escapeHtml(upgradeMessage)}</p>` : ''}
         </div>
-        <div class="deck-workbench__section">
+        ${upgradeMessage ? `<p class="deck-workbench__message">${escapeHtml(upgradeMessage)}</p>` : ''}
+        <div class="deck-workbench__section deck-workbench__section--parts">
           <h3>Piezas</h3>
           <div class="deck-parts">${parts}</div>
         </div>
-        <div class="deck-workbench__section">
+        <div class="deck-workbench__section deck-workbench__section--hardware">
           <h3>Hardware</h3>
           <div class="deck-upgrade-list">${hardware}${bookmarkHardware}</div>
         </div>
-        <div class="deck-workbench__section">
+        <div class="deck-workbench__section deck-workbench__section--stats">
           <h3>Stats del chasis</h3>
           <div class="deck-upgrade-list">${stats}</div>
         </div>
-        <div class="deck-workbench__section">
+        <div class="deck-workbench__section deck-workbench__section--software">
           <h3>Software cargado</h3>
           <div class="deck-software-grid">${programUpgrades}</div>
         </div>

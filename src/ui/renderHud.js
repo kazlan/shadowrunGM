@@ -24,8 +24,8 @@ export function renderProgramDock(run, finished = false, recommendedProgram = nu
       return `<button class="${classes}" data-program="${program.kind}" type="button" aria-label="${escapeHtml(`Ejecutar ${program.label}: ${stateLabel}`)}" title="${escapeHtml(stateLabel)}" ${disabled ? 'disabled' : ''}>
         <span class="program-card__frame" aria-hidden="true">
           <svg viewBox="0 0 100 100" focusable="false">
-            <path class="program-card__frame-outer" d="M13 3H72L97 28V78L78 97H13L3 87V13L13 3Z" />
-            <path class="program-card__frame-cut" d="M17 3h17M64 3h8l25 25v9M97 67v11L78 97H61M34 97H13L3 87V70" />
+            <path class="program-card__frame-outer" pathLength="100" d="M13 3H72L97 28V78L78 97H13L3 87V13L13 3Z" />
+            <path class="program-card__frame-cut" pathLength="100" d="M17 3h17M64 3h8l25 25v9M97 67v11L78 97H61M34 97H13L3 87V70" />
           </svg>
         </span>
         <span class="program-card__icon">
