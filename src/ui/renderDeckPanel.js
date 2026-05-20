@@ -59,7 +59,7 @@ export function renderDeckOverlay(isOpen, deckProfile, upgradeMessage = '') {
   const programUpgrades = programs
     .map((program) => renderSoftwareCard(program, deckProfile.programs[program.kind], deckProfile.credits))
     .join('');
-  const hardware = renderUpgradeRow('hardware', 'storage', 'Memoria', deckProfile.hardware.storage, `Capacidad de loot: ${getStorageCapacity(deckProfile)} tokens.`, deckProfile.credits);
+  const hardware = renderUpgradeRow('hardware', 'storage', 'Memoria', deckProfile.hardware.storage, `Capacidad: ${getStorageCapacity(deckProfile)} tokens.`, deckProfile.credits);
   const bookmarkHardware = renderUpgradeRow('hardware', 'bookmarks', 'Bookmarks', deckProfile.hardware.bookmarks, `Hosts guardados: ${deckProfile.bookmarks.length}/${getBookmarkCapacity(deckProfile)}.`, deckProfile.credits);
   const parts = deckParts
     .map((part) => `<article class="deck-part">
@@ -82,14 +82,7 @@ export function renderDeckOverlay(isOpen, deckProfile, upgradeMessage = '') {
         </div>
       </div>
       <div class="overlay-panel__content deck-workbench__content">
-        <div class="deck-workbench__scanner">
-          ${renderRadarIcon()}
-          <div>
-            <strong>Scanner de objetivos</strong>
-            <span>Nuevos hosts, bookmarks y zonas cercanas.</span>
-          </div>
-          <button class="deck-workbench__scanner-button" data-action="toggleScanner" type="button" title="Abrir scanner de objetivos">Scanner de objetivos</button>
-        </div>
+        <button class="deck-workbench__scanner-button" data-action="toggleScanner" type="button" title="Abrir scanner de objetivos">Scanner de objetivos</button>
         ${upgradeMessage ? `<p class="deck-workbench__message">${escapeHtml(upgradeMessage)}</p>` : ''}
         <div class="deck-workbench__section deck-workbench__section--parts">
           <h3>Piezas</h3>
@@ -153,19 +146,4 @@ function renderSoftwareCard(program, level, credits) {
     <span>L${level}</span>
     <button data-deck-upgrade="program:${program.kind}" type="button" ${maxed || !affordable ? 'disabled' : ''}>${escapeHtml(state)}</button>
   </article>`;
-}
-
-function renderRadarIcon() {
-  return `<span class="deck-workbench__radar" aria-hidden="true">
-    <svg viewBox="0 0 64 64" focusable="false">
-      <circle cx="32" cy="32" r="24"></circle>
-      <circle cx="32" cy="32" r="14"></circle>
-      <path d="M32 8v8M32 48v8M8 32h8M48 32h8"></path>
-      <path d="M32 32l18-10"></path>
-      <path d="M32 32l-8 16"></path>
-      <circle cx="32" cy="32" r="3"></circle>
-      <circle cx="50" cy="22" r="2.5"></circle>
-      <circle cx="24" cy="48" r="2.2"></circle>
-    </svg>
-  </span>`;
 }

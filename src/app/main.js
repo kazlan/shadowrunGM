@@ -1723,7 +1723,7 @@ function syncRunResult() {
     cachedBookmark = bookmarkResult.bookmark ?? findBookmarkBySeed(appState.deckProfile, appState.system.seedId);
     if (bookmarkResult.changed) ensureBookmarkZoneCached(cachedBookmark);
   }
-  appState.deckMessage = completionDeckMessage(reward.reward, bookmarkResult);
+  appState.deckMessage = '';
   appState.recentProgress = listRecentProgress();
   void syncProgressEntry(appState.currentProgress);
   appState.lastRecordedStatus = appState.run.status;
@@ -1794,15 +1794,6 @@ function syncRunResult() {
 function hasConqueredCpu(system, run) {
   const coreNodeId = system?.coreNodeId ?? system?.nodes?.find((node) => node.kind === 'core')?.id;
   return Boolean(coreNodeId && run?.nodeStates?.[coreNodeId] === NODE_RUNTIME_STATE.COMPROMISED);
-}
-
-function completionDeckMessage(reward, bookmarkResult) {
-  const base = reward > 0 ? `+¤${reward} transferidos a la cuenta. Deck limpio.` : 'Deck limpio.';
-  if (!bookmarkResult) return base;
-  if (bookmarkResult.changed) return `${base} Bookmark de CPU registrado.`;
-  if (bookmarkResult.reason === 'exists') return `${base} Bookmark de CPU ya disponible.`;
-  if (bookmarkResult.reason === 'full') return `${base} Memoria de bookmarks llena.`;
-  return base;
 }
 
 function clearFinishedRunCargo(run) {
