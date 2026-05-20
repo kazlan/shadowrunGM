@@ -80,6 +80,7 @@ function sourceKind(target) {
 function sourceLabel(target) {
   if (target.provider === 'osm') return 'Mundo real';
   if (target.provider === 'geoapify') return 'Geoapify';
+  if (target.provider === 'local') return 'Nodo local';
   return 'Sandbox';
 }
 

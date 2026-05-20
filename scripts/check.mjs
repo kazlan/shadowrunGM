@@ -124,8 +124,8 @@ if (scanLocalBody.includes('startRun(') || !scanLocalBody.includes('appState.isS
 const locationSource = await readFile('src/location/locationService.js', 'utf8');
 if (!locationSource.includes('getGeolocationPermissionState') || !locationSource.includes('bloqueado en el navegador') || !mainSource.includes('scannerPermissionMessage')) throw new Error('Local scanner should explain blocked geolocation permissions before falling back');
 const overpassSource = await readFile('src/world/overpassProvider.js', 'utf8');
-if (!overpassSource.includes('nwr["name"]["tourism"]') || !overpassSource.includes('nwr["name"]["healthcare"]') || !mainSource.includes('EXPANDED_SCAN_RADIUS')) throw new Error('Local scanner should broaden OSM target searches before using demo fallback');
-if (!mainSource.includes('VALENCIA_TEST_POSITION') || !mainSource.includes('MIN_SCANNER_TARGETS') || !mainSource.includes('fillWithSandboxTargets')) throw new Error('Local scanner should use Valencia in local testing and fill short OSM result sets with sandbox targets');
+if (!overpassSource.includes('nwr["name"]["tourism"]') || !overpassSource.includes('nwr["name"]["healthcare"]') || !mainSource.includes('EXPANDED_SCAN_RADIUS')) throw new Error('Local scanner should broaden OSM target searches before using local fallback nodes');
+if (!mainSource.includes('VALENCIA_TEST_POSITION') || !mainSource.includes('MIN_SCANNER_TARGETS') || !mainSource.includes('fillWithLocalTargets')) throw new Error('Local scanner should use Valencia in local testing and fill short provider result sets with local proxy targets');
 if (!mainSource.includes('VITE_TARGETS_ENDPOINT') || !mainSource.includes('searchBackendTargets') || !mainSource.includes('searchOverpassPlaces')) throw new Error('Scanner should try the targets backend before falling back to direct Overpass');
 if (!mainSource.includes('scheduleTargetPrefetchForRun') || !mainSource.includes('SCANNER_PREFETCH_LIMIT')) throw new Error('Scanner should prefetch a small number of target zones during runs');
 if (!mainSource.includes('ensureBookmarkZoneCached') || !mainSource.includes('SCANNER_BOOKMARK_PREFETCH_LIMIT')) throw new Error('Awarding a bookmark should warm the targets cache for that bookmark zone');
@@ -285,7 +285,7 @@ class MockAudioContext {
 }
 
 
-const { demoPlaces } = await import('../src/world/placeProvider.js');
+const { createDemoNearbyProvider, demoPlaces } = await import('../src/world/placeProvider.js');
 const { classifyCompany } = await import('../src/world/companyArchetypes.js');
 const { valueCompany } = await import('../src/world/companyValuation.js');
 const { createRng } = await import('../src/game/rng.js');
@@ -311,6 +311,8 @@ const { mergeDeckProfiles } = await import('../src/firebase/cloudSync.js');
 const { createOverpassProvider } = await import('../src/world/overpassProvider.js');
 const { addHostBookmark, avatarCatalog, awardRunCredits, createDefaultDeckProfile, getBookmarkCapacity, getStorageCapacity, removeHostBookmark, setDeckProfileLevel, updatePlayerProfile, upgradeDeckProfile } = await import('../src/world/deckStore.js');
 
+const localFallbackTargets = await createDemoNearbyProvider().searchNearbyPlaces({ lat: 42.72, lon: -7.8 }, 3000);
+if (localFallbackTargets.length < 4 || localFallbackTargets.some((place) => place.provider !== 'local' || place.name.includes('Café Kitsune') || place.address?.includes('demo'))) throw new Error('Sparse scanner fallback should return local proxy nodes instead of classic demo targets');
 const jackOutPlace = demoPlaces[0];
 const jackOutSeed = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 const jackOutArchetype = classifyCompany(jackOutPlace);
@@ -754,14 +756,14 @@ const scannerHtml = renderScannerOverlay({
 });
 const quietScannerHtml = renderScannerOverlay({
   isOpen: true,
-  places: [{ provider: 'manual', providerId: 'demo/quiet', name: 'Quiet Demo', category: 'shop' }],
-  selectedPlace: { providerId: 'demo/quiet' },
+  places: [{ provider: 'local', providerId: 'local/quiet', name: 'Proxy local Norte', category: 'local relay' }],
+  selectedPlace: { providerId: 'local/quiet' },
   locationMessage: '',
   describeTarget: () => 'shop · C 42/100',
   bookmarks: [],
   bookmarkCapacity: 3,
 });
-if (quietScannerHtml.includes('scanner-status')) throw new Error('Scanner should hide status copy once targets are ready');
+if (quietScannerHtml.includes('scanner-status') || !quietScannerHtml.includes('Nodo local')) throw new Error('Scanner should hide status copy once targets are ready and label generated local proxy nodes without demo copy');
 if (!scannerHtml.includes('/assets/ui/source-world.svg') || !scannerHtml.includes('/assets/ui/source-sandbox.svg')) throw new Error('Scanner should identify real world and sandbox host sources');
 if (!scannerHtml.includes('Mundo real') || !scannerHtml.includes('Geoapify') || !scannerHtml.includes('Sandbox') || !scannerHtml.includes('Calle Real 1')) throw new Error('Scanner should show source labels and real-world anchor data when available');
 if (!scannerHtml.includes('Proxy remoto')) throw new Error('Scanner bookmarks should be labelled as proxy scans');

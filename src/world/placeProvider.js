@@ -37,17 +37,23 @@ export const demoPlaces = [
   },
 ];
 
+const localProxyTemplates = [
+  { name: 'Proxy local Norte', category: 'local relay', address: 'Nodo de acceso local' },
+  { name: 'Cache de distrito', category: 'local cache', address: 'Nodo de datos cercano' },
+  { name: 'Repetidor cívico', category: 'local service', address: 'Nodo de servicio local' },
+  { name: 'Terminal de zona', category: 'local terminal', address: 'Nodo de tránsito local' },
+];
+
 export function createDemoNearbyProvider() {
   return {
     async searchNearbyPlaces(position, radiusMeters = 900) {
-      const spread = Math.min(Math.max(radiusMeters, 250), 1500) / 111_320;
-      return demoPlaces.map((place, index) => ({
+      const spread = Math.min(Math.max(radiusMeters, 250), 3000) / 111_320;
+      return localProxyTemplates.map((place, index) => ({
         ...place,
-        provider: 'manual',
-        providerId: `${place.providerId}-nearby-${position.lat.toFixed(3)}-${position.lon.toFixed(3)}`,
+        provider: 'local',
+        providerId: `local-proxy-${index + 1}-${position.lat.toFixed(3)}-${position.lon.toFixed(3)}`,
         lat: position.lat + spread * (index + 1) * 0.08,
         lon: position.lon - spread * (index + 1) * 0.06,
-        address: 'Objetivo demo generado cerca de tu posición aproximada',
       }));
     },
   };

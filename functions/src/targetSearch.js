@@ -8,8 +8,9 @@ const CACHE_COLLECTION = 'placesCache';
 const CACHE_VERSION = 1;
 const CACHE_GRID_METERS = 500;
 const MIN_TARGET_RADIUS = 250;
-const MAX_TARGET_RADIUS = 3000;
-const EXPANDED_TARGET_RADIUS = 3000;
+const MAX_TARGET_RADIUS = 15000;
+const OVERPASS_MAX_RADIUS = 3000;
+const EXPANDED_TARGET_RADII = [3000, 8000, 15000];
 const FRESH_TTL_MS = 24 * 60 * 60 * 1000;
 const STALE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const GEOAPIFY_CATEGORIES = [
@@ -41,14 +42,16 @@ export async function resolveNearbyTargets({ db, fetchImpl = fetch, geoapifyApiK
 
   for (const radius of getSearchRadii(request.radius)) {
     resolvedRadius = radius;
-    try {
-      const radiusOverpassPlaces = await fetchOverpassPlaces(fetchImpl, request.position, radius);
-      overpassPlaces = mergePlaces(overpassPlaces, radiusOverpassPlaces);
-      recordProviderHealth(providerHealth, 'overpass', overpassPlaces.length >= request.minTargets
-        ? 'ok'
-        : radiusOverpassPlaces.length > 0 ? 'partial' : 'partial');
-    } catch (error) {
-      recordProviderHealth(providerHealth, 'overpass', 'failed');
+    if (radius <= OVERPASS_MAX_RADIUS) {
+      try {
+        const radiusOverpassPlaces = await fetchOverpassPlaces(fetchImpl, request.position, radius);
+        overpassPlaces = mergePlaces(overpassPlaces, radiusOverpassPlaces);
+        recordProviderHealth(providerHealth, 'overpass', overpassPlaces.length >= request.minTargets
+          ? 'ok'
+          : radiusOverpassPlaces.length > 0 ? 'partial' : 'partial');
+      } catch (error) {
+        recordProviderHealth(providerHealth, 'overpass', 'failed');
+      }
     }
 
     if (mergePlaces(overpassPlaces, geoapifyPlaces).length >= request.minTargets) {
@@ -126,8 +129,7 @@ export function normalizeTargetRequest(input) {
 }
 
 function getSearchRadii(radius) {
-  const radii = [radius];
-  if (radius < EXPANDED_TARGET_RADIUS) radii.push(EXPANDED_TARGET_RADIUS);
+  const radii = [radius, ...EXPANDED_TARGET_RADII.filter((expandedRadius) => radius < expandedRadius)];
   return [...new Set(radii.map((value) => clamp(value, MIN_TARGET_RADIUS, MAX_TARGET_RADIUS)))];
 }
 

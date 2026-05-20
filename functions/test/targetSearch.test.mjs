@@ -14,8 +14,8 @@ test('cache key is stable inside the same 500m-ish cell', () => {
 });
 
 test('request normalization clamps gameplay limits', () => {
-  const request = normalizeTargetRequest({ lat: 39.4, lon: -0.3, radius: 5000, limit: 50, minTargets: 99 });
-  assert.equal(request.radius, 3000);
+  const request = normalizeTargetRequest({ lat: 39.4, lon: -0.3, radius: 50000, limit: 50, minTargets: 99 });
+  assert.equal(request.radius, 15000);
   assert.equal(request.limit, 10);
   assert.equal(request.minTargets, 10);
   assert.throws(() => normalizeTargetRequest({ lat: 300, lon: -0.3 }), /Invalid lat\/lon/);
@@ -107,6 +107,39 @@ test('thin search expands radius before returning empty real targets', async () 
   assert.equal(result.radius, 3000);
   assert.equal(result.source, 'overpass');
   assert.equal(result.places.length, 2);
+});
+
+test('geoapify uses wider rings when nearby search is too thin', async () => {
+  const overpassRadii = [];
+  const geoapifyRadii = [];
+  const result = await resolveNearbyTargets({
+    db: createMockDb(),
+    geoapifyApiKey: 'geo-key',
+    input: { lat: 39.4699, lon: -0.3763, radius: 700, limit: 10, minTargets: 3 },
+    fetchImpl: async (url, options = {}) => {
+      const textUrl = String(url);
+      if (textUrl.includes('geoapify')) {
+        const radius = Number(new URL(textUrl).searchParams.get('filter')?.match(/,(\d+)$/)?.[1] ?? 0);
+        geoapifyRadii.push(radius);
+        if (radius >= 8000) {
+          return okJson({ features: [
+            geoFeature('wide-1', 'Wide Gamma', -0.3762, 39.4701),
+            geoFeature('wide-2', 'Wide Delta', -0.3764, 39.4702),
+            geoFeature('wide-3', 'Wide Epsilon', -0.3765, 39.4703),
+          ] });
+        }
+        return okJson({ features: [] });
+      }
+      const query = options.body?.get?.('data') ?? String(options.body ?? '');
+      overpassRadii.push(Number(query.match(/around:(\d+)/)?.[1] ?? 0));
+      return okJson({ elements: [] });
+    },
+  });
+  assert.deepEqual(overpassRadii, [700, 3000]);
+  assert.deepEqual(geoapifyRadii, [700, 3000, 8000]);
+  assert.equal(result.radius, 8000);
+  assert.equal(result.source, 'geoapify');
+  assert.equal(result.places.length, 3);
 });
 
 test('providers failure returns stale cache when available', async () => {

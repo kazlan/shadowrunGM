@@ -1332,11 +1332,11 @@ async function scanFromPosition(position) {
   const radius = getScanRadius();
   try {
     const realScan = await searchRealPlaces(position, radius);
-    appState.places = await fillWithSandboxTargets(realScan.places, position, radius);
+    appState.places = await fillWithLocalTargets(realScan.places, position, radius);
     appState.locationMessage = scannerResultMessage();
   } catch (providerError) {
     console.warn('Overpass unavailable, using demo nearby provider', providerError);
-    appState.places = await fillWithSandboxTargets([], position, radius);
+    appState.places = await fillWithLocalTargets([], position, radius);
     appState.locationMessage = '';
   }
 }
@@ -1407,10 +1407,10 @@ async function searchBackendTargets(position, radius) {
   };
 }
 
-async function fillWithSandboxTargets(realPlaces, position, radius) {
+async function fillWithLocalTargets(realPlaces, position, radius) {
   if (realPlaces.length >= MIN_SCANNER_TARGETS) return realPlaces;
-  const sandboxPlaces = await searchNearbyPlaces(demoNearbyProvider, position, radius);
-  return mergePlaces(realPlaces, sandboxPlaces).slice(0, MIN_SCANNER_TARGETS);
+  const localPlaces = await searchNearbyPlaces(demoNearbyProvider, position, radius);
+  return mergePlaces(realPlaces, localPlaces).slice(0, MIN_SCANNER_TARGETS);
 }
 
 function mergePlaces(...placeGroups) {
