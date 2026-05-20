@@ -24,7 +24,30 @@ export function isFirebaseMessagingConfigured() {
 
 export function getFirebaseConfig() {
   if (!isFirebaseConfigured()) return null;
-  return Object.fromEntries(
+  const config = Object.fromEntries(
     Object.entries(firebaseEnv).filter(([, value]) => Boolean(value)),
   );
+  return {
+    ...config,
+    authDomain: resolveFirebaseAuthDomain(config.authDomain),
+  };
+}
+
+function resolveFirebaseAuthDomain(configuredAuthDomain) {
+  const host = globalThis.location?.hostname ?? '';
+  const protocol = globalThis.location?.protocol ?? '';
+  if (
+    protocol === 'https:'
+    && host
+    && !isLocalHost(host)
+    && configuredAuthDomain.endsWith('.firebaseapp.com')
+    && host.endsWith('.vercel.app')
+  ) {
+    return host;
+  }
+  return configuredAuthDomain;
+}
+
+function isLocalHost(host) {
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1';
 }

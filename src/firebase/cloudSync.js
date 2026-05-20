@@ -24,6 +24,8 @@ export function createCloudSyncController({ onDeckLoaded, onStatusChange } = {})
     message: firebaseStatus.configured ? 'Cloud listo. Conecta una cuenta.' : disabledState.message,
   };
   let activeUser = null;
+  let redirectResolved = !firebaseStatus.configured;
+  let remoteDeckLoad = null;
   let disposed = false;
 
   const setState = (patch) => {
@@ -35,6 +37,14 @@ export function createCloudSyncController({ onDeckLoaded, onStatusChange } = {})
     if (disposed) return;
     activeUser = user;
     if (!user) {
+      if (!redirectResolved) {
+        setState({
+          user: null,
+          status: 'authenticating',
+          message: 'Comprobando sesion Google...',
+        });
+        return;
+      }
       setState({
         user: null,
         status: firebaseStatus.configured ? 'signed-out' : 'disabled',
@@ -47,10 +57,22 @@ export function createCloudSyncController({ onDeckLoaded, onStatusChange } = {})
   });
 
   if (firebaseStatus.configured) {
+    setState({ status: 'authenticating', message: 'Comprobando sesion Google...' });
     void completeRedirectSignIn();
   }
 
   async function loadRemoteDeck(user) {
+    if (remoteDeckLoad?.uid === user.uid) return remoteDeckLoad.promise;
+    const promise = loadRemoteDeckOnce(user);
+    remoteDeckLoad = { uid: user.uid, promise };
+    try {
+      return await promise;
+    } finally {
+      if (remoteDeckLoad?.promise === promise) remoteDeckLoad = null;
+    }
+  }
+
+  async function loadRemoteDeckOnce(user) {
     setState({
       user: projectUser(user),
       status: 'syncing',
@@ -160,6 +182,7 @@ export function createCloudSyncController({ onDeckLoaded, onStatusChange } = {})
   async function completeRedirectSignIn() {
     try {
       const result = await resolveAuthRedirect();
+      redirectResolved = true;
       if (!result?.user) {
         if (!activeUser) {
           setState({ status: 'signed-out', message: 'Cloud listo. Conecta una cuenta.' });
@@ -169,6 +192,7 @@ export function createCloudSyncController({ onDeckLoaded, onStatusChange } = {})
       activeUser = result.user;
       await loadRemoteDeck(result.user);
     } catch (error) {
+      redirectResolved = true;
       setState({ status: 'error', message: authErrorMessage(error) });
     }
   }
@@ -182,6 +206,8 @@ export function mergeDeckProfiles(localProfile, remoteProfile) {
   const base = remote.totalEarned > local.totalEarned ? remote : local;
   return normalizeDeckProfile({
     ...base,
+    totalRunScore: Math.max(local.totalRunScore, remote.totalRunScore),
+    lastRunScore: base.lastRunScore,
     bookmarks: mergeBookmarks(local.bookmarks, remote.bookmarks),
     player: mergePlayerProfiles(local.player, remote.player),
   });

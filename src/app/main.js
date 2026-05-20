@@ -211,7 +211,7 @@ function render() {
   setDocumentMode('play');
   applyTheme(appState.theme);
   if (!appState.system || !appState.run) {
-    root.innerHTML = '<main class="app-shell app-shell--loading">Sincronizando deck...</main>';
+    root.innerHTML = `${renderOrientationGuard()}<main class="app-shell app-shell--loading">Sincronizando deck...</main>`;
     return;
   }
 
@@ -225,7 +225,7 @@ function render() {
   const dangerTheme = getDangerTheme(themeRun);
   const signalFxClass = getSignalFxClass(dangerTheme.level, themeRun.status, shockActive);
   const previousMapMeters = readVisibleMapMeters();
-  root.innerHTML = `<main class="app-shell ${signalFxClass}" style="--host-bg: url('${backgroundUrl}'); --danger-level: ${dangerTheme.level}; --danger-color: ${dangerTheme.color}; --danger-border: ${dangerTheme.border}; --danger-glow: ${dangerTheme.glow}">
+  root.innerHTML = `${renderOrientationGuard()}<main class="app-shell ${signalFxClass}" style="--host-bg: url('${backgroundUrl}'); --danger-level: ${dangerTheme.level}; --danger-color: ${dangerTheme.color}; --danger-border: ${dangerTheme.border}; --danger-glow: ${dangerTheme.glow}">
     ${shockActive ? renderDisconnectFilter() : ''}
     ${shockActive ? '<div class="disconnect-shock" aria-hidden="true"></div>' : ''}
     <div class="scanline"></div>
@@ -309,7 +309,14 @@ function renderLanding() {
   if (!root) return;
   setDocumentMode('landing');
   applyTheme(appState.theme);
-  root.innerHTML = renderLandingPage();
+  root.innerHTML = `${renderOrientationGuard()}${renderLandingPage()}`;
+}
+
+function renderOrientationGuard() {
+  return `<aside class="orientation-guard" aria-live="polite">
+    <strong>Gira el deck</strong>
+    <span>shadowHack se juega en vertical.</span>
+  </aside>`;
 }
 
 function setDocumentMode(mode) {
@@ -681,6 +688,27 @@ function scannerPermissionMessage(permissionState) {
   return 'Solicitando ubicación para buscar objetivos cercanos...';
 }
 
+function setupPortraitOrientationLock() {
+  if (!isMobileViewport()) return;
+  const lockPortrait = () => {
+    const orientation = globalThis.screen?.orientation;
+    if (!orientation?.lock) return;
+    void orientation.lock('portrait').catch(() => {});
+  };
+
+  lockPortrait();
+  globalThis.addEventListener?.('pointerdown', lockPortrait, { once: true, passive: true });
+  globalThis.addEventListener?.('touchstart', lockPortrait, { once: true, passive: true });
+}
+
+function isMobileViewport() {
+  return Boolean(
+    globalThis.matchMedia?.('(pointer: coarse)')?.matches
+    || globalThis.matchMedia?.('(max-width: 820px)')?.matches,
+  );
+}
+
+setupPortraitOrientationLock();
 void boot();
 registerServiceWorker();
 

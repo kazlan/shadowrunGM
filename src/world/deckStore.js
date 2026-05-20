@@ -42,6 +42,7 @@ export function createDefaultDeckProfile() {
   return {
     credits: 0,
     totalEarned: 0,
+    totalRunScore: 0,
     deck: { ...DEFAULT_STATS },
     hardware: { ...DEFAULT_HARDWARE },
     programs: { ...DEFAULT_PROGRAMS },
@@ -49,6 +50,7 @@ export function createDefaultDeckProfile() {
     bookmarks: [],
     player: { ...DEFAULT_PLAYER },
     lastReward: 0,
+    lastRunScore: 0,
   };
 }
 
@@ -78,12 +80,16 @@ export function saveDeckProfile(profile) {
 }
 
 export function awardRunCredits(profile, system, run, score) {
-  const reward = calculateRunCredits(system, run, score);
+  const normalized = normalizeDeckProfile(profile);
+  const runScore = nonNegativeInt(score);
+  const reward = calculateRunCredits(system, run, runScore);
   const nextProfile = normalizeDeckProfile({
-    ...profile,
-    credits: profile.credits + reward,
-    totalEarned: profile.totalEarned + reward,
+    ...normalized,
+    credits: normalized.credits + reward,
+    totalEarned: normalized.totalEarned + reward,
+    totalRunScore: normalized.totalRunScore + runScore,
     lastReward: reward,
+    lastRunScore: runScore,
   });
 
   return {
@@ -117,6 +123,27 @@ export function upgradeDeckProfile(profile, category, key) {
   return { profile: saveDeckProfile(nextProfile), changed: true, cost };
 }
 
+export function setDeckProfileLevel(profile, category, key, level) {
+  const normalized = normalizeDeckProfile(profile);
+  if (!['stat', 'program', 'hardware'].includes(category)) return { profile: normalized, changed: false, reason: 'unknown' };
+
+  const collection = getUpgradeCollection(normalized, category);
+  if (!Object.hasOwn(collection, key)) return { profile: normalized, changed: false, reason: 'missing' };
+
+  const nextLevel = clampLevel(level);
+  if (collection[key] === nextLevel) return { profile: normalized, changed: false, reason: 'same' };
+
+  const nextProfile = normalizeDeckProfile({
+    ...normalized,
+    [getUpgradeCollectionKey(category)]: {
+      ...collection,
+      [key]: nextLevel,
+    },
+  });
+
+  return { profile: saveDeckProfile(nextProfile), changed: true };
+}
+
 export function getUpgradeCost(category, currentLevel) {
   const base = category === 'stat' ? 130 : category === 'hardware' ? 120 : 90;
   return base * (currentLevel + 1);
@@ -134,6 +161,7 @@ export function normalizeDeckProfile(profile) {
   return {
     credits: nonNegativeInt(source.credits),
     totalEarned: nonNegativeInt(source.totalEarned),
+    totalRunScore: nonNegativeInt(source.totalRunScore),
     deck: normalizeLevels(source.deck, DEFAULT_STATS),
     hardware: normalizeLevels(source.hardware, DEFAULT_HARDWARE),
     programs: normalizeLevels(source.programs, DEFAULT_PROGRAMS),
@@ -141,6 +169,7 @@ export function normalizeDeckProfile(profile) {
     bookmarks: normalizeBookmarks(source.bookmarks),
     player: normalizePlayerProfile(source.player),
     lastReward: nonNegativeInt(source.lastReward),
+    lastRunScore: nonNegativeInt(source.lastRunScore),
   };
 }
 

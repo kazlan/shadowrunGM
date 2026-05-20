@@ -22,6 +22,8 @@ VITE_TARGETS_ENDPOINT=
 
 `MEASUREMENT_ID` es opcional. `VAPID_KEY` y `ENABLE_MESSAGING=true` solo son necesarios para Web Push/FCM.
 
+En Vercel producción, Google redirect debe resolverse en el mismo host público de la app. Si `VITE_FIREBASE_AUTH_DOMAIN` apunta al dominio Firebase (`nexus-f20f5.firebaseapp.com`), la app lo sustituye en runtime por `shadowhack.vercel.app` y `vercel.json` proxifica `/__/auth/*` hacia Firebase. Mantén `shadowhack.vercel.app` en **Firebase Authentication > Settings > Authorized domains**.
+
 Para el proyecto Firebase **nexus** (`nexus-f20f5`) se usa una base Firestore Native nombrada, creada en `europe-southwest1`:
 
 ```text

@@ -1,5 +1,12 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import {
+  browserLocalPersistence,
+  browserPopupRedirectResolver,
+  browserSessionPersistence,
+  getAuth,
+  indexedDBLocalPersistence,
+  initializeAuth,
+} from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getMessaging, isSupported } from 'firebase/messaging';
 import { firebaseFirestoreDatabaseId, getFirebaseConfig, isFirebaseConfigured } from './firebaseConfig.js';
@@ -28,8 +35,19 @@ export function getFirebaseApp() {
 export function getFirebaseAuth() {
   const activeApp = getFirebaseApp();
   if (!activeApp) return null;
-  auth ??= getAuth(activeApp);
+  auth ??= initializeFirebaseAuth(activeApp);
   return auth;
+}
+
+function initializeFirebaseAuth(activeApp) {
+  try {
+    return initializeAuth(activeApp, {
+      persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence],
+      popupRedirectResolver: browserPopupRedirectResolver,
+    });
+  } catch (error) {
+    return getAuth(activeApp);
+  }
 }
 
 export function getFirebaseDb() {

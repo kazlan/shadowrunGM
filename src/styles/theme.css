@@ -527,6 +527,9 @@ button:focus-visible {
 }
 
 .app-shell--loading { display: grid; place-items: center; color: var(--cyan); letter-spacing: .2em; text-transform: uppercase; }
+.orientation-guard {
+  display: none;
+}
 .disconnect-filter {
   position: absolute;
   width: 0;
@@ -4396,5 +4399,45 @@ body.is-landing-page .landing-play h2 {
   .scanner-targets:not(.scanner-targets--bookmarks),
   .scanner-targets--bookmarks {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (orientation: landscape) and (pointer: coarse) and (max-height: 540px) {
+  .orientation-guard {
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    display: grid;
+    place-content: center;
+    gap: 10px;
+    padding: 28px;
+    color: var(--cyan);
+    background:
+      radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--cyan) 16%, transparent), transparent 36%),
+      rgba(1, 4, 12, .94);
+    text-align: center;
+    text-transform: uppercase;
+    pointer-events: auto;
+  }
+
+  .orientation-guard strong {
+    color: var(--yellow);
+    font-size: clamp(1.2rem, 5vw, 2rem);
+    letter-spacing: .1em;
+    text-shadow: 0 0 16px color-mix(in srgb, var(--yellow) 44%, transparent);
+  }
+
+  .orientation-guard span {
+    max-width: 24rem;
+    color: var(--text);
+    font-size: clamp(.72rem, 2.6vw, .95rem);
+    letter-spacing: .08em;
+  }
+
+  .orientation-guard ~ .app-shell,
+  .orientation-guard ~ .landing-shell {
+    filter: blur(7px) brightness(.72);
+    pointer-events: none;
+    user-select: none;
   }
 }

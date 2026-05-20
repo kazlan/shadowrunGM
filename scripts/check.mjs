@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 const requiredFiles = [
   'index.html',
   '.env.example',
+  'vercel.json',
   'firebase.json',
   'functions/package.json',
   'functions/.env.example',
@@ -87,6 +88,12 @@ for (const file of requiredBinaryFiles) {
 const manifest = JSON.parse(await readFile('public/manifest.webmanifest', 'utf8'));
 if (manifest.orientation !== 'portrait') throw new Error('Manifest orientation must be portrait');
 if (!['fullscreen', 'standalone'].includes(manifest.display)) throw new Error('Manifest display must be fullscreen or standalone');
+const indexSource = await readFile('index.html', 'utf8');
+if (!indexSource.includes('screen-orientation') || !indexSource.includes('viewport-fit=cover')) throw new Error('Mobile shell should request portrait and safe-area aware viewport behavior');
+const vercelConfig = JSON.parse(await readFile('vercel.json', 'utf8'));
+const authRewriteIndex = vercelConfig.rewrites?.findIndex((rewrite) => rewrite.source === '/__/auth/:path*') ?? -1;
+const spaRewriteIndex = vercelConfig.rewrites?.findIndex((rewrite) => rewrite.source === '/(.*)') ?? -1;
+if (authRewriteIndex < 0 || spaRewriteIndex < 0 || authRewriteIndex > spaRewriteIndex || !vercelConfig.rewrites[authRewriteIndex].destination.includes('nexus-f20f5.firebaseapp.com/__/auth/:path*')) throw new Error('Vercel should proxy Firebase Auth redirect handlers before the SPA fallback');
 const mainSource = await readFile('src/app/main.js', 'utf8');
 const envExample = await readFile('.env.example', 'utf8');
 const firebaseJson = JSON.parse(await readFile('firebase.json', 'utf8'));
@@ -96,6 +103,12 @@ const authSource = await readFile('src/firebase/authClient.js', 'utf8');
 if (authSource.includes('signInWithPopup') || !authSource.includes('signInWithRedirect') || !authSource.includes('linkWithRedirect') || !authSource.includes('getRedirectResult')) {
   throw new Error('Google auth should use redirect flow and support guest-to-Google linking');
 }
+const firebaseConfigSource = await readFile('src/firebase/firebaseConfig.js', 'utf8');
+const firebaseClientSource = await readFile('src/firebase/firebaseClient.js', 'utf8');
+const cloudSyncSource = await readFile('src/firebase/cloudSync.js', 'utf8');
+if (!firebaseConfigSource.includes('resolveFirebaseAuthDomain') || !firebaseConfigSource.includes("host.endsWith('.vercel.app')") || !firebaseConfigSource.includes("configuredAuthDomain.endsWith('.firebaseapp.com')")) throw new Error('Firebase config should use same-origin authDomain on Vercel production');
+if (!firebaseClientSource.includes('initializeAuth') || !firebaseClientSource.includes('indexedDBLocalPersistence') || !firebaseClientSource.includes('browserLocalPersistence') || !firebaseClientSource.includes('browserPopupRedirectResolver')) throw new Error('Firebase Auth should initialize explicit redirect persistence for mobile/PWA login');
+if (!cloudSyncSource.includes('redirectResolved') || !cloudSyncSource.includes('Comprobando sesion Google') || !cloudSyncSource.includes('remoteDeckLoad')) throw new Error('Cloud sync should wait for Google redirect resolution before reporting local signed-out state');
 const mapGeneratorSource = await readFile('src/game/mapGenerator.js', 'utf8');
 const nodeMapSource = await readFile('src/ui/renderNodeMap.js', 'utf8');
 if (!mainSource.includes('mapPointers: new Map()') || !mainSource.includes('startMapPinch') || !mainSource.includes('zoomMapAtPoint')) throw new Error('Node map should keep pinch zoom support wired into pointer handling');
@@ -145,6 +158,7 @@ if (!gameDesignSource.includes('no fuerzan ICE mínimo') || !gameDesignSource.in
   throw new Error('Docs should describe the safer low-security host band');
 }
 const themeSource = await readFile('src/styles/theme.css', 'utf8');
+if (!mainSource.includes('setupPortraitOrientationLock') || !mainSource.includes('renderOrientationGuard') || !themeSource.includes('@media (orientation: landscape) and (pointer: coarse)') || !themeSource.includes('.orientation-guard ~ .app-shell')) throw new Error('Mobile play shell should force portrait when possible and guard landscape touch viewports');
 if (!themeSource.includes('--scrollbar-thumb') || !themeSource.includes('::-webkit-scrollbar-thumb') || !themeSource.includes('scrollbar-color')) throw new Error('Theme CSS should style scrollbars consistently');
 if (!themeSource.includes('--button-crt-line') || !themeSource.includes('datastreamSlide') || !themeSource.includes('button:focus-visible')) throw new Error('Theme CSS should keep Cybercore-inspired micro styles available');
 if (!themeSource.includes('.disconnect-shock') || !themeSource.includes('disconnectShockSweep') || !themeSource.includes('disconnectSignalTear')) throw new Error('Dump shock should render a visible SVG-filtered signal sweep, not only blink the CRT mask');
@@ -294,7 +308,7 @@ const { getFirebaseStatus } = await import('../src/firebase/firebaseClient.js');
 const { cloudPaths } = await import('../src/firebase/cloudPersistence.js');
 const { mergeDeckProfiles } = await import('../src/firebase/cloudSync.js');
 const { createOverpassProvider } = await import('../src/world/overpassProvider.js');
-const { addHostBookmark, avatarCatalog, awardRunCredits, createDefaultDeckProfile, getBookmarkCapacity, getStorageCapacity, removeHostBookmark, updatePlayerProfile, upgradeDeckProfile } = await import('../src/world/deckStore.js');
+const { addHostBookmark, avatarCatalog, awardRunCredits, createDefaultDeckProfile, getBookmarkCapacity, getStorageCapacity, removeHostBookmark, setDeckProfileLevel, updatePlayerProfile, upgradeDeckProfile } = await import('../src/world/deckStore.js');
 
 const jackOutPlace = demoPlaces[0];
 const jackOutSeed = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
@@ -381,7 +395,7 @@ const jackOutRun = reduceRun(jackOutSystem, createInitialRunState(jackOutSystem)
 if (jackOutRun.status !== 'escaped') throw new Error('Jack-out from entry should escape instead of crashing');
 if (!Number.isFinite(scoreRun(jackOutSystem, jackOutRun))) throw new Error('Jack-out run score should be finite');
 const defaultDeck = createDefaultDeckProfile();
-if (defaultDeck.player.shadowName !== 'NEON GHOST' || defaultDeck.player.avatar !== 'runner01' || avatarCatalog.length !== 36 || !assetPaths.avatars.runner36 || assetPaths.avatars.ghost) throw new Error('Default deck should include only the runner PNG avatar presets');
+if (defaultDeck.player.shadowName !== 'NEON GHOST' || defaultDeck.player.avatar !== 'runner01' || defaultDeck.totalRunScore !== 0 || defaultDeck.lastRunScore !== 0 || avatarCatalog.length !== 36 || !assetPaths.avatars.runner36 || assetPaths.avatars.ghost) throw new Error('Default deck should include runner PNG avatars and empty internal career score stats');
 const legacyAvatarDeck = updatePlayerProfile(defaultDeck, { avatar: 'cipher' });
 if (legacyAvatarDeck.player.avatar !== 'runner01') throw new Error('Legacy imported avatars should migrate to a runner avatar');
 const identityDeck = updatePlayerProfile(defaultDeck, { shadowName: 'HEX MANTA', avatar: 'runner17' });
@@ -416,6 +430,29 @@ const upgradedDeckResult = upgradeDeckProfile(richDeck, 'program', 'scan');
 if (!upgradedDeckResult.changed || upgradedDeckResult.profile.programs.scan !== 2) throw new Error('Program upgrades should spend credits and increase rating');
 const upgradedStorageResult = upgradeDeckProfile(richDeck, 'hardware', 'storage');
 if (!upgradedStorageResult.changed || getStorageCapacity(upgradedStorageResult.profile) <= getStorageCapacity(defaultDeck)) throw new Error('Storage upgrades should increase loot capacity');
+const previousLocalStorage = globalThis.localStorage;
+const persistedProfiles = new Map();
+globalThis.localStorage = {
+  getItem(key) { return persistedProfiles.get(key) ?? null; },
+  setItem(key, value) { persistedProfiles.set(key, String(value)); },
+};
+const persistedProgramUpgrade = upgradeDeckProfile({ ...defaultDeck, credits: 1000 }, 'program', 'scan');
+let persistedDeckProfile = JSON.parse(persistedProfiles.get('shadowhack.deckProfile.v1') ?? '{}');
+if (persistedProgramUpgrade.profile.programs.scan !== 2 || persistedDeckProfile.programs?.scan !== 2) throw new Error('Program level changes should persist immediately to deck storage');
+const persistedStatUpgrade = upgradeDeckProfile({ ...persistedProgramUpgrade.profile, credits: 1000 }, 'stat', 'pulse');
+persistedDeckProfile = JSON.parse(persistedProfiles.get('shadowhack.deckProfile.v1') ?? '{}');
+if (persistedStatUpgrade.profile.deck.pulse !== 2 || persistedDeckProfile.deck?.pulse !== 2) throw new Error('Attribute level changes should persist immediately to deck storage');
+const persistedProgramDowngrade = setDeckProfileLevel(persistedStatUpgrade.profile, 'program', 'scan', 1);
+persistedDeckProfile = JSON.parse(persistedProfiles.get('shadowhack.deckProfile.v1') ?? '{}');
+if (!persistedProgramDowngrade.changed || persistedProgramDowngrade.profile.programs.scan !== 1 || persistedDeckProfile.programs?.scan !== 1) throw new Error('Direct program level decreases should persist immediately to deck storage');
+const persistedStatDirectLevel = setDeckProfileLevel(persistedProgramDowngrade.profile, 'stat', 'pulse', 3);
+persistedDeckProfile = JSON.parse(persistedProfiles.get('shadowhack.deckProfile.v1') ?? '{}');
+if (!persistedStatDirectLevel.changed || persistedStatDirectLevel.profile.deck.pulse !== 3 || persistedDeckProfile.deck?.pulse !== 3) throw new Error('Direct attribute level increases should persist immediately to deck storage');
+if (previousLocalStorage === undefined) {
+  delete globalThis.localStorage;
+} else {
+  globalThis.localStorage = previousLocalStorage;
+}
 if (getBookmarkCapacity(defaultDeck) !== 3) throw new Error('Initial bookmark capacity should be 3');
 const upgradedBookmarkResult = upgradeDeckProfile(richDeck, 'hardware', 'bookmarks');
 if (!upgradedBookmarkResult.changed || getBookmarkCapacity(upgradedBookmarkResult.profile) <= getBookmarkCapacity(defaultDeck)) throw new Error('Bookmark upgrades should increase saved host capacity');
@@ -425,10 +462,10 @@ if (bookmarkResult.bookmark.valueTier !== jackOutSystem.valuation.tier || bookma
 const removedBookmarkResult = removeHostBookmark(bookmarkResult.profile, jackOutSystem.seedId);
 if (!removedBookmarkResult.changed || removedBookmarkResult.profile.bookmarks.length !== 0) throw new Error('Scanner bookmarks should be destroyable');
 const rewardResult = awardRunCredits(defaultDeck, jackOutSystem, jackOutRun, scoreRun(jackOutSystem, jackOutRun));
-if (rewardResult.reward <= 0 || rewardResult.profile.credits <= 0) throw new Error('Completed runs should award deck upgrade credits');
+if (rewardResult.reward <= 0 || rewardResult.profile.credits <= 0 || rewardResult.profile.totalRunScore !== scoreRun(jackOutSystem, jackOutRun) || rewardResult.profile.lastRunScore !== scoreRun(jackOutSystem, jackOutRun)) throw new Error('Completed runs should award deck upgrade credits and accumulate internal run score');
 const dumpedRewardResult = awardRunCredits(defaultDeck, jackOutSystem, { ...jackOutRun, status: 'dumped', hasPayload: true, lootTokens: 3 }, 2000);
 const emptyDumpedRewardResult = awardRunCredits(defaultDeck, jackOutSystem, { ...jackOutRun, status: 'dumped', hasPayload: false, lootTokens: 0 }, 0);
-if (dumpedRewardResult.reward !== 0 || dumpedRewardResult.profile.credits !== 0 || emptyDumpedRewardResult.reward !== 0) throw new Error('Dumped runs should preserve score/log context but award zero credits');
+if (dumpedRewardResult.reward !== 0 || dumpedRewardResult.profile.credits !== 0 || dumpedRewardResult.profile.totalRunScore !== 2000 || dumpedRewardResult.profile.lastRunScore !== 2000 || emptyDumpedRewardResult.reward !== 0) throw new Error('Dumped runs should preserve and accumulate score/log context but award zero credits');
 const postRunResult = { status: 'escaped', hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3 };
 const postRunChoiceHtml = renderPostRunScannerPanel(postRunResult, { hostAlias: jackOutSystem.alias, reward: rewardResult.reward, score: 1234, lootTokens: 3, cpuConquered: true, bookmarkCapacity: 3, bookmarkCount: 1, bookmarkStatus: 'saved', bookmarkHostAlias: jackOutSystem.alias }, defaultDeck);
 if (!postRunChoiceHtml.includes('Ver log') || !postRunChoiceHtml.includes('Area 0') || !postRunChoiceHtml.includes('post-run-panel__area') || !postRunChoiceHtml.includes('data-action="toggleDeck"') || !postRunChoiceHtml.includes('1234 pts') || !postRunChoiceHtml.includes(`¤${rewardResult.reward}`) || !postRunChoiceHtml.includes('CPU conquistada') || !postRunChoiceHtml.includes('bookmark') || postRunChoiceHtml.includes('Guardar host') || postRunChoiceHtml.includes('Abrir scanner') || postRunChoiceHtml.includes('Objetivos / scanner') || postRunChoiceHtml.includes('Reboot deck') || postRunChoiceHtml.includes('No guardar') || postRunChoiceHtml.includes('skipBookmark') || postRunChoiceHtml.includes('saveBookmark')) {
@@ -691,10 +728,10 @@ if (firebaseFirestoreDatabaseId !== '(default)' || getFirebaseStatus().databaseI
 if (cloudPaths.deckProfile('u1').join('/') !== 'users/u1/deck/profile') throw new Error('Firebase deck profile path should stay stable');
 if (cloudPaths.hostProgress('u1', 'seed').join('/') !== 'users/u1/hostProgress/seed') throw new Error('Firebase host progress path should stay stable');
 const mergedCloudDeck = mergeDeckProfiles(
-  { ...defaultDeck, totalEarned: 20, credits: 20, bookmarks: [{ seedId: 'local', name: 'Local', hostAlias: 'LOCAL', category: 'shop', lat: 1, lon: 1, savedAt: '2026-01-02T00:00:00.000Z' }] },
-  { ...defaultDeck, totalEarned: 40, credits: 40, bookmarks: [{ seedId: 'remote', name: 'Remote', hostAlias: 'REMOTE', category: 'shop', lat: 2, lon: 2, savedAt: '2026-01-01T00:00:00.000Z' }] },
+  { ...defaultDeck, totalEarned: 20, totalRunScore: 900, credits: 20, bookmarks: [{ seedId: 'local', name: 'Local', hostAlias: 'LOCAL', category: 'shop', lat: 1, lon: 1, savedAt: '2026-01-02T00:00:00.000Z' }] },
+  { ...defaultDeck, totalEarned: 40, totalRunScore: 300, credits: 40, bookmarks: [{ seedId: 'remote', name: 'Remote', hostAlias: 'REMOTE', category: 'shop', lat: 2, lon: 2, savedAt: '2026-01-01T00:00:00.000Z' }] },
 );
-if (mergedCloudDeck.credits !== 40 || mergedCloudDeck.bookmarks.length !== 2) throw new Error('Cloud deck merge should keep richer deck and combine bookmarks');
+if (mergedCloudDeck.credits !== 40 || mergedCloudDeck.totalRunScore !== 900 || mergedCloudDeck.bookmarks.length !== 2) throw new Error('Cloud deck merge should keep richer deck, preserve career score, and combine bookmarks');
 const scannerHtml = renderScannerOverlay({
   isOpen: true,
   places: [

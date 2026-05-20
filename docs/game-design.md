@@ -100,7 +100,7 @@ El radio de scanner se calcula desde el deck y escala con **Lens**. El scanner l
 
 La música usa un motor WebAudio adaptativo: stems cortos de alta calidad se mezclan por capas con crossfades, filtros y stingers según alerta, traza, ICE y extracción. Los efectos siguen siendo WebAudio procedural para responder al instante.
 
-La progresión debe conservar una tensión clara: un deck mejor permite asumir hosts más valiosos, pero no elimina alerta, traza ni convergencia.
+La progresión debe conservar una tensión clara: un deck mejor permite asumir hosts más valiosos, pero no elimina alerta, traza ni convergencia. El perfil guarda además una puntuación total interna de runs (`totalRunScore`) y la última puntuación (`lastRunScore`) como base futura para fama, sin mostrarla todavía como economía visible.
 
 Balance de primera progresión:
 
