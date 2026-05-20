@@ -3,7 +3,7 @@ const OVERPASS_ENDPOINTS = [
   'https://z.overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
 ];
-const ALLOWED_RADIUS = [250, 3000];
+const ALLOWED_RADIUS = [250, 2000];
 const OVERPASS_REQUEST_TIMEOUT_MS = 8500;
 
 export function createOverpassProvider(options = {}) {
@@ -40,10 +40,10 @@ async function fetchOverpass(endpoint, query, timeoutMs) {
   const controller = new AbortController();
   const timeout = globalThis.setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-      body: new URLSearchParams({ data: query }),
+    const url = new URL(endpoint);
+    url.searchParams.set('data', query);
+    const response = await fetch(url, {
+      headers: { Accept: 'application/json' },
       signal: controller.signal,
     });
 
@@ -71,15 +71,9 @@ function shortEndpoint(endpoint) {
 function buildOverpassQuery(position, radius) {
   return `[out:json][timeout:12];
 (
-  nwr["name"]["amenity"](around:${radius},${position.lat},${position.lon});
-  nwr["name"]["shop"](around:${radius},${position.lat},${position.lon});
-  nwr["name"]["office"](around:${radius},${position.lat},${position.lon});
-  nwr["name"]["craft"](around:${radius},${position.lat},${position.lon});
-  nwr["name"]["tourism"](around:${radius},${position.lat},${position.lon});
-  nwr["name"]["leisure"](around:${radius},${position.lat},${position.lon});
-  nwr["name"]["healthcare"](around:${radius},${position.lat},${position.lon});
-  nwr["name"]["building"~"commercial|retail|industrial|office|hospital|school|university|hotel"](around:${radius},${position.lat},${position.lon});
-  nwr["name"]["landuse"~"commercial|retail|industrial"](around:${radius},${position.lat},${position.lon});
+  nwr["amenity"]["name"](around:${radius},${position.lat},${position.lon});
+  nwr["shop"]["name"](around:${radius},${position.lat},${position.lon});
+  nwr["leisure"]["name"](around:${radius},${position.lat},${position.lon});
 );
 out center tags 40;`;
 }

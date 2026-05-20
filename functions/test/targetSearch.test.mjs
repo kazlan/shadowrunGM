@@ -91,10 +91,10 @@ test('thin search expands radius before returning empty real targets', async () 
     input: { lat: 39.4699, lon: -0.3763, radius: 700, limit: 10, minTargets: 2 },
     fetchImpl: async (url, options = {}) => {
       assert.equal(String(url).includes('geoapify'), false);
-      const query = options.body?.get?.('data') ?? String(options.body ?? '');
+      const query = new URL(String(url)).searchParams.get('data') ?? options.body?.get?.('data') ?? String(options.body ?? '');
       const radius = Number(query.match(/around:(\d+)/)?.[1] ?? 0);
       radii.push(radius);
-      if (radius >= 3000) {
+      if (radius >= 2000) {
         return okJson({ elements: [
           overpassElement(10, 'Wide Alpha'),
           overpassElement(11, 'Wide Beta'),
@@ -103,8 +103,8 @@ test('thin search expands radius before returning empty real targets', async () 
       return okJson({ elements: [] });
     },
   });
-  assert.deepEqual(radii, [700, 3000]);
-  assert.equal(result.radius, 3000);
+  assert.deepEqual(radii, [700, 2000]);
+  assert.equal(result.radius, 2000);
   assert.equal(result.source, 'overpass');
   assert.equal(result.places.length, 2);
 });
@@ -130,13 +130,13 @@ test('geoapify uses wider rings when nearby search is too thin', async () => {
         }
         return okJson({ features: [] });
       }
-      const query = options.body?.get?.('data') ?? String(options.body ?? '');
+      const query = new URL(textUrl).searchParams.get('data') ?? options.body?.get?.('data') ?? String(options.body ?? '');
       overpassRadii.push(Number(query.match(/around:(\d+)/)?.[1] ?? 0));
       return okJson({ elements: [] });
     },
   });
-  assert.deepEqual(overpassRadii, [700, 3000]);
-  assert.deepEqual(geoapifyRadii, [700, 3000, 8000]);
+  assert.deepEqual(overpassRadii, [700, 2000]);
+  assert.deepEqual(geoapifyRadii, [700, 2000, 3000, 8000]);
   assert.equal(result.radius, 8000);
   assert.equal(result.source, 'geoapify');
   assert.equal(result.places.length, 3);

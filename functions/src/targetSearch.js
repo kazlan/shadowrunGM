@@ -5,12 +5,12 @@ const OVERPASS_ENDPOINTS = [
 ];
 const OVERPASS_TIMEOUT_MS = 8500;
 const CACHE_COLLECTION = 'placesCache';
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 const CACHE_GRID_METERS = 500;
 const MIN_TARGET_RADIUS = 250;
 const MAX_TARGET_RADIUS = 15000;
-const OVERPASS_MAX_RADIUS = 3000;
-const EXPANDED_TARGET_RADII = [3000, 8000, 15000];
+const OVERPASS_MAX_RADIUS = 2000;
+const EXPANDED_TARGET_RADII = [2000, 3000, 8000, 15000];
 const FRESH_TTL_MS = 24 * 60 * 60 * 1000;
 const STALE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const GEOAPIFY_CATEGORIES = [
@@ -206,10 +206,13 @@ async function fetchOverpassPlaces(fetchImpl, position, radius) {
   const query = buildOverpassQuery(position, radius);
   for (const endpoint of OVERPASS_ENDPOINTS) {
     try {
-      const response = await fetchWithTimeout(fetchImpl, endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-        body: new URLSearchParams({ data: query }),
+      const url = new URL(endpoint);
+      url.searchParams.set('data', query);
+      const response = await fetchWithTimeout(fetchImpl, url, {
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'shadowHack-targets/1.0',
+        },
       }, OVERPASS_TIMEOUT_MS);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const payload = await response.json();
@@ -248,15 +251,9 @@ async function fetchWithTimeout(fetchImpl, url, options, timeoutMs) {
 function buildOverpassQuery(position, radius) {
   return `[out:json][timeout:12];
 (
-  nwr["name"]["amenity"](around:${radius},${position.lat},${position.lon});
-  nwr["name"]["shop"](around:${radius},${position.lat},${position.lon});
-  nwr["name"]["office"](around:${radius},${position.lat},${position.lon});
-  nwr["name"]["craft"](around:${radius},${position.lat},${position.lon});
-  nwr["name"]["tourism"](around:${radius},${position.lat},${position.lon});
-  nwr["name"]["leisure"](around:${radius},${position.lat},${position.lon});
-  nwr["name"]["healthcare"](around:${radius},${position.lat},${position.lon});
-  nwr["name"]["building"~"commercial|retail|industrial|office|hospital|school|university|hotel"](around:${radius},${position.lat},${position.lon});
-  nwr["name"]["landuse"~"commercial|retail|industrial"](around:${radius},${position.lat},${position.lon});
+  nwr["amenity"]["name"](around:${radius},${position.lat},${position.lon});
+  nwr["shop"]["name"](around:${radius},${position.lat},${position.lon});
+  nwr["leisure"]["name"](around:${radius},${position.lat},${position.lon});
 );
 out center tags 40;`;
 }
