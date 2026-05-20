@@ -148,7 +148,7 @@ function renderRoute(edge, nodeLookup, run, recentNodeIds, recentEdgeKeys, focus
     focusPhase,
   ].filter(Boolean).join(' ');
 
-  return `<g class="${classes}">
+  return `<g class="${classes}" data-edge-from="${escapeHtml(from.id)}" data-edge-to="${escapeHtml(to.id)}" data-edge-key="${escapeHtml(key)}">
     <path class="route__glow" d="${path.d}" />
     <path class="route__rail" d="${path.d}" />
     <path class="route__core" d="${path.d}" />
@@ -208,7 +208,7 @@ function renderCyberNode(node, system, run, recentNodeIds, nodeVisit) {
     ? `<circle class="node__core-ring node__core-ring--outer" r="12.1" />`
     : '';
 
-  return `<g data-node-id="${escapeHtml(node.id)}" class="${classes}" transform="translate(${formatNumber(node.x)} ${formatNumber(node.y)})">
+  return `<g data-node-id="${escapeHtml(node.id)}" data-base-x="${formatNumber(node.x)}" data-base-y="${formatNumber(node.y)}" data-motion-seed="${formatNumber(motionSeed(node.id))}" class="${classes}" transform="translate(${formatNumber(node.x)} ${formatNumber(node.y)})">
     <title>${escapeHtml(title)}</title>
     <circle class="node__hit" r="${isCore ? 13.2 : 10.4}" />
     ${coreRings}
@@ -237,18 +237,57 @@ function renderMapBackplane() {
   </g>`;
 }
 
-function getConnectionPath(from, to) {
+export function getConnectionPath(from, to, key = '') {
   const mid = {
     x: (from.x + to.x) / 2,
     y: (from.y + to.y) / 2,
   };
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const distance = Math.hypot(dx, dy) || 1;
+  const normal = {
+    x: -dy / distance,
+    y: dx / distance,
+  };
+  const centerVector = {
+    x: mid.x - 50,
+    y: mid.y - 50,
+  };
+  const hash = stableHash(key || `${from.id ?? from.x}:${to.id ?? to.x}`);
+  const side = Math.abs(centerVector.x) + Math.abs(centerVector.y) > 0.01
+    ? (centerVector.x * normal.x + centerVector.y * normal.y >= 0 ? 1 : -1)
+    : (hash % 2 === 0 ? 1 : -1);
+  const bend = Math.min(7.2, Math.max(2.2, distance * (0.075 + (hash % 7) * 0.006)));
+  const control = {
+    x: mid.x + normal.x * side * bend,
+    y: mid.y + normal.y * side * bend,
+  };
+  const curveMid = {
+    x: (from.x + 2 * control.x + to.x) / 4,
+    y: (from.y + 2 * control.y + to.y) / 4,
+  };
 
   return {
     start: { x: from.x, y: from.y },
-    mid,
+    mid: curveMid,
     end: { x: to.x, y: to.y },
-    d: `M ${formatNumber(from.x)} ${formatNumber(from.y)} L ${formatNumber(to.x)} ${formatNumber(to.y)}`,
+    control,
+    d: `M ${formatNumber(from.x)} ${formatNumber(from.y)} Q ${formatNumber(control.x)} ${formatNumber(control.y)} ${formatNumber(to.x)} ${formatNumber(to.y)}`,
   };
+}
+
+function motionSeed(value) {
+  return (stableHash(value) % 1000) / 1000;
+}
+
+function stableHash(value) {
+  const text = String(value ?? '');
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return Math.abs(hash >>> 0);
 }
 
 function hexPoints(radius) {

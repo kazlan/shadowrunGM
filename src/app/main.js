@@ -15,7 +15,7 @@ import { renderDeckOverlay } from '../ui/renderDeckPanel.js';
 import { renderHelpOverlay, renderSettingsOverlay } from '../ui/renderHelpOverlay.js';
 import { renderHud, renderProgramDock } from '../ui/renderHud.js';
 import { renderLandingPage } from '../ui/renderLandingPage.js';
-import { renderNodeMap } from '../ui/renderNodeMap.js';
+import { getConnectionPath, renderNodeMap } from '../ui/renderNodeMap.js';
 import { renderPostRunScannerPanel } from '../ui/renderRunLog.js';
 import { renderScannerOverlay } from '../ui/renderScannerOverlay.js';
 import { applyTheme, loadThemePreference, saveThemePreference } from '../ui/themeStore.js';
@@ -50,6 +50,9 @@ const DISCONNECT_GLITCH_MS = 2000;
 const DECK_COUNTER_ANIMATION_MS = 1000;
 const MAP_FOCUS_ANIMATION_MS = 680;
 const MAP_OPEN_ANIMATION_MS = 1080;
+const MAP_ELASTIC_MOTION_MS = 720;
+const MAP_BIG_BANG_MOTION_MS = 920;
+const MAP_ELASTIC_THROTTLE_MS = 220;
 const NODE_VISIT_EMPTY_MS = 460;
 const NODE_VISIT_RESOLVE_MS = 1800;
 const DEBUG_LOG_LIMIT = 90;
@@ -104,6 +107,8 @@ const appState = {
   deckAnimation: null,
   deckAnimationFrame: null,
   mapViewAnimationFrame: null,
+  mapElasticFrame: null,
+  mapElasticMotion: null,
   targetPrefetchKeys: new Set(),
   targetPrefetchQueue: [],
   targetPrefetchRunning: false,
@@ -159,6 +164,7 @@ async function startRun(place) {
   appState.mapGestureMoved = false;
   appState.ignoreNextNodeClick = false;
   stopMapViewAnimation();
+  stopMapElasticMotion();
   clearNodeVisit();
   stopDisconnectGlitch();
   syncAudioState();
@@ -1076,7 +1082,9 @@ function bindNodeMapEvents() {
 
   surface.addEventListener('wheel', (event) => {
     event.preventDefault();
-    zoomMapAtPoint(event.deltaY > 0 ? 1.16 : 0.86, event.clientX, event.clientY);
+    const factor = event.deltaY > 0 ? 1.16 : 0.86;
+    zoomMapAtPoint(factor, event.clientX, event.clientY);
+    if (factor > 1) triggerMapElasticMotion('zoom-out', 1.28);
   }, { passive: false });
 
   surface.addEventListener('pointerdown', (event) => {
@@ -1111,6 +1119,12 @@ function finishMapPointer(event) {
   const wasTrackingPointer = appState.mapPointers.has(event.pointerId);
   const finishedPan = appState.mapPointer?.id === event.pointerId;
   if (!wasTrackingPointer && !finishedPan && !appState.mapPinch) return;
+  if (finishedPan && appState.mapPointer?.hasMoved) {
+    triggerMapElasticMotion('pan', 0.62, {
+      x: event.clientX - appState.mapPointer.startX,
+      y: event.clientY - appState.mapPointer.startY,
+    });
+  }
 
   appState.mapPointers.delete(event.pointerId);
   if (finishedPan) appState.mapPointer = null;
@@ -1143,10 +1157,12 @@ function updateMapPan(event, surface) {
   const rect = surface.getBoundingClientRect();
   const deltaX = event.clientX - pointer.startX;
   const deltaY = event.clientY - pointer.startY;
-  if (Math.abs(deltaX) + Math.abs(deltaY) > MAP_DRAG_THRESHOLD_PX) {
+  const justStartedMoving = !pointer.hasMoved && Math.abs(deltaX) + Math.abs(deltaY) > MAP_DRAG_THRESHOLD_PX;
+  if (justStartedMoving || pointer.hasMoved) {
     pointer.hasMoved = true;
     appState.mapGestureMoved = true;
   }
+  if (justStartedMoving) triggerMapElasticMotion('pan', 0.52, { x: deltaX, y: deltaY });
 
   const nextView = {
     ...pointer.startView,
@@ -1176,7 +1192,9 @@ function updateMapPinch() {
   const distance = getPointerDistance(first, second);
   if (distance < 4 || pinch.startDistance < 4) return;
   const center = getPointerCenter(first, second);
-  zoomMapAtPoint(pinch.startDistance / distance, center.x, center.y, pinch.startView);
+  const factor = pinch.startDistance / distance;
+  zoomMapAtPoint(factor, center.x, center.y, pinch.startView);
+  if (factor > 1) triggerMapElasticMotion('zoom-out', 1.04);
 }
 
 function getFirstTwoMapPointers() {
@@ -1443,7 +1461,7 @@ function animateMapViewTo(view, duration = MAP_FOCUS_ANIMATION_MS) {
 
   const tick = (now) => {
     const progress = clamp((now - startedAt) / duration, 0, 1);
-    const eased = easeInOutCubic(progress);
+    const eased = smoothstep(progress);
     applyMapView({
       x: lerp(from.x, to.x, eased),
       y: lerp(from.y, to.y, eased),
@@ -1468,6 +1486,7 @@ function scheduleOpeningMapFit(runSessionId) {
     if (!targetView) return;
     appState.mapBounds = expandBoundsToContainView(appState.mapBounds, targetView);
     animateMapViewTo(targetView, MAP_OPEN_ANIMATION_MS);
+    triggerMapElasticMotion('open-fit', 1.08);
   });
 }
 
@@ -1547,8 +1566,199 @@ function stopMapViewAnimation() {
   appState.mapViewAnimationFrame = null;
 }
 
-function easeInOutCubic(value) {
-  return value < 0.5 ? 4 * value ** 3 : 1 - ((-2 * value + 2) ** 3) / 2;
+function triggerMapElasticMotion(reason, strength = 1, vector = { x: 0, y: 0 }) {
+  if (prefersReducedMotion() || !root?.querySelector('.node-map__graph')) return;
+  const now = performance.now();
+  const direction = normalizeVector(vector);
+  if (appState.mapElasticMotion && appState.mapElasticMotion.reason === reason && now - appState.mapElasticMotion.startedAt < MAP_ELASTIC_THROTTLE_MS) {
+    appState.mapElasticMotion.strength = Math.max(appState.mapElasticMotion.strength, strength);
+    appState.mapElasticMotion.vector = direction;
+    return;
+  }
+
+  stopMapElasticMotion();
+  appState.mapElasticMotion = {
+    reason,
+    strength,
+    vector: direction,
+    startedAt: now,
+    duration: reason === 'open-fit' ? MAP_BIG_BANG_MOTION_MS : MAP_ELASTIC_MOTION_MS,
+    runSessionId: appState.runSessionId,
+  };
+
+  const tick = (timestamp) => {
+    if (!appState.mapElasticMotion) return;
+    applyMapElasticMotion(timestamp);
+    if (appState.mapElasticMotion) appState.mapElasticFrame = requestAnimationFrame(tick);
+  };
+  appState.mapElasticFrame = requestAnimationFrame(tick);
+}
+
+function applyMapElasticMotion(timestamp) {
+  const motion = appState.mapElasticMotion;
+  if (!motion || motion.runSessionId !== appState.runSessionId) {
+    stopMapElasticMotion();
+    return;
+  }
+
+  const nodes = getElasticMapNodes();
+  if (nodes.length === 0) {
+    stopMapElasticMotion();
+    return;
+  }
+
+  const progress = clamp((timestamp - motion.startedAt) / motion.duration, 0, 1);
+  if (motion.reason === 'open-fit') {
+    applyMapExpansionMotion(nodes, motion, progress);
+    if (progress >= 1) stopMapElasticMotion();
+    return;
+  }
+
+  const ramp = Math.min(1, progress / 0.16);
+  const decay = (1 - progress) ** 2;
+  const envelope = ramp * decay;
+  const center = getNodeCenter(nodes);
+  const positions = new Map();
+  const amplitude = motion.strength * (motion.reason === 'open-fit' ? 1.45 : motion.reason === 'zoom-out' ? 1.7 : 1.15);
+
+  for (const node of nodes) {
+    const radial = normalizeVector({ x: node.baseX - center.x, y: node.baseY - center.y });
+    const tangent = { x: -radial.y, y: radial.x };
+    const phase = node.seed * Math.PI * 2;
+    const primaryWave = Math.sin(progress * Math.PI * 4.5 + phase);
+    const secondaryWave = Math.sin(progress * Math.PI * 7 + phase * 0.7);
+    const releaseWave = Math.sin(progress * Math.PI);
+    const offsetX = (
+      radial.x * primaryWave
+      + tangent.x * secondaryWave * 0.52
+      + motion.vector.x * releaseWave * 0.42
+    ) * amplitude * envelope;
+    const offsetY = (
+      radial.y * primaryWave
+      + tangent.y * secondaryWave * 0.52
+      + motion.vector.y * releaseWave * 0.42
+    ) * amplitude * envelope;
+    const x = node.baseX + offsetX;
+    const y = node.baseY + offsetY;
+    node.element.setAttribute('transform', `translate(${formatSvgNumber(x)} ${formatSvgNumber(y)})`);
+    positions.set(node.id, { id: node.id, x, y });
+  }
+
+  updateElasticRoutes(positions);
+  if (progress >= 1) stopMapElasticMotion();
+}
+
+function applyMapExpansionMotion(nodes, motion, progress) {
+  const origin = getMapExpansionOrigin(nodes);
+  const positions = new Map();
+  const routeOpacity = smoothstep(clamp(progress / 0.68, 0, 1));
+
+  for (const node of nodes) {
+    const delay = node.seed * 0.07;
+    const localProgress = clamp((progress - delay) / (1 - delay), 0, 1);
+    const expansion = smoothstep(localProgress);
+    const arrival = clamp((localProgress - 0.68) / 0.32, 0, 1);
+    const bounce = Math.sin(arrival * Math.PI) * (1 - arrival) * 0.055 * motion.strength;
+    const travel = 0.12 + 0.88 * expansion + bounce;
+    const x = origin.x + (node.baseX - origin.x) * travel;
+    const y = origin.y + (node.baseY - origin.y) * travel;
+    const scale = 0.76 + 0.24 * expansion + bounce * 0.45;
+    const opacity = smoothstep(clamp(localProgress * 1.25, 0, 1));
+    node.element.setAttribute('transform', `translate(${formatSvgNumber(x)} ${formatSvgNumber(y)}) scale(${formatSvgNumber(scale)})`);
+    node.element.style.opacity = formatSvgNumber(opacity);
+    positions.set(node.id, { id: node.id, x, y });
+  }
+
+  updateElasticRoutes(positions, routeOpacity);
+}
+
+function stopMapElasticMotion() {
+  if (appState.mapElasticFrame) cancelAnimationFrame(appState.mapElasticFrame);
+  appState.mapElasticFrame = null;
+  appState.mapElasticMotion = null;
+  resetElasticMapGraph();
+}
+
+function resetElasticMapGraph() {
+  const nodes = getElasticMapNodes();
+  if (nodes.length === 0) return;
+  const positions = new Map();
+  for (const node of nodes) {
+    node.element.setAttribute('transform', `translate(${formatSvgNumber(node.baseX)} ${formatSvgNumber(node.baseY)})`);
+    node.element.style.opacity = '';
+    positions.set(node.id, { id: node.id, x: node.baseX, y: node.baseY });
+  }
+  updateElasticRoutes(positions, 1);
+}
+
+function getElasticMapNodes() {
+  return [...(root?.querySelectorAll('.node-map__nodes [data-node-id][data-base-x][data-base-y]') ?? [])]
+    .map((element) => ({
+      element,
+      id: element.dataset.nodeId,
+      baseX: Number(element.dataset.baseX),
+      baseY: Number(element.dataset.baseY),
+      seed: Number(element.dataset.motionSeed) || 0,
+    }))
+    .filter((node) => node.id && Number.isFinite(node.baseX) && Number.isFinite(node.baseY));
+}
+
+function getNodeCenter(nodes) {
+  const total = nodes.reduce((sum, node) => ({ x: sum.x + node.baseX, y: sum.y + node.baseY }), { x: 0, y: 0 });
+  return {
+    x: total.x / nodes.length,
+    y: total.y / nodes.length,
+  };
+}
+
+function getMapExpansionOrigin(nodes) {
+  const currentId = appState.run?.currentNodeId ?? appState.system?.entryNodeId;
+  const current = nodes.find((node) => node.id === currentId);
+  return current ? { x: current.baseX, y: current.baseY } : getNodeCenter(nodes);
+}
+
+function updateElasticRoutes(positions, opacity = 1) {
+  root?.querySelectorAll('.map-route[data-edge-from][data-edge-to]').forEach((route) => {
+    const from = positions.get(route.dataset.edgeFrom);
+    const to = positions.get(route.dataset.edgeTo);
+    if (!from || !to) return;
+    const path = getConnectionPath(from, to, route.dataset.edgeKey ?? '');
+    setRouteGeometry(route, path);
+    route.style.opacity = opacity >= 0.999 ? '' : formatSvgNumber(opacity);
+  });
+}
+
+function setRouteGeometry(route, path) {
+  route.querySelectorAll('.route__glow, .route__rail, .route__core, .route__scan').forEach((element) => {
+    element.setAttribute('d', path.d);
+  });
+  route.querySelector('.route__bead--from')?.setAttribute('cx', formatSvgNumber(path.start.x));
+  route.querySelector('.route__bead--from')?.setAttribute('cy', formatSvgNumber(path.start.y));
+  route.querySelector('.route__bead--mid')?.setAttribute('cx', formatSvgNumber(path.mid.x));
+  route.querySelector('.route__bead--mid')?.setAttribute('cy', formatSvgNumber(path.mid.y));
+  route.querySelector('.route__bead--to')?.setAttribute('cx', formatSvgNumber(path.end.x));
+  route.querySelector('.route__bead--to')?.setAttribute('cy', formatSvgNumber(path.end.y));
+}
+
+function normalizeVector(vector) {
+  const x = Number(vector?.x ?? 0);
+  const y = Number(vector?.y ?? 0);
+  const length = Math.hypot(x, y);
+  if (!Number.isFinite(length) || length < 0.001) return { x: 0, y: 0 };
+  return { x: x / length, y: y / length };
+}
+
+function prefersReducedMotion() {
+  return globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
+}
+
+function formatSvgNumber(value) {
+  return Number(value).toFixed(3).replace(/\.?0+$/, '');
+}
+
+function smoothstep(value) {
+  const t = clamp(value, 0, 1);
+  return t * t * (3 - 2 * t);
 }
 
 function lerp(from, to, progress) {
